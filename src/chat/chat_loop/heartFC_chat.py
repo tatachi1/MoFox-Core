@@ -302,10 +302,10 @@ class HeartFChatting:
                 )
                 return True, total_interest / new_message_count if new_message_count > 0 else 0.0
 
-        # 每10秒输出一次等待状态
-        if int(time.time() - self.last_read_time) > 0 and int(time.time() - self.last_read_time) % 15 == 0:
+        # 每10秒输出一次等待状态，仅在debug模式下启用
+        if int(time.time() - self.last_read_time) > 0 and int(time.time() - self.last_read_time) % 10 == 0:
             logger.debug(
-                f"{self.log_prefix} 已等待{time.time() - self.last_read_time:.0f}秒，累计{new_message_count}条消息，累计兴趣{total_interest:.1f}，继续等待..."
+                f"{self.log_prefix} 已等待{time.time() - self.last_read_time:.0f}秒，累计{new_message_count}条消息，继续等待..."
             )
             await asyncio.sleep(0.5)
         
