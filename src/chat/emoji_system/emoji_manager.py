@@ -655,7 +655,7 @@ class EmojiManager:
             self._ensure_db()
             logger.debug("[数据库] 开始加载所有表情包记录 ...")
 
-            emoji_instances = session.execute(stmt = select(Emoji)).scalars().all()
+            emoji_instances = session.execute(select(Emoji)).scalars().all()
             emoji_objects, load_errors = _to_emoji_objects(emoji_instances)
 
             # 更新内存中的列表和数量
@@ -684,12 +684,12 @@ class EmojiManager:
             self._ensure_db()
 
             if emoji_hash:
-                session.execute(select(Emoji).where(Emoji.emoji_hash == emoji_hash)).scalars().all()
+                query = session.execute(select(Emoji).where(Emoji.emoji_hash == emoji_hash)).scalars().all()
             else:
                 logger.warning(
                     "[查询] 未提供 hash，将尝试加载所有表情包，建议使用 get_all_emoji_from_db 更新管理器状态。"
                 )
-                query =  session.execute(select(Emoji)).scalars().all()
+                query = session.execute(select(Emoji)).scalars().all()
 
             emoji_instances = query
             emoji_objects, load_errors = _to_emoji_objects(emoji_instances)
