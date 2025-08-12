@@ -65,16 +65,32 @@ class CookieManager:
     async def fetch_cookies(domain: str, port: str, host: str) -> Dict[str, Any]:
         """从NapCat获取Cookie"""
         url = f"http://{host}:{port}/get_cookies?domain={domain}"
+        logger.info(f"正在从NapCat获取Cookie，URL: {url}")
+        
         try:
-            async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
+            async with httpx.AsyncClient(timeout=20.0, trust_env=False) as client:
+                logger.debug(f"发送GET请求到: {url}")
                 resp = await client.get(url)
+                logger.debug(f"响应状态码: {resp.status_code}")
+                
                 resp.raise_for_status()
                 data = resp.json()
+                logger.info(f"响应数据: {data}")
                 
                 if data.get("status") != "ok" or "cookies" not in data.get("data", {}):
                     raise RuntimeError(f"获取Cookie失败: {data}")
                     
+                logger.info("成功从NapCat获取Cookie")
                 return data["data"]
+        except httpx.ConnectError as e:
+            logger.error(f"无法连接到NapCat服务器 {host}:{port} - 请检查NapCat是否运行: {str(e)}")
+            raise
+        except httpx.TimeoutException as e:
+            logger.error(f"连接NapCat超时: {str(e)}")
+            raise
+        except httpx.HTTPStatusError as e:
+            logger.error(f"NapCat返回错误状态码 {e.response.status_code}: {e.response.text}")
+            raise
         except Exception as e:
             logger.error(f"从NapCat获取Cookie失败: {str(e)}")
             raise
