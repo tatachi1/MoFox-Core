@@ -364,6 +364,7 @@ async def custom_to_stream(
 async def adapter_command_to_stream(
     action: str,
     params: dict,
+    platform: str,
     stream_id: Optional[str] = None,
     timeout: float = 30.0,
     storage_message: bool = False
@@ -405,12 +406,12 @@ async def adapter_command_to_stream(
                 temp_user_info = UserInfo(
                     user_id="system",
                     user_nickname="System",
-                    platform="adapter_command"
+                    platform=platform
                 )
                 
                 temp_chat_stream = ChatStream(
                     stream_id=stream_id,
-                    platform="adapter_command",
+                    platform=platform,
                     user_info=temp_user_info,
                     group_info=None
                 )

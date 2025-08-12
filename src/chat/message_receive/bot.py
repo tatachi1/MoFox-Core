@@ -158,6 +158,10 @@ class ChatBot:
             if message.message_segment.type == "adapter_response":
                 await self.handle_adapter_response(message)
                 return True
+            elif message.message_segment.type == "adapter_command":
+                # 适配器命令消息不需要进一步处理
+                logger.debug("收到适配器命令消息，跳过后续处理")
+                return True
         
         return False
 

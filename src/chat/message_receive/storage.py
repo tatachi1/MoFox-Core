@@ -144,6 +144,8 @@ class MessageStorage:
         """更新消息ID"""
         try:
             mmc_message_id = message.message_info.message_id  # 修复：正确访问message_id
+            qq_message_id = None  # 初始化变量
+            
             if message.message_segment.type == "notify":
                 qq_message_id = message.message_segment.data.get("id")
             elif message.message_segment.type == "text":
@@ -153,9 +155,14 @@ class MessageStorage:
                 logger.info(f"更新消息ID完成,消息ID为{qq_message_id}")
             elif message.message_segment.type == "adapter_response":
                 logger.debug("适配器响应消息，不需要更新ID")
+                return
+            elif message.message_segment.type == "adapter_command":
+                logger.debug("适配器命令消息，不需要更新ID")
+                return
             else:
                 logger.info(f"更新消息ID错误，seg类型为{message.message_segment.type}")
                 return
+                
             if not qq_message_id:
                 logger.info("消息不存在message_id，无法更新")
                 return

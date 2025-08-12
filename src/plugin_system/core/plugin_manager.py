@@ -1,3 +1,4 @@
+import asyncio
 import os
 import traceback
 import sys
@@ -513,7 +514,7 @@ class PluginManager:
                 plugin_instance.on_unload()
 
             # 从组件注册表中移除插件的所有组件
-            component_registry.unregister_plugin(plugin_name)
+            asyncio.run(component_registry.unregister_plugin(plugin_name))
 
             # 从已加载插件中移除
             del self.loaded_plugins[plugin_name]
