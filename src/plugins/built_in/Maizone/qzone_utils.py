@@ -28,9 +28,15 @@ class CookieManager:
     @staticmethod
     def get_cookie_file_path(uin: str) -> str:
         """获取Cookie文件路径"""
-        # .parents 向上追溯四级目录，到达 mmc 根目录
-        base_path = Path(__file__).resolve().parents[5]
-        return str(base_path / 'src' / 'plugins'/ 'built_in' / 'Maizone' / f"cookies-{uin}.json")
+        # 使用当前文件所在目录作为基础路径，更稳定可靠
+        current_dir = Path(__file__).resolve().parent
+        
+        # 尝试多种可能的根目录查找方式
+        # 方法1：直接在当前插件目录下存储（最稳定）
+        cookie_dir = current_dir / "cookies"
+        cookie_dir.mkdir(exist_ok=True)  # 确保目录存在
+        
+        return str(cookie_dir / f"cookies-{uin}.json")
 
     @staticmethod
     def parse_cookie_string(cookie_str: str) -> Dict[str, str]:
