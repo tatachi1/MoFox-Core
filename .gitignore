@@ -15,6 +15,7 @@ llm_tool_benchmark_results.json
 MaiBot-Napcat-Adapter-main
 MaiBot-Napcat-Adapter
 /test
+uv.lock
 /log_debug
 /src/test
 nonebot-maibot-adapter/
