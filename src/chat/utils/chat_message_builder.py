@@ -14,7 +14,7 @@ from src.common.database.sqlalchemy_database_api import get_session
 from sqlalchemy import select, and_
 
 install(extra_lines=3)
-session = get_session()
+
 
 def replace_user_references_sync(
     content: str,
@@ -255,90 +255,76 @@ def get_actions_by_timestamp_with_chat(
     limit_mode: str = "latest",
 ) -> List[Dict[str, Any]]:
     """获取在特定聊天从指定时间戳到指定时间戳的动作记录，按时间升序排序，返回动作记录列表"""
-    query = session.execute(select(ActionRecords).where(
-        and_(
-            ActionRecords.chat_id == chat_id,
-            ActionRecords.time > timestamp_start,
-            ActionRecords.time < timestamp_end
-        )
-    ))
-
-    if limit > 0:
-        if limit_mode == "latest":
+    from src.common.database.sqlalchemy_database_api import get_db_session
+    with get_db_session() as session:
+        if limit > 0:
+            if limit_mode == "latest":
+                query = session.execute(select(ActionRecords).where(
+                    and_(
+                        ActionRecords.chat_id == chat_id,
+                        ActionRecords.time > timestamp_start,
+                        ActionRecords.time < timestamp_end
+                    )
+                ).order_by(ActionRecords.time.desc()).limit(limit))
+                actions = list(query.scalars())
+                return [action.__dict__ for action in reversed(actions)]
+            else:  # earliest
+                query = session.execute(select(ActionRecords).where(
+                    and_(
+                        ActionRecords.chat_id == chat_id,
+                        ActionRecords.time > timestamp_start,
+                        ActionRecords.time < timestamp_end
+                    )
+                ).order_by(ActionRecords.time.asc()).limit(limit))
+        else:
             query = session.execute(select(ActionRecords).where(
                 and_(
                     ActionRecords.chat_id == chat_id,
                     ActionRecords.time > timestamp_start,
                     ActionRecords.time < timestamp_end
                 )
-            ).order_by(ActionRecords.time.desc()).limit(limit))
-            # 获取后需要反转列表，以保持最终输出为时间升序
-            actions = list(query.scalars())
-            return [action.__dict__ for action in reversed(actions)]
-        else:  # earliest
-            query = session.execute(select(ActionRecords).where(
-                and_(
-                    ActionRecords.chat_id == chat_id,
-                    ActionRecords.time > timestamp_start,
-                    ActionRecords.time < timestamp_end
-                )
-            ).order_by(ActionRecords.time.asc()).limit(limit))
-    else:
-        query = session.execute(select(ActionRecords).where(
-            and_(
-                ActionRecords.chat_id == chat_id,
-                ActionRecords.time > timestamp_start,
-                ActionRecords.time < timestamp_end
-            )
-        ).order_by(ActionRecords.time.asc()))
+            ).order_by(ActionRecords.time.asc()))
 
-    actions = list(query.scalars())
-    return [action.__dict__ for action in actions]
+        actions = list(query.scalars())
+        return [action.__dict__ for action in actions]
 
 
 def get_actions_by_timestamp_with_chat_inclusive(
     chat_id: str, timestamp_start: float, timestamp_end: float, limit: int = 0, limit_mode: str = "latest"
 ) -> List[Dict[str, Any]]:
     """获取在特定聊天从指定时间戳到指定时间戳的动作记录（包含边界），按时间升序排序，返回动作记录列表"""
-    query = session.execute(select(ActionRecords).where(
-        and_(
-            ActionRecords.chat_id == chat_id,
-            ActionRecords.time >= timestamp_start,
-            ActionRecords.time <= timestamp_end
-        )
-    ))
-
-    if limit > 0:
-        if limit_mode == "latest":
+    from src.common.database.sqlalchemy_database_api import get_db_session
+    with get_db_session() as session:
+        if limit > 0:
+            if limit_mode == "latest":
+                query = session.execute(select(ActionRecords).where(
+                    and_(
+                        ActionRecords.chat_id == chat_id,
+                        ActionRecords.time >= timestamp_start,
+                        ActionRecords.time <= timestamp_end
+                    )
+                ).order_by(ActionRecords.time.desc()).limit(limit))
+                actions = list(query.scalars())
+                return [action.__dict__ for action in reversed(actions)]
+            else:  # earliest
+                query = session.execute(select(ActionRecords).where(
+                    and_(
+                        ActionRecords.chat_id == chat_id,
+                        ActionRecords.time >= timestamp_start,
+                        ActionRecords.time <= timestamp_end
+                    )
+                ).order_by(ActionRecords.time.asc()).limit(limit))
+        else:
             query = session.execute(select(ActionRecords).where(
                 and_(
                     ActionRecords.chat_id == chat_id,
                     ActionRecords.time >= timestamp_start,
                     ActionRecords.time <= timestamp_end
                 )
-            ).order_by(ActionRecords.time.desc()).limit(limit))
-            # 获取后需要反转列表，以保持最终输出为时间升序
-            actions = list(query.scalars())
-            return [action.__dict__ for action in reversed(actions)]
-        else:  # earliest
-            query = session.execute(select(ActionRecords).where(
-                and_(
-                    ActionRecords.chat_id == chat_id,
-                    ActionRecords.time >= timestamp_start,
-                    ActionRecords.time <= timestamp_end
-                )
-            ).order_by(ActionRecords.time.asc()).limit(limit))
-    else:
-        query = session.execute(select(ActionRecords).where(
-            and_(
-                ActionRecords.chat_id == chat_id,
-                ActionRecords.time >= timestamp_start,
-                ActionRecords.time <= timestamp_end
-            )
-        ).order_by(ActionRecords.time.asc()))
+            ).order_by(ActionRecords.time.asc()))
 
-    actions = list(query.scalars())
-    return [action.__dict__ for action in actions]
+        actions = list(query.scalars())
+        return [action.__dict__ for action in actions]
 
 
 def get_raw_msg_by_timestamp_random(
@@ -737,13 +723,16 @@ def build_pic_mapping_info(pic_id_mapping: Dict[str, str]) -> str:
     # 按图片编号排序
     sorted_items = sorted(pic_id_mapping.items(), key=lambda x: int(x[1].replace("图片", "")))
 
+
+    from src.common.database.sqlalchemy_database_api import get_db_session
     for pic_id, display_name in sorted_items:
         # 从数据库中获取图片描述
         description = "内容正在阅读，请稍等"
         try:
-            image = session.execute(select(Images).where(Images.image_id == pic_id)).scalar()
-            if image and image.description:
-                description = image.description
+            with get_db_session() as session:
+                image = session.execute(select(Images).where(Images.image_id == pic_id)).scalar()
+                if image and image.description:
+                    description = image.description
         except Exception:
             # 如果查询失败，保持默认描述
             pass
@@ -886,41 +875,47 @@ def build_readable_messages(
         # 从第一条消息中获取chat_id
         chat_id = copy_messages[0].get("chat_id") if copy_messages else None
 
-        # 获取这个时间范围内的动作记录，并匹配chat_id
-        actions_in_range = session.execute(select(ActionRecords).where(
-            and_(
-                ActionRecords.time >= min_time,
-                ActionRecords.time <= max_time,
-                ActionRecords.chat_id == chat_id
-            )
-        ).order_by(ActionRecords.time)).scalars()
+        from src.common.database.sqlalchemy_database_api import get_db_session
+        with get_db_session() as session:
+            # 获取这个时间范围内的动作记录，并匹配chat_id
+            actions_in_range = session.execute(select(ActionRecords).where(
+                and_(
+                    ActionRecords.time >= min_time,
+                    ActionRecords.time <= max_time,
+                    ActionRecords.chat_id == chat_id
+                )
+            ).order_by(ActionRecords.time)).scalars()
 
-        # 获取最新消息之后的第一个动作记录
-        action_after_latest = session.execute(select(ActionRecords).where(
-            and_(
-                ActionRecords.time > max_time,
-                ActionRecords.chat_id == chat_id
-            )
-        ).order_by(ActionRecords.time).limit(1)).scalars()
+            # 获取最新消息之后的第一个动作记录
+            action_after_latest = session.execute(select(ActionRecords).where(
+                and_(
+                    ActionRecords.time > max_time,
+                    ActionRecords.chat_id == chat_id
+                )
+            ).order_by(ActionRecords.time).limit(1)).scalars()
 
-        # 合并两部分动作记录
-        actions = list(actions_in_range) + list(action_after_latest)
+            # 合并两部分动作记录，并转为 dict，避免 DetachedInstanceError
+            actions = [
+                {
+                    "time": a.time,
+                    "user_id": global_config.bot.qq_account,
+                    "user_nickname": global_config.bot.nickname,
+                    "user_cardname": "",
+                    "processed_plain_text": f"{a.action_prompt_display}",
+                    "display_message": f"{a.action_prompt_display}",
+                    "chat_info_platform": a.chat_info_platform,
+                    "is_action_record": True,
+                    "action_name": a.action_name,
+                    "action_build_into_prompt": a.action_build_into_prompt,
+                }
+                for a in list(actions_in_range) + list(action_after_latest)
+            ]
 
         # 将动作记录转换为消息格式
         for action in actions:
             # 只有当build_into_prompt为True时才添加动作记录
-            if action.action_build_into_prompt:
-                action_msg = {
-                    "time": action.time,
-                    "user_id": global_config.bot.qq_account,  # 使用机器人的QQ账号
-                    "user_nickname": global_config.bot.nickname,  # 使用机器人的昵称
-                    "user_cardname": "",  # 机器人没有群名片
-                    "processed_plain_text": f"{action.action_prompt_display}",
-                    "display_message": f"{action.action_prompt_display}",
-                    "chat_info_platform": action.chat_info_platform,
-                    "is_action_record": True,  # 添加标识字段
-                    "action_name": action.action_name,  # 保存动作名称
-                }
+            if action["action_build_into_prompt"]:
+                action_msg = action.copy()
                 copy_messages.append(action_msg)
 
         # 重新按时间排序
