@@ -143,16 +143,20 @@ class MessageStorage:
     async def update_message(message):
         """更新消息ID"""
         try:
-            mmc_message_id = message.message_info.message_id  # 修复：正确访问message_id
-            qq_message_id = None  # 初始化变量
+            mmc_message_id = message.message_info.message_id
+            qq_message_id = None
             
+            logger.debug(f"尝试更新消息ID: {mmc_message_id}, 消息段类型: {message.message_segment.type}")
+            
+            # 根据消息段类型提取message_id
             if message.message_segment.type == "notify":
                 qq_message_id = message.message_segment.data.get("id")
             elif message.message_segment.type == "text":
                 qq_message_id = message.message_segment.data.get("id")
             elif message.message_segment.type == "reply":
                 qq_message_id = message.message_segment.data.get("id")
-                logger.info(f"更新消息ID完成,消息ID为{qq_message_id}")
+                if qq_message_id:
+                    logger.debug(f"从reply消息段获取到消息ID: {qq_message_id}")
             elif message.message_segment.type == "adapter_response":
                 logger.debug("适配器响应消息，不需要更新ID")
                 return
@@ -160,11 +164,12 @@ class MessageStorage:
                 logger.debug("适配器命令消息，不需要更新ID")
                 return
             else:
-                logger.info(f"更新消息ID错误，seg类型为{message.message_segment.type}")
+                logger.debug(f"未知的消息段类型: {message.message_segment.type}，跳过ID更新")
                 return
                 
             if not qq_message_id:
-                logger.info("消息不存在message_id，无法更新")
+                logger.debug(f"消息段类型 {message.message_segment.type} 中未找到有效的message_id，跳过更新")
+                logger.debug(f"消息段数据: {message.message_segment.data}")
                 return
 
             # 使用上下文管理器确保session正确管理
@@ -181,10 +186,12 @@ class MessageStorage:
                     # session.commit() 会在上下文管理器中自动调用
                     logger.debug(f"更新消息ID成功: {matched_message.message_id} -> {qq_message_id}")
                 else:
-                    logger.debug("未找到匹配的消息")
+                    logger.warning(f"未找到匹配的消息记录: {mmc_message_id}")
 
         except Exception as e:
             logger.error(f"更新消息ID失败: {e}")
+            logger.error(f"消息信息: message_id={getattr(message.message_info, 'message_id', 'N/A')}, "
+                        f"segment_type={getattr(message.message_segment, 'type', 'N/A')}")
 
     @staticmethod
     def replace_image_descriptions(text: str) -> str:
