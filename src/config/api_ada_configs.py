@@ -138,7 +138,7 @@ class ModelTaskConfig(ConfigBase):
     schedule_generator: TaskConfig
     """日程生成模型配置"""
 
-    utils_video: TaskConfig = field(default_factory=lambda: TaskConfig(
+    video_analysis: TaskConfig = field(default_factory=lambda: TaskConfig(
         model_list=["qwen2.5-vl-72b"],
         max_tokens=1500,
         temperature=0.3
