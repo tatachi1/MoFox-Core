@@ -38,7 +38,6 @@ class DependencyManager:
             self.proxy_url = config.proxy_url if proxy_url is None else proxy_url
             self.install_timeout = config.install_timeout
             self.pip_options = config.pip_options.copy()
-            self.allowed_auto_install = config.allowed_auto_install
             
         except Exception as e:
             logger.warning(f"无法加载依赖配置，使用默认设置: {e}")
@@ -47,7 +46,6 @@ class DependencyManager:
             self.proxy_url = proxy_url
             self.install_timeout = 300
             self.pip_options = ["--no-warn-script-location", "--disable-pip-version-check"]
-            self.allowed_auto_install = True
         
     def check_dependencies(self, dependencies: Any, plugin_name: str = "") -> Tuple[bool, List[str], List[str]]:
         """检查依赖包是否满足要求
@@ -98,7 +96,7 @@ class DependencyManager:
         if not packages:
             return True, []
             
-        if not self.auto_install or not self.allowed_auto_install:
+        if not self.auto_install:
             logger.info(f"[Plugin:{plugin_name}] 自动安装已禁用，跳过安装: {packages}")
             return False, packages
             

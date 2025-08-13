@@ -66,13 +66,7 @@ class DependencyConfig:
             "--disable-pip-version-check"
         ]
     
-    @property
-    def allowed_auto_install(self) -> bool:
-        """是否允许自动安装"""
-        config = self._get_config()
-        if config and hasattr(config, 'dependency_management'):
-            return config.dependency_management.allowed_auto_install
-        return True
+
     
     @property
     def prompt_before_install(self) -> bool:

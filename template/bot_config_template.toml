@@ -253,7 +253,7 @@ suppress_libraries = ["faiss","httpx", "urllib3", "asyncio", "websockets", "http
 library_log_levels = { "aiohttp" = "WARNING"} # 设置特定库的日志级别
 
 [dependency_management] # 插件Python依赖管理配置
-# 是否启用自动安装Python依赖包
+# 是否启用自动安装Python依赖包（主开关）
 auto_install = true
 
 # 安装超时时间（秒）
@@ -268,9 +268,6 @@ pip_options = [
     "--no-warn-script-location",
     "--disable-pip-version-check"
 ]
-
-# 是否允许自动安装（主开关），关闭后所有插件都不会自动安装依赖
-allowed_auto_install = true
 
 # 安装前是否提示用户（暂未实现）
 prompt_before_install = false

@@ -69,7 +69,7 @@ class MyPlugin(BasePlugin):
 
 ```toml
 [dependency_management]
-# 是否启用自动安装
+# 是否启用自动安装（主开关）
 auto_install = true
 
 # 安装超时时间（秒）
@@ -84,9 +84,6 @@ pip_options = [
     "--no-warn-script-location",
     "--disable-pip-version-check"
 ]
-
-# 是否允许自动安装（主开关）
-allowed_auto_install = true
 
 # 安装前是否提示用户
 prompt_before_install = false
@@ -164,10 +161,10 @@ configure_dependency_settings(auto_install_timeout=600)
 
 ## 安全考虑
 
-- 自动安装功能默认启用，但可以通过配置禁用
+- 自动安装功能默认启用，但可以通过`auto_install=false`配置禁用
 - 所有安装操作都有详细的日志记录
 - 支持设置安装超时以避免长时间挂起
-- 可以通过`allowed_auto_install`全局禁用自动安装
+- 通过单一的`auto_install`开关控制所有自动安装行为
 
 ## 故障排除
 

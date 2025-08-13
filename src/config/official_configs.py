@@ -929,7 +929,7 @@ class DependencyManagementConfig(ConfigBase):
     """插件Python依赖管理配置类"""
     
     auto_install: bool = True
-    """是否启用自动安装Python依赖包"""
+    """是否启用自动安装Python依赖包（主开关）"""
     
     auto_install_timeout: int = 300
     """安装超时时间（秒）"""
@@ -945,9 +945,6 @@ class DependencyManagementConfig(ConfigBase):
         "--disable-pip-version-check"
     ])
     """pip安装选项"""
-    
-    allowed_auto_install: bool = True
-    """是否允许自动安装（主开关），关闭后所有插件都不会自动安装依赖"""
     
     prompt_before_install: bool = False
     """安装前是否提示用户（暂未实现）"""
