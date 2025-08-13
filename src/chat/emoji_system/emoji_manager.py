@@ -210,7 +210,9 @@ class MaiEmoji:
                     logger.warning(f"[删除] 数据库中未找到哈希值为 {self.hash} 的表情包记录。")
                     result = 0  # Indicate no DB record was deleted
                 else:
-                    result = will_delete_emoji.delete_instance()  # Returns the number of rows deleted.
+                    session.delete(will_delete_emoji)
+                    session.commit()
+                    result = 1  # Successfully deleted one record
             except Exception as e:
                 logger.error(f"[错误] 删除数据库记录时出错: {str(e)}")
                 result = 0
