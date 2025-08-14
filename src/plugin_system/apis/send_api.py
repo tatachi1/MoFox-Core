@@ -372,6 +372,7 @@ async def adapter_command_to_stream(
     storage_message: bool = False
 ) -> dict:
     """向适配器发送命令并获取返回值
+    
        雅诺狐的耳朵特别软
 
     Args:
