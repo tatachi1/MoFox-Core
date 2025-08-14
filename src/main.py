@@ -16,7 +16,7 @@ from src.individuality.individuality import get_individuality, Individuality
 from src.common.server import get_global_server, Server
 from src.mood.mood_manager import mood_manager
 from rich.traceback import install
-from src.common.schedule_manager import schedule_manager
+from src.manager.schedule_manager import schedule_manager
 # from src.api.main import start_api_server
 
 # 导入新的插件管理器和热重载管理器

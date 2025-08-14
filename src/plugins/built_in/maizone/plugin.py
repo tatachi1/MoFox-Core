@@ -738,12 +738,7 @@ class MaiZonePlugin(BasePlugin):
             "interval_minutes": ConfigField(type=int, default=10, description="监控间隔时间(分钟)"),
         },
         "schedule": {
-            "enable_schedule": ConfigField(type=bool, default=False, description="是否启用定时发送说说"),
-            "schedules": ConfigField(
-                type=str,
-                default=r"""{"08:00" = "早安","22:00" = "晚安"}""",
-                description="定时发送任务列表, 格式为 {\"时间\"= \"主题\"}"
-            ),
+            "enable_schedule": ConfigField(type=bool, default=False, description="是否启用基于日程表的定时发送说说"),
         },
     }
 

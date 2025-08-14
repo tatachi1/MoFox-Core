@@ -21,7 +21,7 @@ from src.chat.planner_actions.action_manager import ActionManager
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.plugin_system.base.component_types import ActionInfo, ChatMode, ComponentType
 from src.plugin_system.core.component_registry import component_registry
-from src.common.schedule_manager import schedule_manager
+from src.manager.schedule_manager import schedule_manager
 from src.mood.mood_manager import mood_manager
 logger = get_logger("planner")
 
@@ -395,7 +395,7 @@ class ActionPlanner:
             # 处理自定义提示词
             custom_prompt_block = ""
             if global_config.custom_prompt.planner_custom_prompt_enable and global_config.custom_prompt.planner_custom_prompt_content:
-                custom_prompt_block = global_config.chat.planner_custom_prompt_content
+                custom_prompt_block = global_config.custom_prompt.planner_custom_prompt_content
 
             planner_prompt_template = await global_prompt_manager.get_prompt_async("planner_prompt")
             prompt = planner_prompt_template.format(

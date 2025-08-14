@@ -14,6 +14,7 @@ import json5
 from src.chat.utils.utils_image import get_image_manager
 from src.common.logger import get_logger
 from src.plugin_system.apis import llm_api, config_api, emoji_api, send_api
+from src.chat.message_receive.chat_stream import get_chat_manager
 
 # 获取日志记录器
 logger = get_logger('MaiZone-Utils')
@@ -64,15 +65,24 @@ class CookieManager:
         logger.info(f"正在通过适配器API获取Cookie，域名: {domain}")
         
         try:
-            # 使用适配器命令API获取cookie
-            response = await send_api.adapter_command_to_stream(
+            if stream_id is None:
+                response = await send_api.adapter_command_to_stream(
                 action="get_cookies",
                 params={"domain": domain},
                 platform="qq",
-                stream_id=stream_id,
                 timeout=40.0,
                 storage_message=False
                 )
+            # 使用适配器命令API获取cookie
+            else:
+                response = await send_api.adapter_command_to_stream(
+                    action="get_cookies",
+                    params={"domain": domain},
+                    platform="qq",
+                    stream_id=stream_id,
+                    timeout=40.0,
+                    storage_message=False
+                    )
             
             logger.info(f"适配器响应: {response}")
             
