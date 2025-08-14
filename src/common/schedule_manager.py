@@ -38,12 +38,24 @@ class ScheduleManager:
                     logger.info(f"从数据库加载今天的日程 ({today_str})。")
                     # SQLAlchemy 对象属性直接访问，确保类型转换
                     schedule_data_str = str(schedule_record.schedule_data)
-                    self.today_schedule = json.loads(schedule_data_str)
-                    schedule_str = f"已成功生成并保存今天的日程 ({today_str})：\n"
-                    if self.today_schedule:
-                        for item in self.today_schedule:
-                            schedule_str += f"  - {item['time_range']}: {item['activity']}\n"
-                    logger.info(schedule_str)
+                    
+                    try:
+                        schedule_data = json.loads(schedule_data_str)
+                        
+                        # 验证日程数据格式
+                        if self._validate_schedule_data(schedule_data):
+                            self.today_schedule = schedule_data
+                            schedule_str = f"已成功加载今天的日程 ({today_str})：\n"
+                            if self.today_schedule:
+                                for item in self.today_schedule:
+                                    schedule_str += f"  - {item.get('time_range', '未知时间')}: {item.get('activity', '未知活动')}\n"
+                            logger.info(schedule_str)
+                        else:
+                            logger.warning(f"数据库中的日程数据格式无效，将重新生成日程")
+                            await self.generate_and_save_schedule()
+                    except json.JSONDecodeError as e:
+                        logger.error(f"日程数据JSON解析失败: {e}，将重新生成日程")
+                        await self.generate_and_save_schedule()
                 else:
                     logger.info(f"数据库中未找到今天的日程 ({today_str})，将调用 LLM 生成。")
                     await self.generate_and_save_schedule()
@@ -87,6 +99,11 @@ class ScheduleManager:
             response, _ = await self.llm.generate_response_async(prompt)
             schedule_data = json.loads(repair_json(response))
             
+            # 验证生成的日程数据格式
+            if not self._validate_schedule_data(schedule_data):
+                logger.error("LLM生成的日程数据格式无效")
+                return
+            
             with get_db_session() as session:
                 # 检查是否已存在今天的日程
                 existing_schedule = session.query(Schedule).filter(Schedule.date == today_str).first()
@@ -104,7 +121,7 @@ class ScheduleManager:
             # 美化输出
             schedule_str = f"已成功生成并保存今天的日程 ({today_str})：\n"
             for item in schedule_data:
-                schedule_str += f"  - {item['time_range']}: {item['activity']}\n"
+                schedule_str += f"  - {item.get('time_range', '未知时间')}: {item.get('activity', '未知活动')}\n"
             logger.info(schedule_str)
             
             self.today_schedule = schedule_data
@@ -123,19 +140,47 @@ class ScheduleManager:
         now = datetime.now().time()
         for event in self.today_schedule:
             try:
-                start_str, end_str = event["time_range"].split('-')
+                time_range = event.get("time_range")
+                activity = event.get("activity")
+                
+                if not time_range or not activity:
+                    logger.warning(f"日程事件缺少必要字段: {event}")
+                    continue
+                    
+                start_str, end_str = time_range.split('-')
                 start_time = datetime.strptime(start_str.strip(), "%H:%M").time()
                 end_time = datetime.strptime(end_str.strip(), "%H:%M").time()
 
                 if start_time <= end_time:
                     if start_time <= now < end_time:
-                        return event["activity"]
+                        return activity
                 else:  # 跨天事件
                     if now >= start_time or now < end_time:
-                        return event["activity"]
-            except (ValueError, KeyError) as e:
+                        return activity
+            except (ValueError, KeyError, AttributeError) as e:
                 logger.warning(f"解析日程事件失败: {event}, 错误: {e}")
                 continue
         return None
+
+    def _validate_schedule_data(self, schedule_data) -> bool:
+        """验证日程数据格式是否正确"""
+        if not isinstance(schedule_data, list):
+            logger.warning("日程数据不是列表格式")
+            return False
+        
+        for item in schedule_data:
+            if not isinstance(item, dict):
+                logger.warning(f"日程项不是字典格式: {item}")
+                return False
+            
+            if 'time_range' not in item or 'activity' not in item:
+                logger.warning(f"日程项缺少必要字段 (time_range 或 activity): {item}")
+                return False
+                
+            if not isinstance(item['time_range'], str) or not isinstance(item['activity'], str):
+                logger.warning(f"日程项字段类型不正确: {item}")
+                return False
+        
+        return True
 
 schedule_manager = ScheduleManager()
