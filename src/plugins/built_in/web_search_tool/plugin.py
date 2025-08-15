@@ -632,15 +632,6 @@ class WEBSEARCHPLUGIN(BasePlugin):
             "socks5_proxy": ConfigField(type=str, default=None, description="SOCKS5代理地址，格式如: socks5://proxy.example.com:1080"),
             "enable_proxy": ConfigField(type=bool, default=False, description="是否启用代理")
         },
-        # EXA相关配置已迁移到主配置文件 bot_config.toml 的 [exa] 部分
-        # "exa":{
-        #     "api_key":ConfigField(type=str, default="None", description="exa的API密钥")
-        # },
-        # 组件设置已迁移到主配置文件 bot_config.toml 的 [web_search] 部分
-        # "components":{
-        #     "enable_web_search_tool":ConfigField(type=bool, default=True, description="是否启用联网搜索tool"),
-        #     "enable_url_tool":ConfigField(type=bool, default=True, description="是否启用URL解析tool")
-        # }
     }
     def get_plugin_components(self) -> List[Tuple[ComponentInfo, Type]]:
         enable_tool =[]
