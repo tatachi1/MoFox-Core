@@ -384,10 +384,19 @@ class StatisticOutputTask(AsyncTask):
             model_class=LLMUsage,
             filters={"timestamp": {"$gte": query_start_time}},
             order_by="-timestamp"
-        )
+        ) or []
         
         for record in records:
-            record_timestamp = record['timestamp']  # 从字典中获取
+            if not isinstance(record, dict):
+                continue
+            
+            record_timestamp = record.get('timestamp')
+            if isinstance(record_timestamp, str):
+                record_timestamp = datetime.fromisoformat(record_timestamp)
+            
+            if not record_timestamp:
+                continue
+
             for idx, (_, period_start) in enumerate(collect_period):
                 if record_timestamp >= period_start:
                     for period_key, _ in collect_period[idx:]:
@@ -490,11 +499,22 @@ class StatisticOutputTask(AsyncTask):
             model_class=OnlineTime,
             filters={"end_timestamp": {"$gte": query_start_time}},
             order_by="-end_timestamp"
-        )
+        ) or []
         
         for record in records:
-            record_end_timestamp = record['end_timestamp']
-            record_start_timestamp = record['start_timestamp']
+            if not isinstance(record, dict):
+                continue
+
+            record_end_timestamp = record.get('end_timestamp')
+            if isinstance(record_end_timestamp, str):
+                record_end_timestamp = datetime.fromisoformat(record_end_timestamp)
+
+            record_start_timestamp = record.get('start_timestamp')
+            if isinstance(record_start_timestamp, str):
+                record_start_timestamp = datetime.fromisoformat(record_start_timestamp)
+
+            if not record_end_timestamp or not record_start_timestamp:
+                continue
 
             for idx, (_, period_boundary_start) in enumerate(collect_period):
                 if record_end_timestamp >= period_boundary_start:
@@ -535,10 +555,15 @@ class StatisticOutputTask(AsyncTask):
             model_class=Messages,
             filters={"time": {"$gte": query_start_timestamp}},
             order_by="-time"
-        )
+        ) or []
         
         for message in records:
-            message_time_ts = message['time']  # This is a float timestamp
+            if not isinstance(message, dict):
+                continue
+            message_time_ts = message.get('time')  # This is a float timestamp
+
+            if not message_time_ts:
+                continue
 
             chat_id = None
             chat_name = None
