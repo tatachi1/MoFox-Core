@@ -5,7 +5,6 @@ QQ空间服务模块
 """
 
 import asyncio
-import base64
 import json
 import os
 import random
@@ -15,7 +14,6 @@ from typing import Callable, Optional, Dict, Any, List, Tuple
 import aiohttp
 import bs4
 import json5
-from src.chat.utils.utils_image import get_image_manager
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api, person_api
 

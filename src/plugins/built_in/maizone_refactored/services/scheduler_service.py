@@ -118,7 +118,7 @@ class SchedulerService:
             with get_db_session() as session:
                 record = session.query(MaiZoneScheduleStatus).filter(
                     MaiZoneScheduleStatus.datetime_hour == hour_str,
-                    MaiZoneScheduleStatus.is_processed == True
+                    MaiZoneScheduleStatus.is_processed == True  # noqa: E712
                 ).first()
                 return record is not None
         except Exception as e:
