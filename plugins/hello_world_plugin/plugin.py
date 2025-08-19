@@ -11,8 +11,6 @@ from src.plugin_system import (
     ToolParamType
 )
 
-
-from src.plugin_system.base.base_command import BaseCommand
 from src.plugin_system.apis import send_api
 from src.common.logger import get_logger
 from src.plugin_system.base.component_types import ChatType

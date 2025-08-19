@@ -165,7 +165,8 @@ class ContentService:
             models = llm_api.get_available_models()
             text_model = str(self.get_config("models.text_model", "replyer_1"))
             model_config = models.get(text_model)
-            if not model_config: return ""
+            if not model_config:
+                return ""
 
             bot_personality = config_api.get_global_config("personality.personality_core", "一个机器人")
             bot_expression = config_api.get_global_config("expression.expression_style", "内容积极向上")

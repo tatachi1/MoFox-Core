@@ -102,6 +102,11 @@ __all__ = [
     # 工具函数
     "ManifestValidator",
     "get_logger",
+    # 依赖管理
+    "get_dependency_manager",
+    "configure_dependency_manager",
+    "get_dependency_config",
+    "configure_dependency_settings",
     # "ManifestGenerator",
     # "validate_plugin_manifest",
     # "generate_plugin_manifest",

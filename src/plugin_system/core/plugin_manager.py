@@ -595,7 +595,6 @@ class PluginManager:
     def _refresh_anti_injection_skip_list(self):
         """插件加载完成后刷新反注入跳过列表"""
         try:
-            # 异步刷新反注入跳过列表
             import asyncio
             from src.chat.antipromptinjector.command_skip_list import skip_list_manager
             

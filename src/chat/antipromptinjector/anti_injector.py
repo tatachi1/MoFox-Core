@@ -12,7 +12,6 @@ LLM反注入系统主模块
 """
 
 import time
-import asyncio
 import re
 from typing import Optional, Tuple, Dict, Any
 import datetime
@@ -28,13 +27,7 @@ from .command_skip_list import should_skip_injection_detection, initialize_skip_
 # 数据库相关导入
 from src.common.database.sqlalchemy_models import BanUser, AntiInjectionStats, get_db_session
 
-# 导入LLM API用于反击
-try:
-    from src.plugin_system.apis import llm_api
-    LLM_API_AVAILABLE = True
-except ImportError:
-    llm_api = None
-    LLM_API_AVAILABLE = False
+from src.plugin_system.apis import llm_api
 
 logger = get_logger("anti_injector")
 
@@ -146,9 +139,6 @@ class AntiPromptInjector:
             生成的反击消息，如果生成失败则返回None
         """
         try:
-            if not LLM_API_AVAILABLE:
-                logger.warning("LLM API不可用，无法生成反击消息")
-                return None
                 
             # 获取可用的模型配置
             models = llm_api.get_available_models()

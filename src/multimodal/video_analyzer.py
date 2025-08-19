@@ -296,7 +296,7 @@ class VideoAnalyzer:
         
         # 添加帧信息到提示词
         frame_info = []
-        for i, (frame_base64, timestamp) in enumerate(frames):
+        for i, (_frame_base64, timestamp) in enumerate(frames):
             if self.enable_frame_timing:
                 frame_info.append(f"第{i+1}帧 (时间: {timestamp:.2f}s)")
             else:
@@ -342,7 +342,7 @@ class VideoAnalyzer:
         message_builder = MessageBuilder().set_role(RoleType.User).add_text_content(prompt)
         
         # 添加所有帧图像
-        for i, (frame_base64, timestamp) in enumerate(frames):
+        for _i, (frame_base64, _timestamp) in enumerate(frames):
             message_builder.add_image_content("jpeg", frame_base64)
             # self.logger.info(f"已添加第{i+1}帧到分析请求 (时间: {timestamp:.2f}s, 图片大小: {len(frame_base64)} chars)")
         

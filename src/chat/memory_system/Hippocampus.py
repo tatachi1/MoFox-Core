@@ -1615,7 +1615,6 @@ class ParahippocampalGyrus:
 
             # 检查节点内是否有相似的记忆项需要整合
             if len(memory_items) > 1:
-                merged_in_this_node = False
                 items_to_remove = []
 
                 for i in range(len(memory_items)):
@@ -1630,7 +1629,6 @@ class ParahippocampalGyrus:
                             if shorter_item not in items_to_remove:
                                 items_to_remove.append(shorter_item)
                                 merged_count += 1
-                                merged_in_this_node = True
                                 logger.debug(f"[整合] 在节点 {node} 中合并相似记忆: {shorter_item[:30]}... -> {longer_item[:30]}...")
 
                 # 移除被合并的记忆项

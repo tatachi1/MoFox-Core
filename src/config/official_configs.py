@@ -1,737 +1,183 @@
-import re
+from typing import Literal, Optional, List
+from pydantic import Field
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional
-
-from src.config.config_base import ConfigBase
+from src.config.config_base import ValidatedConfigBase
 
 """
 须知：
 1. 本文件中记录了所有的配置项
-2. 所有新增的class都需要继承自ConfigBase
+2. 重要的配置类继承自ValidatedConfigBase进行Pydantic验证
 3. 所有新增的class都应在config.py中的Config类中添加字段
 4. 对于新增的字段，若为可选项，则应在其后添加field()并设置default_factory或default
 """
 
-@dataclass
-class DatabaseConfig(ConfigBase):
+
+
+class DatabaseConfig(ValidatedConfigBase):
     """数据库配置类"""
 
-    database_type: Literal["sqlite", "mysql"] = "sqlite"
-    """数据库类型，支持 sqlite 或 mysql"""
+    database_type: Literal["sqlite", "mysql"] = Field(default="sqlite", description="数据库类型")
+    sqlite_path: str = Field(default="data/MaiBot.db", description="SQLite数据库文件路径")
+    mysql_host: str = Field(default="localhost", description="MySQL服务器地址")
+    mysql_port: int = Field(default=3306, ge=1, le=65535, description="MySQL服务器端口")
+    mysql_database: str = Field(default="maibot", description="MySQL数据库名")
+    mysql_user: str = Field(default="root", description="MySQL用户名")
+    mysql_password: str = Field(default="", description="MySQL密码")
+    mysql_charset: str = Field(default="utf8mb4", description="MySQL字符集")
+    mysql_unix_socket: str = Field(default="", description="MySQL Unix套接字路径")
+    mysql_ssl_mode: Literal["DISABLED", "PREFERRED", "REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY"] = Field(default="DISABLED", description="SSL模式")
+    mysql_ssl_ca: str = Field(default="", description="SSL CA证书路径")
+    mysql_ssl_cert: str = Field(default="", description="SSL客户端证书路径")
+    mysql_ssl_key: str = Field(default="", description="SSL客户端密钥路径")
+    mysql_autocommit: bool = Field(default=True, description="自动提交事务")
+    mysql_sql_mode: str = Field(default="TRADITIONAL", description="SQL模式")
+    connection_pool_size: int = Field(default=10, ge=1, description="连接池大小")
+    connection_timeout: int = Field(default=10, ge=1, description="连接超时时间")
 
-    # SQLite 配置
-    sqlite_path: str = "data/MaiBot.db"
-    """SQLite数据库文件路径"""
 
-    # MySQL 配置
-    mysql_host: str = "localhost"
-    """MySQL服务器地址"""
-
-    mysql_port: int = 3306
-    """MySQL服务器端口"""
-
-    mysql_database: str = "maibot"
-    """MySQL数据库名"""
-
-    mysql_user: str = "root"
-    """MySQL用户名"""
-
-    mysql_password: str = ""
-    """MySQL密码"""
-
-    mysql_charset: str = "utf8mb4"
-    """MySQL字符集"""
-
-    mysql_unix_socket: str = ""
-    """MySQL Unix套接字路径（可选，用于本地连接，优先于host/port）"""
-
-    # MySQL SSL 配置
-    mysql_ssl_mode: str = "DISABLED"
-    """SSL模式: DISABLED, PREFERRED, REQUIRED, VERIFY_CA, VERIFY_IDENTITY"""
-
-    mysql_ssl_ca: str = ""
-    """SSL CA证书路径"""
-
-    mysql_ssl_cert: str = ""
-    """SSL客户端证书路径"""
-
-    mysql_ssl_key: str = ""
-    """SSL客户端密钥路径"""
-
-    # MySQL 高级配置
-    mysql_autocommit: bool = True
-    """自动提交事务"""
-
-    mysql_sql_mode: str = "TRADITIONAL"
-    """SQL模式"""
-
-    # 连接池配置
-    connection_pool_size: int = 10
-    """连接池大小（仅MySQL有效）"""
-
-    connection_timeout: int = 10
-    """连接超时时间（秒）"""
-
-@dataclass
-class BotConfig(ConfigBase):
+class BotConfig(ValidatedConfigBase):
     """QQ机器人配置类"""
 
-    platform: str
-    """平台"""
-
-    qq_account: str
-    """QQ账号"""
-
-    nickname: str
-    """昵称"""
-
-    alias_names: list[str] = field(default_factory=lambda: [])
-    """别名列表"""
+    platform: str = Field(..., description="平台")
+    qq_account: int = Field(..., description="QQ账号")
+    nickname: str = Field(..., description="昵称")
+    alias_names: List[str] = Field(default_factory=list, description="别名列表")
 
 
-@dataclass
-class PersonalityConfig(ConfigBase):
+class PersonalityConfig(ValidatedConfigBase):
     """人格配置类"""
 
-    personality_core: str
-    """核心人格"""
-
-    personality_side: str
-    """人格侧写"""
-
-    identity: str = ""
-    """身份特征"""
-
-    reply_style: str = ""
-    """表达风格"""
-
-    prompt_mode: Literal["s4u", "normal"] = "s4u"
-    """Prompt模式选择：s4u为原有s4u样式，normal为0.9之前的模式"""
-
-    compress_personality: bool = True
-    """是否压缩人格，压缩后会精简人格信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果人设不长，可以关闭"""
-
-    compress_identity: bool = True
-    """是否压缩身份，压缩后会精简身份信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果不长，可以关闭"""
+    personality_core: str = Field(..., description="核心人格")
+    personality_side: str = Field(..., description="人格侧写")
+    identity: str = Field(default="", description="身份特征")
+    reply_style: str = Field(default="", description="表达风格")
+    prompt_mode: Literal["s4u", "normal"] = Field(default="s4u", description="Prompt模式")
+    compress_personality: bool = Field(default=True, description="是否压缩人格")
+    compress_identity: bool = Field(default=True, description="是否压缩身份")
 
 
-@dataclass
-class RelationshipConfig(ConfigBase):
+
+class RelationshipConfig(ValidatedConfigBase):
     """关系配置类"""
 
-    enable_relationship: bool = True
-    """是否启用关系系统"""
-
-    relation_frequency: float = 1.0
-    """关系频率，麦麦构建关系的速度"""
+    enable_relationship: bool = Field(default=True, description="是否启用关系")
+    relation_frequency: float = Field(default=1.0, description="关系频率")
 
 
-@dataclass
-class ChatConfig(ConfigBase):
+
+class ChatConfig(ValidatedConfigBase):
     """聊天配置类"""
 
-    max_context_size: int = 18
-    """上下文长度"""
-
-
-    replyer_random_probability: float = 0.5
-    """
-    发言时选择推理模型的概率（0-1之间）
-    选择普通模型的概率为 1 - reasoning_normal_model_probability
-    """
-
-    thinking_timeout: int = 40
-    """麦麦最长思考规划时间，超过这个时间的思考会放弃（往往是api反应太慢）"""
-
-    talk_frequency: float = 1
-    """回复频率阈值"""
-
-    mentioned_bot_inevitable_reply: bool = False
-    """提及 bot 必然回复"""
-
-    at_bot_inevitable_reply: bool = False
-    """@bot 必然回复"""
-    
-    talk_frequency: float = 0.5
-    """回复频率阈值"""
-
-    # 合并后的时段频率配置
-    talk_frequency_adjust: list[list[str]] = field(default_factory=lambda: [])
-
-
-    focus_value: float = 0.5
-    """麦麦的专注思考能力，越低越容易专注，消耗token也越多"""
-    
-    focus_value_adjust: list[list[str]] = field(default_factory=lambda: [])
-    
-    """
-    统一的活跃度和专注度配置
-    格式：[["platform:chat_id:type", "HH:MM,frequency", "HH:MM,frequency", ...], ...]
-
-    全局配置示例：
-    [["", "8:00,1", "12:00,2", "18:00,1.5", "00:00,0.5"]]
-
-    特定聊天流配置示例：
-    [
-        ["", "8:00,1", "12:00,1.2", "18:00,1.5", "01:00,0.6"],  # 全局默认配置
-        ["qq:1026294844:group", "12:20,1", "16:10,2", "20:10,1", "00:10,0.3"],  # 特定群聊配置
-        ["qq:729957033:private", "8:20,1", "12:10,2", "20:10,1.5", "00:10,0.2"]  # 特定私聊配置
-    ]
-
-    说明：
-    - 当第一个元素为空字符串""时，表示全局默认配置
-    - 当第一个元素为"platform:id:type"格式时，表示特定聊天流配置
-    - 后续元素是"时间,频率"格式，表示从该时间开始使用该频率，直到下一个时间点
-    - 优先级：特定聊天流配置 > 全局配置 > 默认值
-    
-    注意：
-    - talk_frequency_adjust 控制回复频率，数值越高回复越频繁
-    - focus_value_adjust 控制专注思考能力，数值越低越容易专注，消耗token也越多
-    """
-    
-    
-    def get_current_focus_value(self, chat_stream_id: Optional[str] = None) -> float:
-        """
-        根据当前时间和聊天流获取对应的 focus_value
-        """
-        if not self.focus_value_adjust:
-            return self.focus_value
-        
-        if chat_stream_id:
-            stream_focus_value = self._get_stream_specific_focus_value(chat_stream_id)
-            if stream_focus_value is not None:
-                return stream_focus_value
-        
-        global_focus_value = self._get_global_focus_value()
-        if global_focus_value is not None:
-            return global_focus_value
-        
-        return self.focus_value
-
-    force_focus_private: bool = False
-    """是否强制私聊进入专注模式，开启后私聊将始终保持专注状态"""
-
-    group_chat_mode: Literal["auto", "normal", "focus"] = "auto"
-    """群聊聊天模式设置：auto-自动切换，normal-强制普通模式，focus-强制专注模式"""
-    
-    timestamp_display_mode: Literal["normal", "normal_no_YMD", "relative"] = "normal_no_YMD"
-    """
-    消息时间戳显示模式：
-    - normal: 完整日期时间格式 (YYYY-MM-DD HH:MM:SS)
-    - normal_no_YMD: 仅显示时间 (HH:MM:SS)
-    - relative: 相对时间格式 (几分钟前/几小时前等)
-    """
-
-    # 主动思考功能配置
-    enable_proactive_thinking: bool = False
-    """是否启用主动思考功能（仅在focus模式下生效）"""
-
-    proactive_thinking_interval: int = 1500
-    """主动思考触发间隔时间（秒），默认1500秒（25分钟）"""
-
-    proactive_thinking_prompt_template: str = """现在群里面已经隔了{time}没有人发送消息了，请你结合上下文以及群聊里面之前聊过的话题和你的人设来决定要不要主动发送消息，你可以选择：
-
-1. 继续保持沉默（当{time}以前已经结束了一个话题并且你不想挑起新话题时）
-2. 选择回复（当{time}以前你发送了一条消息且没有人回复你时、你想主动挑起一个话题时）
-
-请根据当前情况做出选择。如果选择回复，请直接发送你想说的内容；如果选择保持沉默，请只回复"沉默"（注意：这个词不会被发送到群聊中）。"""
-    """主动思考时使用的prompt模板，{time}会被替换为实际的沉默时间"""
-
-    def get_current_talk_frequency(self, chat_stream_id: Optional[str] = None) -> float:
-        """
-        根据当前时间和聊天流获取对应的 talk_frequency
-
-        Args:
-            chat_stream_id: 聊天流ID，格式为 "platform:chat_id:type"
-
-        Returns:
-            float: 对应的频率值
-        """
-        if not self.talk_frequency_adjust:
-            return self.talk_frequency
-
-        # 优先检查聊天流特定的配置
-        if chat_stream_id:
-            stream_frequency = self._get_stream_specific_frequency(chat_stream_id)
-            if stream_frequency is not None:
-                return stream_frequency
-
-        # 检查全局时段配置（第一个元素为空字符串的配置）
-        global_frequency = self._get_global_frequency()
-        if global_frequency is not None:
-            return global_frequency
-
-        # 如果都没有匹配，返回默认值
-        return self.talk_frequency
-
-    def _get_time_based_frequency(self, time_freq_list: list[str]) -> Optional[float]:
-        """
-        根据时间配置列表获取当前时段的频率
-
-        Args:
-            time_freq_list: 时间频率配置列表，格式为 ["HH:MM,frequency", ...]
-
-        Returns:
-            float: 频率值，如果没有配置则返回 None
-        """
-        from datetime import datetime
-
-        current_time = datetime.now().strftime("%H:%M")
-        current_hour, current_minute = map(int, current_time.split(":"))
-        current_minutes = current_hour * 60 + current_minute
-
-        # 解析时间频率配置
-        time_freq_pairs = []
-        for time_freq_str in time_freq_list:
-            try:
-                time_str, freq_str = time_freq_str.split(",")
-                hour, minute = map(int, time_str.split(":"))
-                frequency = float(freq_str)
-                minutes = hour * 60 + minute
-                time_freq_pairs.append((minutes, frequency))
-            except (ValueError, IndexError):
-                continue
-
-        if not time_freq_pairs:
-            return None
-
-        # 按时间排序
-        time_freq_pairs.sort(key=lambda x: x[0])
-
-        # 查找当前时间对应的频率
-        current_frequency = None
-        for minutes, frequency in time_freq_pairs:
-            if current_minutes >= minutes:
-                current_frequency = frequency
-            else:
-                break
-
-        # 如果当前时间在所有配置时间之前，使用最后一个时间段的频率（跨天逻辑）
-        if current_frequency is None and time_freq_pairs:
-            current_frequency = time_freq_pairs[-1][1]
-
-        return current_frequency
-
-    def _get_stream_specific_focus_value(self, chat_stream_id: str) -> Optional[float]:
-        """
-        获取特定聊天流在当前时间的专注度
-
-        Args:
-            chat_stream_id: 聊天流ID（哈希值）
-
-        Returns:
-            float: 专注度值，如果没有配置则返回 None
-        """
-        # 查找匹配的聊天流配置
-        for config_item in self.focus_value_adjust:
-            if not config_item or len(config_item) < 2:
-                continue
-
-            stream_config_str = config_item[0]  # 例如 "qq:1026294844:group"
-
-            # 解析配置字符串并生成对应的 chat_id
-            config_chat_id = self._parse_stream_config_to_chat_id(stream_config_str)
-            if config_chat_id is None:
-                continue
-
-            # 比较生成的 chat_id
-            if config_chat_id != chat_stream_id:
-                continue
-
-            # 使用通用的时间专注度解析方法
-            return self._get_time_based_focus_value(config_item[1:])
-
-        return None
-
-    def _get_stream_specific_frequency(self, chat_stream_id: str):
-        """
-        获取特定聊天流在当前时间的频率
-
-        Args:
-            chat_stream_id: 聊天流ID（哈希值）
-
-        Returns:
-            float: 频率值，如果没有配置则返回 None
-        """
-        # 查找匹配的聊天流配置
-        for config_item in self.talk_frequency_adjust:
-            if not config_item or len(config_item) < 2:
-                continue
-
-            stream_config_str = config_item[0]  # 例如 "qq:1026294844:group"
-
-            # 解析配置字符串并生成对应的 chat_id
-            config_chat_id = self._parse_stream_config_to_chat_id(stream_config_str)
-            if config_chat_id is None:
-                continue
-
-            # 比较生成的 chat_id
-            if config_chat_id != chat_stream_id:
-                continue
-
-            # 使用通用的时间频率解析方法
-            return self._get_time_based_frequency(config_item[1:])
-
-        return None
-
-    def _parse_stream_config_to_chat_id(self, stream_config_str: str) -> Optional[str]:
-        """
-        解析流配置字符串并生成对应的 chat_id
-
-        Args:
-            stream_config_str: 格式为 "platform:id:type" 的字符串
-
-        Returns:
-            str: 生成的 chat_id，如果解析失败则返回 None
-        """
-        try:
-            parts = stream_config_str.split(":")
-            if len(parts) != 3:
-                return None
-
-            platform = parts[0]
-            id_str = parts[1]
-            stream_type = parts[2]
-
-            # 判断是否为群聊
-            is_group = stream_type == "group"
-
-            # 使用与 ChatStream.get_stream_id 相同的逻辑生成 chat_id
-            import hashlib
-
-            if is_group:
-                components = [platform, str(id_str)]
-            else:
-                components = [platform, str(id_str), "private"]
-            key = "_".join(components)
-            return hashlib.md5(key.encode()).hexdigest()
-
-        except (ValueError, IndexError):
-            return None
-
-    def _get_global_frequency(self) -> Optional[float]:
-        """
-        获取全局默认频率配置
-
-        Returns:
-            float: 频率值，如果没有配置则返回 None
-        """
-        for config_item in self.talk_frequency_adjust:
-            if not config_item or len(config_item) < 2:
-                continue
-
-            # 检查是否为全局默认配置（第一个元素为空字符串）
-            if config_item[0] == "":
-                return self._get_time_based_frequency(config_item[1:])
-
-        return None
-
-
-@dataclass
-class MessageReceiveConfig(ConfigBase):
+    max_context_size: int = Field(default=18, description="最大上下文大小")
+    replyer_random_probability: float = Field(default=0.5, description="回复者随机概率")
+    thinking_timeout: int = Field(default=40, description="思考超时时间")
+    talk_frequency: float = Field(default=1.0, description="聊天频率")
+    mentioned_bot_inevitable_reply: bool = Field(default=False, description="提到机器人的必然回复")
+    at_bot_inevitable_reply: bool = Field(default=False, description="@机器人的必然回复")
+    talk_frequency_adjust: list[list[str]] = Field(default_factory=lambda: [], description="聊天频率调整")
+    focus_value: float = Field(default=1.0, description="专注值")
+    force_focus_private: bool = Field(default=False, description="强制专注私聊")
+    group_chat_mode: Literal["auto", "normal", "focus"] = Field(default="auto", description="群聊模式")
+    timestamp_display_mode: Literal["normal", "normal_no_YMD", "relative"] = Field(default="normal_no_YMD", description="时间戳显示模式")
+    enable_proactive_thinking: bool = Field(default=False, description="启用主动思考")
+    proactive_thinking_interval: int = Field(default=1500, description="主动思考间隔")
+    proactive_thinking_prompt_template: str = Field(default="", description="主动思考提示模板")
+
+
+
+class MessageReceiveConfig(ValidatedConfigBase):
     """消息接收配置类"""
 
-    ban_words: set[str] = field(default_factory=lambda: set())
-    """过滤词列表"""
-
-    ban_msgs_regex: set[str] = field(default_factory=lambda: set())
-    """过滤正则表达式列表"""
+    ban_words: set[str] = Field(default_factory=lambda: set(), description="禁用词列表")
+    ban_msgs_regex: set[str] = Field(default_factory=lambda: set(), description="禁用消息正则列表")
 
 
-@dataclass
-class NormalChatConfig(ConfigBase):
+
+class NormalChatConfig(ValidatedConfigBase):
     """普通聊天配置类"""
 
-    willing_mode: str = "classical"
-    """意愿模式"""
+    willing_mode: str = Field(default="classical", description="意愿模式")
 
-@dataclass
-class ExpressionConfig(ConfigBase):
+
+
+class ExpressionConfig(ValidatedConfigBase):
     """表达配置类"""
 
-    expression_learning: list[list] = field(default_factory=lambda: [])
-    """
-    表达学习配置列表，支持按聊天流配置
-    格式: [["chat_stream_id", "use_expression", "enable_learning", learning_intensity], ...]
-
-    示例:
-    [
-        ["", "enable", "enable", 1.0],  # 全局配置：使用表达，启用学习，学习强度1.0
-        ["qq:1919810:private", "enable", "enable", 1.5],  # 特定私聊配置：使用表达，启用学习，学习强度1.5
-        ["qq:114514:private", "enable", "disable", 0.5],  # 特定私聊配置：使用表达，禁用学习，学习强度0.5
-    ]
-
-    说明:
-    - 第一位: chat_stream_id，空字符串表示全局配置
-    - 第二位: 是否使用学到的表达 ("enable"/"disable")
-    - 第三位: 是否学习表达 ("enable"/"disable") 
-    - 第四位: 学习强度（浮点数），影响学习频率，最短学习时间间隔 = 300/学习强度（秒）
-    """
-
-    expression_groups: list[list[str]] = field(default_factory=list)
-    """
-    表达学习互通组
-    格式: [["qq:12345:group", "qq:67890:private"]]
-    """
-
-    def _parse_stream_config_to_chat_id(self, stream_config_str: str) -> Optional[str]:
-        """
-        解析流配置字符串并生成对应的 chat_id
-
-        Args:
-            stream_config_str: 格式为 "platform:id:type" 的字符串
-
-        Returns:
-            str: 生成的 chat_id，如果解析失败则返回 None
-        """
-        try:
-            parts = stream_config_str.split(":")
-            if len(parts) != 3:
-                return None
-
-            platform = parts[0]
-            id_str = parts[1]
-            stream_type = parts[2]
-
-            # 判断是否为群聊
-            is_group = stream_type == "group"
-
-            # 使用与 ChatStream.get_stream_id 相同的逻辑生成 chat_id
-            import hashlib
-
-            if is_group:
-                components = [platform, str(id_str)]
-            else:
-                components = [platform, str(id_str), "private"]
-            key = "_".join(components)
-            return hashlib.md5(key.encode()).hexdigest()
-
-        except (ValueError, IndexError):
-            return None
-
-    def get_expression_config_for_chat(self, chat_stream_id: Optional[str] = None) -> tuple[bool, bool, float]:
-        """
-        根据聊天流ID获取表达配置
-
-        Args:
-            chat_stream_id: 聊天流ID，格式为哈希值
-
-        Returns:
-            tuple: (是否使用表达, 是否学习表达, 学习间隔)
-        """
-        if not self.expression_learning:
-            # 如果没有配置，使用默认值：启用表达，启用学习，300秒间隔
-            return True, True, 300
-
-        # 优先检查聊天流特定的配置
-        if chat_stream_id:
-            specific_config = self._get_stream_specific_config(chat_stream_id)
-            if specific_config is not None:
-                return specific_config
-
-        # 检查全局配置（第一个元素为空字符串的配置）
-        global_config = self._get_global_config()
-        if global_config is not None:
-            return global_config
-
-        # 如果都没有匹配，返回默认值
-        return True, True, 300
-
-    def _get_stream_specific_config(self, chat_stream_id: str) -> Optional[tuple[bool, bool, float]]:
-        """
-        获取特定聊天流的表达配置
-
-        Args:
-            chat_stream_id: 聊天流ID（哈希值）
-
-        Returns:
-            tuple: (是否使用表达, 是否学习表达, 学习间隔)，如果没有配置则返回 None
-        """
-        for config_item in self.expression_learning:
-            if not config_item or len(config_item) < 4:
-                continue
-
-            stream_config_str = config_item[0]  # 例如 "qq:1026294844:group"
-
-            # 如果是空字符串，跳过（这是全局配置）
-            if stream_config_str == "":
-                continue
-
-            # 解析配置字符串并生成对应的 chat_id
-            config_chat_id = self._parse_stream_config_to_chat_id(stream_config_str)
-            if config_chat_id is None:
-                continue
-
-            # 比较生成的 chat_id
-            if config_chat_id != chat_stream_id:
-                continue
-
-            # 解析配置
-            try:
-                use_expression = config_item[1].lower() == "enable"
-                enable_learning = config_item[2].lower() == "enable"
-                learning_intensity = float(config_item[3])
-                return use_expression, enable_learning, learning_intensity
-            except (ValueError, IndexError):
-                continue
-
-        return None
-
-    def _get_global_config(self) -> Optional[tuple[bool, bool, float]]:
-        """
-        获取全局表达配置
-
-        Returns:
-            tuple: (是否使用表达, 是否学习表达, 学习间隔)，如果没有配置则返回 None
-        """
-        for config_item in self.expression_learning:
-            if not config_item or len(config_item) < 4:
-                continue
-
-            # 检查是否为全局配置（第一个元素为空字符串）
-            if config_item[0] == "":
-                try:
-                    use_expression = config_item[1].lower() == "enable"
-                    enable_learning = config_item[2].lower() == "enable"
-                    learning_intensity = float(config_item[3])
-                    return use_expression, enable_learning, learning_intensity
-                except (ValueError, IndexError):
-                    continue
-
-        return None
+    expression_learning: list[list] = Field(default_factory=lambda: [], description="表达学习")
+    expression_groups: list[list[str]] = Field(default_factory=list, description="表达组")
 
 
-@dataclass
-class ToolConfig(ConfigBase):
+
+class ToolConfig(ValidatedConfigBase):
     """工具配置类"""
 
-    enable_tool: bool = False
-    """是否在聊天中启用工具"""
+    enable_tool: bool = Field(default=False, description="启用工具")
 
-@dataclass
-class VoiceConfig(ConfigBase):
+
+
+class VoiceConfig(ValidatedConfigBase):
     """语音识别配置类"""
 
-    enable_asr: bool = False
-    """是否启用语音识别"""
+    enable_asr: bool = Field(default=False, description="启用语音识别")
 
 
-@dataclass
-class EmojiConfig(ConfigBase):
+
+class EmojiConfig(ValidatedConfigBase):
     """表情包配置类"""
 
-    emoji_chance: float = 0.6
-    """发送表情包的基础概率"""
-
-    max_reg_num: int = 200
-    """表情包最大注册数量"""
-
-    do_replace: bool = True
-    """达到最大注册数量时替换旧表情包"""
-
-    check_interval: int = 120
-    """表情包检查间隔（分钟）"""
-
-    steal_emoji: bool = True
-    """是否偷取表情包，让麦麦可以发送她保存的这些表情包"""
-
-    content_filtration: bool = False
-    """是否开启表情包过滤"""
-
-    filtration_prompt: str = "符合公序良俗"
-    """表情包过滤要求"""
-
-    enable_emotion_analysis: bool = True
-    """是否启用表情包感情关键词二次识别，启用后表情包在第一次识别完毕后将送入第二次大模型识别来总结感情关键词，并构建进回复和决策器的上下文消息中"""
+    emoji_chance: float = Field(default=0.6, description="表情包出现概率")
+    emoji_activate_type: str = Field(default="random", description="表情包激活类型")
+    max_reg_num: int = Field(default=200, description="最大表情包数量")
+    do_replace: bool = Field(default=True, description="是否替换表情包")
+    check_interval: int = Field(default=120, description="检查间隔")
+    steal_emoji: bool = Field(default=True, description="是否偷取表情包")
+    content_filtration: bool = Field(default=False, description="内容过滤")
+    filtration_prompt: str = Field(default="符合公序良俗", description="过滤提示")
+    enable_emotion_analysis: bool = Field(default=True, description="启用情感分析")
 
 
-@dataclass
-class MemoryConfig(ConfigBase):
+
+class MemoryConfig(ValidatedConfigBase):
     """记忆配置类"""
 
-    enable_memory: bool = True
-
-    memory_build_interval: int = 600
-    """记忆构建间隔（秒）"""
-
-    memory_build_distribution: tuple[
-        float,
-        float,
-        float,
-        float,
-        float,
-        float,
-    ] = field(default_factory=lambda: (6.0, 3.0, 0.6, 32.0, 12.0, 0.4))
-    """记忆构建分布，参数：分布1均值，标准差，权重，分布2均值，标准差，权重"""
-
-    memory_build_sample_num: int = 8
-    """记忆构建采样数量"""
-
-    memory_build_sample_length: int = 40
-    """记忆构建采样长度"""
-
-    memory_compress_rate: float = 0.1
-    """记忆压缩率"""
-
-    forget_memory_interval: int = 1000
-    """记忆遗忘间隔（秒）"""
-
-    memory_forget_time: int = 24
-    """记忆遗忘时间（小时）"""
-
-    memory_forget_percentage: float = 0.01
-    """记忆遗忘比例"""
-
-    consolidate_memory_interval: int = 1000
-    """记忆整合间隔（秒）"""
-
-    consolidation_similarity_threshold: float = 0.7
-    """整合相似度阈值"""
-
-    consolidate_memory_percentage: float = 0.01
-    """整合检查节点比例"""
-
-    memory_ban_words: list[str] = field(default_factory=lambda: ["表情包", "图片", "回复", "聊天记录"])
-    """不允许记忆的词列表"""
-
-    enable_instant_memory: bool = True
-    """是否启用即时记忆"""
+    enable_memory: bool = Field(default=True, description="启用记忆")
+    memory_build_interval: int = Field(default=600, description="记忆构建间隔")
+    memory_build_distribution: tuple = Field(default_factory=lambda: (6.0, 3.0, 0.6, 32.0, 12.0, 0.4), description="记忆构建分布")
+    memory_build_sample_num: int = Field(default=8, description="记忆构建样本数量")
+    memory_build_sample_length: int = Field(default=40, description="记忆构建样本长度")
+    memory_compress_rate: float = Field(default=0.1, description="记忆压缩率")
+    forget_memory_interval: int = Field(default=1000, description="遗忘记忆间隔")
+    memory_forget_time: int = Field(default=24, description="记忆遗忘时间")
+    memory_forget_percentage: float = Field(default=0.01, description="记忆遗忘百分比")
+    consolidate_memory_interval: int = Field(default=1000, description="记忆巩固间隔")
+    consolidation_similarity_threshold: float = Field(default=0.7, description="巩固相似性阈值")
+    consolidate_memory_percentage: float = Field(default=0.01, description="巩固记忆百分比")
+    memory_ban_words: list[str] = Field(default_factory=lambda: ["表情包", "图片", "回复", "聊天记录"], description="记忆禁用词")
+    enable_instant_memory: bool = Field(default=True, description="启用即时记忆")
 
 
-@dataclass
-class MoodConfig(ConfigBase):
+
+class MoodConfig(ValidatedConfigBase):
     """情绪配置类"""
 
-    enable_mood: bool = False
-    """是否启用情绪系统"""
-
-    mood_update_threshold: float = 1.0
-    """情绪更新阈值,越高，更新越慢"""
+    enable_mood: bool = Field(default=False, description="启用情绪")
+    mood_update_threshold: float = Field(default=1.0, description="情绪更新阈值")
 
 
-@dataclass
-class KeywordRuleConfig(ConfigBase):
+
+class KeywordRuleConfig(ValidatedConfigBase):
     """关键词规则配置类"""
 
-    keywords: list[str] = field(default_factory=lambda: [])
-    """关键词列表"""
-
-    regex: list[str] = field(default_factory=lambda: [])
-    """正则表达式列表"""
-
-    reaction: str = ""
-    """关键词触发的反应"""
+    keywords: list[str] = Field(default_factory=lambda: [], description="关键词列表")
+    regex: list[str] = Field(default_factory=lambda: [], description="正则表达式列表")
+    reaction: str = Field(default="", description="反应内容")
 
     def __post_init__(self):
-        """验证配置"""
+        import re
         if not self.keywords and not self.regex:
             raise ValueError("关键词规则必须至少包含keywords或regex中的一个")
-
         if not self.reaction:
             raise ValueError("关键词规则必须包含reaction")
-
-        # 验证正则表达式
         for pattern in self.regex:
             try:
                 re.compile(pattern)
@@ -739,372 +185,186 @@ class KeywordRuleConfig(ConfigBase):
                 raise ValueError(f"无效的正则表达式 '{pattern}': {str(e)}") from e
 
 
-@dataclass
-class KeywordReactionConfig(ConfigBase):
+
+class KeywordReactionConfig(ValidatedConfigBase):
     """关键词配置类"""
 
-    keyword_rules: list[KeywordRuleConfig] = field(default_factory=lambda: [])
-    """关键词规则列表"""
+    keyword_rules: list[KeywordRuleConfig] = Field(default_factory=lambda: [], description="关键词规则列表")
+    regex_rules: list[KeywordRuleConfig] = Field(default_factory=lambda: [], description="正则表达式规则列表")
 
-    regex_rules: list[KeywordRuleConfig] = field(default_factory=lambda: [])
-    """正则表达式规则列表"""
 
-    def __post_init__(self):
-        """验证配置"""
-        # 验证所有规则
-        for rule in self.keyword_rules + self.regex_rules:
-            if not isinstance(rule, KeywordRuleConfig):
-                raise ValueError(f"规则必须是KeywordRuleConfig类型，而不是{type(rule).__name__}")
 
-@dataclass
-class CustomPromptConfig(ConfigBase):
+class CustomPromptConfig(ValidatedConfigBase):
     """自定义提示词配置类"""
 
-    image_prompt: str = ""
-    """图片提示词"""
-
-    planner_custom_prompt_enable: bool = False
-    """是否启用决策器自定义提示词"""
-    
-    planner_custom_prompt_content: str = ""
-    """决策器自定义提示词内容，仅在planner_custom_prompt_enable为True时生效"""
+    image_prompt: str = Field(default="", description="图片提示词")
+    planner_custom_prompt_enable: bool = Field(default=False, description="启用规划器自定义提示词")
+    planner_custom_prompt_content: str = Field(default="", description="规划器自定义提示词内容")
 
 
-@dataclass
-class ResponsePostProcessConfig(ConfigBase):
+
+class ResponsePostProcessConfig(ValidatedConfigBase):
     """回复后处理配置类"""
 
-    enable_response_post_process: bool = True
-    """是否启用回复后处理，包括错别字生成器，回复分割器"""
+    enable_response_post_process: bool = Field(default=True, description="启用回复后处理")
 
 
-@dataclass
-class ChineseTypoConfig(ConfigBase):
+class ChineseTypoConfig(ValidatedConfigBase):
     """中文错别字配置类"""
 
-    enable: bool = True
-    """是否启用中文错别字生成器"""
-
-    error_rate: float = 0.01
-    """单字替换概率"""
-
-    min_freq: int = 9
-    """最小字频阈值"""
-
-    tone_error_rate: float = 0.1
-    """声调错误概率"""
-
-    word_replace_rate: float = 0.006
-    """整词替换概率"""
+    enable: bool = Field(default=True, description="启用")
+    error_rate: float = Field(default=0.01, description="错误率")
+    min_freq: int = Field(default=9, description="最小频率")
+    tone_error_rate: float = Field(default=0.1, description="语调错误率")
+    word_replace_rate: float = Field(default=0.006, description="词语替换率")
 
 
-@dataclass
-class ResponseSplitterConfig(ConfigBase):
+class ResponseSplitterConfig(ValidatedConfigBase):
     """回复分割器配置类"""
 
-    enable: bool = True
-    """是否启用回复分割器"""
-
-    max_length: int = 256
-    """回复允许的最大长度"""
-
-    max_sentence_num: int = 3
-    """回复允许的最大句子数"""
-
-    enable_kaomoji_protection: bool = False
-    """是否启用颜文字保护"""
+    enable: bool = Field(default=True, description="启用")
+    max_length: int = Field(default=256, description="最大长度")
+    max_sentence_num: int = Field(default=3, description="最大句子数")
+    enable_kaomoji_protection: bool = Field(default=False, description="启用颜文字保护")
 
 
-@dataclass
-class TelemetryConfig(ConfigBase):
+class TelemetryConfig(ValidatedConfigBase):
     """遥测配置类"""
 
-    enable: bool = True
-    """是否启用遥测"""
+    enable: bool = Field(default=True, description="启用")
 
 
-@dataclass
-class DebugConfig(ConfigBase):
+class DebugConfig(ValidatedConfigBase):
     """调试配置类"""
 
-    show_prompt: bool = False
-    """是否显示prompt"""
+    show_prompt: bool = Field(default=False, description="显示提示")
 
 
-@dataclass
-class ExperimentalConfig(ConfigBase):
+class ExperimentalConfig(ValidatedConfigBase):
     """实验功能配置类"""
 
-    enable_friend_chat: bool = False
-    """是否启用好友聊天"""
-
-    pfc_chatting: bool = False
-    """是否启用PFC"""
+    enable_friend_chat: bool = Field(default=False, description="启用好友聊天")
+    pfc_chatting: bool = Field(default=False, description="启用PFC聊天")
 
 
-@dataclass
-class MaimMessageConfig(ConfigBase):
+class MaimMessageConfig(ValidatedConfigBase):
     """maim_message配置类"""
 
-    use_custom: bool = False
-    """是否使用自定义的maim_message配置"""
-
-    host: str = "127.0.0.1"
-    """主机地址"""
-
-    port: int = 8090
-    """"端口号"""
-
-    mode: Literal["ws", "tcp"] = "ws"
-    """连接模式，支持ws和tcp"""
-
-    use_wss: bool = False
-    """是否使用WSS安全连接"""
-
-    cert_file: str = ""
-    """SSL证书文件路径，仅在use_wss=True时有效"""
-
-    key_file: str = ""
-    """SSL密钥文件路径，仅在use_wss=True时有效"""
-
-    auth_token: list[str] = field(default_factory=lambda: [])
-    """认证令牌，用于API验证，为空则不启用验证"""
+    use_custom: bool = Field(default=False, description="启用自定义")
+    host: str = Field(default="127.0.0.1", description="主机")
+    port: int = Field(default=8090, description="端口")
+    mode: Literal["ws", "tcp"] = Field(default="ws", description="模式")
+    use_wss: bool = Field(default=False, description="启用WSS")
+    cert_file: str = Field(default="", description="证书文件")
+    key_file: str = Field(default="", description="密钥文件")
+    auth_token: list[str] = Field(default_factory=lambda: [], description="认证令牌列表")
 
 
-@dataclass
-class LPMMKnowledgeConfig(ConfigBase):
+
+class LPMMKnowledgeConfig(ValidatedConfigBase):
     """LPMM知识库配置类"""
 
-    enable: bool = True
-    """是否启用LPMM知识库"""
-
-    rag_synonym_search_top_k: int = 10
-    """RAG同义词搜索的Top K数量"""
-
-    rag_synonym_threshold: float = 0.8
-    """RAG同义词搜索的相似度阈值"""
-
-    info_extraction_workers: int = 3
-    """信息提取工作线程数"""
-
-    qa_relation_search_top_k: int = 10
-    """QA关系搜索的Top K数量"""
-
-    qa_relation_threshold: float = 0.75
-    """QA关系搜索的相似度阈值"""
-
-    qa_paragraph_search_top_k: int = 1000
-    """QA段落搜索的Top K数量"""
-
-    qa_paragraph_node_weight: float = 0.05
-    """QA段落节点权重"""
-
-    qa_ent_filter_top_k: int = 10
-    """QA实体过滤的Top K数量"""
-
-    qa_ppr_damping: float = 0.8
-    """QA PageRank阻尼系数"""
-
-    qa_res_top_k: int = 10
-    """QA最终结果的Top K数量"""
-
-    embedding_dimension: int = 1024
-    """嵌入向量维度，应该与模型的输出维度一致"""
+    enable: bool = Field(default=True, description="启用")
+    rag_synonym_search_top_k: int = Field(default=10, description="RAG同义词搜索Top K")
+    rag_synonym_threshold: float = Field(default=0.8, description="RAG同义词阈值")
+    info_extraction_workers: int = Field(default=3, description="信息提取工作线程数")
+    qa_relation_search_top_k: int = Field(default=10, description="QA关系搜索Top K")
+    qa_relation_threshold: float = Field(default=0.75, description="QA关系阈值")
+    qa_paragraph_search_top_k: int = Field(default=1000, description="QA段落搜索Top K")
+    qa_paragraph_node_weight: float = Field(default=0.05, description="QA段落节点权重")
+    qa_ent_filter_top_k: int = Field(default=10, description="QA实体过滤Top K")
+    qa_ppr_damping: float = Field(default=0.8, description="QA PPR阻尼系数")
+    qa_res_top_k: int = Field(default=10, description="QA结果Top K")
+    embedding_dimension: int = Field(default=1024, description="嵌入维度")
 
 
-@dataclass
-class ScheduleConfig(ConfigBase):
+
+class ScheduleConfig(ValidatedConfigBase):
     """日程配置类"""
 
-    enable: bool = True
-    """是否启用日程管理功能"""
+    enable: bool = Field(default=True, description="启用")
+    guidelines: Optional[str] = Field(default=None, description="指导方针")
 
-    guidelines: Optional[str] = field(default=None)
-    """日程生成指导原则，如果为None则使用默认指导原则"""
 
-@dataclass
-class DependencyManagementConfig(ConfigBase):
+
+class DependencyManagementConfig(ValidatedConfigBase):
     """插件Python依赖管理配置类"""
-    
-    auto_install: bool = True
-    """是否启用自动安装Python依赖包（主开关）"""
-    
-    auto_install_timeout: int = 300
-    """安装超时时间（秒）"""
-    
-    use_mirror: bool = False
-    """是否使用PyPI镜像源"""
-    
-    mirror_url: str = ""
-    """PyPI镜像源URL，如: "https://pypi.tuna.tsinghua.edu.cn/simple" """
-    
-    use_proxy: bool = False
-    """是否使用网络代理（高级选项）"""
-    
-    proxy_url: str = ""
-    """网络代理URL，如: "http://proxy.example.com:8080" """
-    
-    pip_options: list[str] = field(default_factory=lambda: [
-        "--no-warn-script-location",
-        "--disable-pip-version-check"
-    ])
-    """pip安装选项"""
-    
-    prompt_before_install: bool = False
-    """安装前是否提示用户（暂未实现）"""
-    
-    install_log_level: str = "INFO"
-    """依赖安装日志级别"""
+
+    auto_install: bool = Field(default=True, description="启用自动安装")
+    auto_install_timeout: int = Field(default=300, description="自动安装超时时间")
+    use_mirror: bool = Field(default=False, description="使用镜像")
+    mirror_url: str = Field(default="", description="镜像URL")
+    use_proxy: bool = Field(default=False, description="使用代理")
+    proxy_url: str = Field(default="", description="代理URL")
+    pip_options: list[str] = Field(default_factory=lambda: ["--no-warn-script-location", "--disable-pip-version-check"], description="Pip选项")
+    prompt_before_install: bool = Field(default=False, description="安装前提示")
+    install_log_level: str = Field(default="INFO", description="安装日志级别")
 
 
-@dataclass
-class ExaConfig(ConfigBase):
+
+class ExaConfig(ValidatedConfigBase):
     """EXA搜索引擎配置类"""
-    
-    api_keys: list[str] = field(default_factory=lambda: [])
-    """EXA API密钥列表，支持轮询机制"""
+
+    api_keys: list[str] = Field(default_factory=lambda: [], description="API密钥列表")
 
 
-@dataclass
-class TavilyConfig(ConfigBase):
+
+class TavilyConfig(ValidatedConfigBase):
     """Tavily搜索引擎配置类"""
 
-    api_keys: list[str] = field(default_factory=lambda: [])
-    """Tavily API密钥列表，支持轮询机制"""
+    api_keys: list[str] = Field(default_factory=lambda: [], description="API密钥列表")
 
 
-@dataclass
-class VideoAnalysisConfig(ConfigBase):
+
+class VideoAnalysisConfig(ValidatedConfigBase):
     """视频分析配置类"""
-    
-    enable: bool = True
-    """是否启用视频分析功能"""
-    
-    analysis_mode: str = "batch_frames"
-    """分析模式：frame_by_frame（逐帧分析，慢但详细）、batch_frames（批量分析，快但可能略简单）或 auto（自动选择）"""
-    
-    max_frames: int = 8
-    """最大分析帧数"""
-    
-    frame_quality: int = 85
-    """帧图像JPEG质量 (1-100)"""
-    
-    max_image_size: int = 800
-    """单帧最大图像尺寸(像素)"""
-    
-    enable_frame_timing: bool = True
-    """是否在分析中包含帧的时间信息"""
-    
-    batch_analysis_prompt: str = """请分析这个视频的内容。这些图片是从视频中按时间顺序提取的关键帧。
 
-请提供详细的分析，包括：
-1. 视频的整体内容和主题
-2. 主要人物、对象和场景描述
-3. 动作、情节和时间线发展
-4. 视觉风格和艺术特点
-5. 整体氛围和情感表达
-6. 任何特殊的视觉效果或文字内容
-
-请用中文回答，分析要详细准确。"""
-    """批量分析时使用的提示词"""
+    enable: bool = Field(default=True, description="启用")
+    analysis_mode: str = Field(default="batch_frames", description="分析模式")
+    max_frames: int = Field(default=8, description="最大帧数")
+    frame_quality: int = Field(default=85, description="帧质量")
+    max_image_size: int = Field(default=800, description="最大图像大小")
+    enable_frame_timing: bool = Field(default=True, description="启用帧时间")
+    batch_analysis_prompt: str = Field(default="", description="批量分析提示")
 
 
-@dataclass
-class WebSearchConfig(ConfigBase):
+class WebSearchConfig(ValidatedConfigBase):
     """联网搜索组件配置类"""
 
-    enable_web_search_tool: bool = True
-    """是否启用联网搜索工具"""
-
-    enable_url_tool: bool = True
-    """是否启用URL解析工具"""
-
-    enabled_engines: list[str] = field(default_factory=lambda: ["ddg"])
-    """启用的搜索引擎列表，可选: 'exa', 'tavily', 'ddg'"""
-
-    search_strategy: str = "single"
-    """搜索策略: 'single'(使用第一个可用引擎), 'parallel'(并行使用所有启用的引擎), 'fallback'(按顺序尝试，失败则尝试下一个)"""
+    enable_web_search_tool: bool = Field(default=True, description="启用网络搜索工具")
+    enable_url_tool: bool = Field(default=True, description="启用URL工具")
+    enabled_engines: list[str] = Field(default_factory=lambda: ["ddg"], description="启用的搜索引擎")
+    search_strategy: str = Field(default="single", description="搜索策略")
 
 
-@dataclass
-class AntiPromptInjectionConfig(ConfigBase):
+class AntiPromptInjectionConfig(ValidatedConfigBase):
     """LLM反注入系统配置类"""
-    
-    enabled: bool = True
-    """是否启用反注入系统"""
-    
-    enabled_LLM: bool = True
-    """是否启用LLM检测"""
-    
-    enabled_rules: bool = True
-    """是否启用规则检测"""
-    
-    process_mode: str = "lenient"
-    """处理模式：strict(严格模式，直接丢弃), lenient(宽松模式，消息加盾), auto(自动模式，根据威胁等级自动选择加盾或丢弃), counter_attack(反击模式，使用LLM反击并丢弃消息)"""
-    
-    # 白名单配置
-    whitelist: list[list[str]] = field(default_factory=list)
-    """用户白名单，格式：[[platform, user_id], ...]，这些用户的消息将跳过检测"""
-    
-    # LLM检测配置
-    llm_detection_enabled: bool = True
-    """是否启用LLM二次分析"""
-    
-    llm_model_name: str = "anti_injection"
-    """LLM检测使用的模型名称"""
-    
-    llm_detection_threshold: float = 0.7
-    """LLM判定危险的置信度阈值(0-1)"""
-    
-    # 性能配置
-    cache_enabled: bool = True
-    """是否启用检测结果缓存"""
-    
-    cache_ttl: int = 3600
-    """缓存有效期(秒)"""
-    
-    max_message_length: int = 4096
-    """最大检测消息长度，超过将直接判定为危险"""
 
-    
-    stats_enabled: bool = True
-    """是否启用统计功能"""
-    
-    # 自动封禁配置
-    auto_ban_enabled: bool = True
-    """是否启用自动封禁功能"""
-    
-    auto_ban_violation_threshold: int = 3
-    """触发封禁的违规次数阈值"""
-    
-    auto_ban_duration_hours: int = 2
-    """封禁持续时间（小时）"""
-    
-    # 消息加盾配置（宽松模式下使用）
-    shield_prefix: str = "🛡️ "
-    """加盾消息前缀"""
-    
-    shield_suffix: str = " 🛡️"
-    """加盾消息后缀"""
-    
-    # 跳过列表配置
-    enable_command_skip_list: bool = True
-    """是否启用命令跳过列表，启用后插件注册的命令将自动跳过反注入检测"""
-    
-    auto_collect_plugin_commands: bool = True
-    """是否自动收集插件注册的命令加入跳过列表"""
-    
-    manual_skip_patterns: list[str] = field(default_factory=list)
-    """手动指定的跳过模式列表，支持正则表达式"""
-    
-    skip_system_commands: bool = True
-    """是否跳过系统内置命令（如 /pm, /help 等）"""
+    enabled: bool = Field(default=True, description="启用")
+    enabled_LLM: bool = Field(default=True, description="启用LLM")
+    enabled_rules: bool = Field(default=True, description="启用规则")
+    process_mode: str = Field(default="lenient", description="处理模式")
+    whitelist: list[list[str]] = Field(default_factory=list, description="白名单")
+    llm_detection_enabled: bool = Field(default=True, description="启用LLM检测")
+    llm_model_name: str = Field(default="anti_injection", description="LLM模型名称")
+    llm_detection_threshold: float = Field(default=0.7, description="LLM检测阈值")
+    cache_enabled: bool = Field(default=True, description="启用缓存")
+    cache_ttl: int = Field(default=3600, description="缓存TTL")
+    max_message_length: int = Field(default=4096, description="最大消息长度")
+    stats_enabled: bool = Field(default=True, description="启用统计信息")
+    auto_ban_enabled: bool = Field(default=True, description="启用自动禁用")
+    auto_ban_violation_threshold: int = Field(default=3, description="自动禁用违规阈值")
+    auto_ban_duration_hours: int = Field(default=2, description="自动禁用持续时间（小时）")
+    shield_prefix: str = Field(default="🛡️ ", description="保护前缀")
+    shield_suffix: str = Field(default=" 🛡️", description="保护后缀")
+    enable_command_skip_list: bool = Field(default=True, description="启用命令跳过列表")
+    auto_collect_plugin_commands: bool = Field(default=True, description="启用自动收集插件命令")
+    manual_skip_patterns: list[str] = Field(default_factory=list, description="手动跳过模式")
+    skip_system_commands: bool = Field(default=True, description="启用跳过系统命令")
 
 
-@dataclass
-class PluginsConfig(ConfigBase):
+
+class PluginsConfig(ValidatedConfigBase):
     """插件配置"""
 
-    centralized_config: bool = field(
-        default=True, metadata={"description": "是否启用插件配置集中化管理"}
-    )
+    centralized_config: bool = Field(default=True, description="是否启用插件配置集中化管理")

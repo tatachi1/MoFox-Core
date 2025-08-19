@@ -169,7 +169,7 @@ class VideoAnalyzer:
             prompt += f"\n\n用户问题: {user_question}"
         
         # 添加帧信息到提示词
-        for i, (frame_base64, timestamp) in enumerate(frames):
+        for i, (_frame_base64, timestamp) in enumerate(frames):
             if self.enable_frame_timing:
                 prompt += f"\n\n第{i+1}帧 (时间: {timestamp:.2f}s):"
         

@@ -45,7 +45,7 @@ class ScheduleItem(BaseModel):
             
             return v
         except ValueError as e:
-            raise ValueError(f"时间格式无效，应为HH:MM-HH:MM格式: {e}")
+            raise ValueError(f"时间格式无效，应为HH:MM-HH:MM格式: {e}") from e
     
     @validator('activity')
     def validate_activity(cls, v):
@@ -285,7 +285,7 @@ class ScheduleManager:
         """使用Pydantic验证日程数据格式和完整性"""
         try:
             # 尝试用Pydantic模型验证
-            validated_schedule = ScheduleData(schedule=schedule_data)
+            ScheduleData(schedule=schedule_data)
             logger.info("日程数据Pydantic验证通过")
             return True
         except ValidationError as e:

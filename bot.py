@@ -1,7 +1,16 @@
 import asyncio
 import hashlib
 import os
+import random
+import sys
+import time
+import platform
+import traceback
+from pathlib import Path
+from typing import List, Optional, Sequence
 from dotenv import load_dotenv
+from rich.traceback import install
+from colorama import init, Fore
 
 if os.path.exists(".env"):
     load_dotenv(".env", override=True)
@@ -9,12 +18,6 @@ if os.path.exists(".env"):
 else:
     print("未找到.env文件，请确保程序所需的环境变量被正确设置")
     raise FileNotFoundError(".env 文件不存在，请创建并配置所需的环境变量")
-import sys
-import time
-import platform
-import traceback
-from pathlib import Path
-from rich.traceback import install
 
 # maim_message imports for console input
 
@@ -24,11 +27,11 @@ initialize_logging()
 
 from src.main import MainSystem #noqa
 from src.manager.async_task_manager import async_task_manager #noqa
-from colorama import init, Fore
 
 
 
 logger = get_logger("main")
+egg = get_logger("小彩蛋")
 
 
 install(extra_lines=3)
@@ -63,15 +66,53 @@ async def request_shutdown() -> bool:
         logger.error(f"请求关闭程序时发生错误: {e}")
         return False
 
+def weighted_choice(data: Sequence[str],
+                    weights: Optional[List[float]] = None) -> str:
+    """
+    从 data 中按权重随机返回一条。
+    若 weights 为 None，则所有元素权重默认为 1。
+    """
+    if weights is None:
+        weights = [1.0] * len(data)
+
+    if len(data) != len(weights):
+        raise ValueError("data 和 weights 长度必须相等")
+
+    # 计算累计权重区间
+    total = 0.0
+    acc = []
+    for w in weights:
+        total += w
+        acc.append(total)
+
+    if total <= 0:
+        raise ValueError("总权重必须大于 0")
+
+    # 随机落点
+    r = random.random() * total
+    # 二分查找落点所在的区间
+    left, right = 0, len(acc) - 1
+    while left < right:
+        mid = (left + right) // 2
+        if r < acc[mid]:
+            right = mid
+        else:
+            left = mid + 1
+    return data[left]
+
 def easter_egg():
     # 彩蛋
     init()
-    text = "多年以后，面对AI行刑队，张三将会回想起他2023年在会议上讨论人工智能的那个下午"
+    items = ["多年以后，面对AI行刑队，张三将会回想起他2023年在会议上讨论人工智能的那个下午", 
+             "你知道吗？诺狐的耳朵很软，很好rua", 
+             "喵喵~你的麦麦被猫娘入侵了喵~"]
+    w = [10, 5, 2]
+    text = weighted_choice(items, w)
     rainbow_colors = [Fore.RED, Fore.YELLOW, Fore.GREEN, Fore.CYAN, Fore.BLUE, Fore.MAGENTA]
     rainbow_text = ""
     for i, char in enumerate(text):
         rainbow_text += rainbow_colors[i % len(rainbow_colors)] + char
-    print(rainbow_text)
+    egg.info(rainbow_text)
 
 
 
@@ -203,7 +244,6 @@ def raw_main():
     from src.config.config import global_config
     from src.common.database.database import initialize_sql_database
     from src.common.database.sqlalchemy_models import initialize_database as init_db
-    from src.common.database.db_migration import check_and_migrate_database
     
     logger.info("正在初始化数据库连接...")
     try:
@@ -221,12 +261,6 @@ def raw_main():
         logger.error(f"数据库表结构初始化失败: {e}")
         raise e
 
-    # 执行数据库自动迁移检查
-    try:
-        check_and_migrate_database()
-    except Exception as e:
-        logger.error(f"数据库自动迁移失败: {e}")
-        raise e
 
     # 返回MainSystem实例
     return MainSystem()

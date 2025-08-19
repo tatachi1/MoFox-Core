@@ -188,7 +188,7 @@ class CommandSkipListManager:
             return False, None
         
         # 检查所有跳过模式
-        for pattern_key, skip_pattern in self._skip_patterns.items():
+        for _pattern_key, skip_pattern in self._skip_patterns.items():
             try:
                 if skip_pattern.compiled_pattern.search(message_text):
                     logger.debug(f"消息匹配跳过模式: {skip_pattern.pattern} ({skip_pattern.description})")
