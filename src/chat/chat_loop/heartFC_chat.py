@@ -634,23 +634,22 @@ class HeartFChatting:
                         logger.info(
                             f"{self.log_prefix}{global_config.bot.nickname} 原本想要回复：{content}，但选择执行{action_type}，不发表回复"
                         )
-                        
-                        return {
-                            "action_type": "no_reply",
-                            "success": True,
-                            "reply_text": "",
-                            "command": ""
-                        }
-                    elif action_info["action_type"] != "reply":
-                        # 执行普通动作
-                        with Timer("动作执行", cycle_timers):
-                            success, reply_text, command = await self._handle_action(
-                                action_info["action_type"],
-                                action_info["reasoning"],
-                                action_info["action_data"],
-                                cycle_timers,
-                                thinking_id,
-                                action_info["action_message"]
+                    else:
+                        logger.warning(f"{self.log_prefix} 预生成的回复任务未生成有效内容")
+
+            action_message = target_message or message_data
+            if action_type == "reply":
+                # 等待回复生成完毕
+                if self.loop_mode == ChatMode.NORMAL:
+                    # 只有在gen_task存在时才等待
+                    if not gen_task:
+                        reply_to_str = await self.build_reply_to_str(message_data)
+                        gen_task = asyncio.create_task(
+                            self._generate_response(
+                                message_data=message_data,
+                                available_actions=available_actions,
+                                reply_to=reply_to_str,
+                                request_type="chat.replyer.normal",
                             )
                         return {
                             "action_type": action_info["action_type"],
