@@ -79,11 +79,21 @@ class CookieService:
         
         try:
             timeout = aiohttp.ClientTimeout(total=15)
+            # 根据更可靠的实现，这里应该使用POST并传递domain
+            payload = {"domain": "user.qzone.qq.com"}
             async with aiohttp.ClientSession() as session:
-                async with session.get(http_url, timeout=timeout) as response:
+                async with session.post(http_url, json=payload, timeout=timeout) as response:
                     response.raise_for_status()
-                    # 假设API直接返回JSON格式的cookie
-                    return await response.json()
+                    data = await response.json()
+                    
+                    # 确保返回的数据格式被正确解析，兼容Adapter的返回结构
+                    cookie_str = data.get("data", {}).get("cookies")
+                    if cookie_str and isinstance(cookie_str, str):
+                        logger.info("从HTTP备用地址成功解析Cookie字符串。")
+                        return {k.strip(): v.strip() for k, v in (p.split('=', 1) for p in cookie_str.split('; ') if '=' in p)}
+                    
+                    logger.warning(f"从HTTP备用地址获取的Cookie格式不正确或为空: {data}")
+                    return None
         except Exception as e:
             logger.error(f"通过HTTP备用地址 {http_url} 获取Cookie失败: {e}")
         return None
