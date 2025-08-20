@@ -1,4 +1,6 @@
 data/
+/image_sender_plugin/
+/voice_sender_plugin/
 /backups/
 data1/
 mongodb/
