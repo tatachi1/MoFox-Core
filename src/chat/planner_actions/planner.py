@@ -206,6 +206,11 @@ class ActionPlanner:
                     # 非no_reply动作需要target_message_id
                     if action != "no_reply":
                         if target_message_id := parsed_json.get("target_message_id"):
+                            if isinstance(target_message_id, int):
+                                target_message_id = str(target_message_id)
+                            
+                            if isinstance(target_message_id, str) and not target_message_id.startswith('M'):
+                                target_message_id = f"M{target_message_id}"
                             # 根据target_message_id查找原始消息
                             target_message = self.find_message_by_id(target_message_id, message_id_list)
                             # 如果获取的target_message为None，输出warning并重新plan
