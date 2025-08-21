@@ -322,7 +322,7 @@ class ScheduleManager:
         now = datetime.now().time()
         
         # 修复：应该获取列表的第一个元素
-        first_item = self.today_schedule
+        first_item = self.today_schedule[0]
         last_item = self.today_schedule[-1]
 
         for item in [first_item, last_item]:
