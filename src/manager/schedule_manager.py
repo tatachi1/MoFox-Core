@@ -314,7 +314,7 @@ class ScheduleManager:
 
     def is_sleeping(self) -> bool:
         """检查当前是否处于休眠时间（日程表的第一项或最后一项）"""
-        if not global_config.schedule.enabe_is_sleep:
+        if not global_config.schedule.enable_is_sleep:
             return False
         if not self.today_schedule:
             return False
