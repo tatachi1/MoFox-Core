@@ -1,5 +1,5 @@
 [inner]
-version = "1.2.6"
+version = "1.2.7"
 
 # 配置文件版本号迭代规则同bot_config.toml
 
@@ -187,6 +187,11 @@ max_tokens = 1000
 model_list = ["moonshotai-Kimi-K2-Instruct"]           # 使用快速的小模型进行检测
 temperature = 0.1                   # 低温度确保检测结果稳定
 max_tokens = 200                    # 检测结果不需要太长的输出
+
+[model_task_config.monthly_plan_generator] # 月层计划生成模型
+model_list = ["deepseek-v3"]
+temperature = 0.7
+max_tokens = 1000
 
 #嵌入模型
 [model_task_config.embedding]

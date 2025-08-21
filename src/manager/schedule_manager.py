@@ -1,10 +1,12 @@
 import json
 import asyncio
+import random
 from datetime import datetime, time, timedelta
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, ValidationError, validator
 
 from src.common.database.sqlalchemy_models import Schedule, get_db_session
+from src.common.database.monthly_plan_db import get_active_plans_for_month, soft_delete_plans
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.common.logger import get_logger
@@ -168,9 +170,28 @@ class ScheduleManager:
             logger.error(f"加载或生成日程时出错: {e}")
 
     async def generate_and_save_schedule(self):
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        weekday = datetime.now().strftime("%A")
-        
+        now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        current_month_str = now.strftime("%Y-%m")
+        weekday = now.strftime("%A")
+
+        # 获取月度计划作为额外参考
+        monthly_plans_block = ""
+        used_plan_ids = []
+        if global_config.monthly_plan_system and global_config.monthly_plan_system.enable:
+            active_plans = get_active_plans_for_month(current_month_str)
+            if active_plans:
+                # 随机抽取最多3个计划
+                num_to_sample = min(len(active_plans), 3)
+                sampled_plans = random.sample(active_plans, num_to_sample)
+                used_plan_ids = [p.id for p in sampled_plans]  # type: ignore
+                
+                plan_texts = "\n".join([f"- {p.plan_text}" for p in sampled_plans])
+                monthly_plans_block = f"""
+**我这个月的一些小目标/计划 (请在今天的日程中适当体现)**:
+{plan_texts}
+"""
+
         guidelines = global_config.schedule.guidelines or DEFAULT_SCHEDULE_GUIDELINES
         personality = global_config.personality.personality_core
         personality_side = global_config.personality.personality_side
@@ -180,10 +201,10 @@ class ScheduleManager:
 
 **关于我**:
 - **核心人设**: {personality}
-- **具体习惯与兴趣**: 
+- **具体习惯与兴趣**:
 {personality_side}
-
-**我今天的规划原则**: 
+{monthly_plans_block}
+**我今天的规划原则**:
 {guidelines}
 
 **重要要求**:
@@ -219,15 +240,18 @@ class ScheduleManager:
                         existing_schedule = session.query(Schedule).filter(Schedule.date == today_str).first()
                         if existing_schedule:
                             # 更新现有日程
-                            existing_schedule.schedule_data = json.dumps(schedule_data)
-                            existing_schedule.updated_at = datetime.now()
+                            session.query(Schedule).filter(Schedule.date == today_str).update({
+                                Schedule.schedule_data: json.dumps(schedule_data),
+                                Schedule.updated_at: datetime.now()
+                            })
                         else:
                             # 创建新日程
-                            new_schedule = Schedule()
-                            new_schedule.date = today_str
-                            new_schedule.schedule_data = json.dumps(schedule_data)
+                            new_schedule = Schedule(
+                                date=today_str,
+                                schedule_data=json.dumps(schedule_data)
+                            )
                             session.add(new_schedule)
-                            session.commit()
+                        session.commit()
                     
                     # 美化输出
                     schedule_str = f"已成功生成并保存今天的日程 ({today_str})：\n"
@@ -236,6 +260,13 @@ class ScheduleManager:
                     logger.info(schedule_str)
                     
                     self.today_schedule = schedule_data
+                    
+                    # 成功生成日程后，根据概率软删除使用过的月度计划
+                    if used_plan_ids and global_config.monthly_plan_system:
+                        if random.random() < global_config.monthly_plan_system.deletion_probability_on_use:
+                            logger.info(f"根据概率，将使用过的月度计划 {used_plan_ids} 标记为已完成。")
+                            soft_delete_plans(used_plan_ids)
+                            
                     return
                 else:
                     logger.warning(f"第 {attempt + 1} 次生成的日程验证失败，正在重试...")

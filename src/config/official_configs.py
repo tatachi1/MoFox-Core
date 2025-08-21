@@ -652,3 +652,12 @@ class PluginsConfig(ValidatedConfigBase):
     """插件配置"""
 
     centralized_config: bool = Field(default=True, description="是否启用插件配置集中化管理")
+
+
+class MonthlyPlanSystemConfig(ValidatedConfigBase):
+    """月层计划系统配置类"""
+
+    enable: bool = Field(default=True, description="是否启用本功能")
+    generation_threshold: int = Field(default=10, ge=0, description="启动时，如果当月计划少于此数量，则触发LLM生成")
+    plans_per_generation: int = Field(default=5, ge=1, description="每次调用LLM期望生成的计划数量")
+    deletion_probability_on_use: float = Field(default=0.5, ge=0.0, le=1.0, description="计划被使用后，被删除的概率")

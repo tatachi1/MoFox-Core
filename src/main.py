@@ -1,5 +1,6 @@
 # 有一个人想混点提交（）
 # 什么？混提交不带我一个喵～
+# 我要混提交
 import asyncio
 import time
 import signal
@@ -18,6 +19,7 @@ from src.common.server import get_global_server, Server
 from src.mood.mood_manager import mood_manager
 from rich.traceback import install
 from src.manager.schedule_manager import schedule_manager
+from src.schedule.monthly_plan_manager import MonthlyPlanManager
 # from src.api.main import start_api_server
 
 # 导入新的插件管理器和热重载管理器
@@ -169,6 +171,12 @@ MaiMbot-Pro-Max(第三方改版)
         await self.individuality.initialize()
         # 初始化日程管理器
         if global_config.schedule.enable:
+            logger.info("正在初始化月度计划...")
+            try:
+                await MonthlyPlanManager.initialize_monthly_plans()
+                logger.info("月度计划初始化完成")
+            except Exception as e:
+                logger.error(f"月度计划初始化失败: {e}")
             logger.info("日程表功能已启用，正在初始化管理器...")
             await schedule_manager.load_or_generate_today_schedule()
             await schedule_manager.start_daily_schedule_generation()

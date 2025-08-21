@@ -114,6 +114,7 @@ class ModelTaskConfig(ValidatedConfigBase):
     lpmm_rdf_build: TaskConfig = Field(..., description="LPMM RDF构建模型配置")
     lpmm_qa: TaskConfig = Field(..., description="LPMM问答模型配置")
     schedule_generator: TaskConfig = Field(..., description="日程生成模型配置")
+    monthly_plan_generator: TaskConfig = Field(..., description="月层计划生成模型配置")
     emoji_vlm: TaskConfig = Field(..., description="表情包识别模型配置")
     anti_injection: TaskConfig = Field(..., description="反注入检测专用模型配置")
     

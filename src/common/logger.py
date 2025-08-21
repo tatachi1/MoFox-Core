@@ -444,6 +444,7 @@ MODULE_COLORS = {
     "dependency_manager": "\033[38;5;30m",  # 深青色
     "manifest_utils": "\033[38;5;39m",  # 蓝色
     "schedule_manager": "\033[38;5;27m",  # 深蓝色
+    "monthly_plan_manager": "\033[38;5;171m",
     
     # 聊天和多媒体扩展
     "chat_voice": "\033[38;5;87m",  # 浅青色
@@ -546,6 +547,7 @@ MODULE_ALIASES = {
     "dependency_manager": "依赖管理",
     "manifest_utils": "清单工具",
     "schedule_manager": "计划管理",
+    "monthly_plan_manager": "月度计划",
     
     # 聊天和多媒体扩展
     "chat_voice": "语音处理",

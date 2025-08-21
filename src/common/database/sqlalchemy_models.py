@@ -509,6 +509,19 @@ class CacheEntries(Base):
         Index('idx_cache_entries_created_at', 'created_at'),
     )
 
+class MonthlyPlan(Base):
+    """月层计划模型"""
+    __tablename__ = 'monthly_plans'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    plan_text = Column(Text, nullable=False)
+    target_month = Column(String(7), nullable=False, index=True)  # "YYYY-MM"
+    is_deleted = Column(Boolean, nullable=False, default=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
+
+    __table_args__ = (
+        Index('idx_monthlyplan_target_month_is_deleted', 'target_month', 'is_deleted'),
+    )
 
 # 数据库引擎和会话管理
 _engine = None

@@ -41,7 +41,9 @@ from src.config.official_configs import (
     ExaConfig,
     WebSearchConfig,
     TavilyConfig,
-    AntiPromptInjectionConfig
+    AntiPromptInjectionConfig,
+    PluginsConfig,
+    MonthlyPlanSystemConfig
 )
 
 from .api_ada_configs import (
@@ -401,6 +403,7 @@ class Config(ValidatedConfigBase):
     web_search: WebSearchConfig = Field(default_factory=lambda: WebSearchConfig(), description="网络搜索配置")
     tavily: TavilyConfig = Field(default_factory=lambda: TavilyConfig(), description="Tavily配置")
     plugins: PluginsConfig = Field(default_factory=lambda: PluginsConfig(), description="插件配置")
+    monthly_plan_system: MonthlyPlanSystemConfig = Field(default_factory=lambda: MonthlyPlanSystemConfig(), description="月层计划系统配置")
 
 
 class APIAdapterConfig(ValidatedConfigBase):
