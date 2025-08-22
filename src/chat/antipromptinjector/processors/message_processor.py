@@ -84,3 +84,37 @@ class MessageProcessor:
                 return True, None, "用户白名单"
         
         return None
+
+    def check_whitelist_dict(self, user_id: str, platform: str, whitelist: list) -> bool:
+        """检查用户是否在白名单中（字典格式）
+        
+        Args:
+            user_id: 用户ID
+            platform: 平台
+            whitelist: 白名单配置
+            
+        Returns:
+            如果在白名单中返回True，否则返回False
+        """
+        if not whitelist or not user_id or not platform:
+            return False
+            
+        # 检查用户白名单：格式为 [[platform, user_id], ...]
+        for whitelist_entry in whitelist:
+            if len(whitelist_entry) == 2 and whitelist_entry[0] == platform and whitelist_entry[1] == user_id:
+                logger.debug(f"用户 {platform}:{user_id} 在白名单中，跳过检测")
+                return True
+        
+        return False
+
+    def extract_text_content_from_dict(self, message_data: dict) -> str:
+        """从字典格式消息中提取文本内容
+        
+        Args:
+            message_data: 消息数据字典
+            
+        Returns:
+            提取的文本内容
+        """
+        processed_plain_text = message_data.get("processed_plain_text", "")
+        return self.extract_new_content_from_reply(processed_plain_text)

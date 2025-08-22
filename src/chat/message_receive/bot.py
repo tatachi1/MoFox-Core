@@ -289,43 +289,6 @@ class ChatBot:
 
             # 处理消息内容，生成纯文本
             await message.process()
-
-            # === 反注入检测 ===
-            anti_injector = get_anti_injector()
-            result, modified_content, reason = await anti_injector.process_message(message)
-            
-            if result == ProcessResult.BLOCKED_BAN:
-                # 用户被封禁
-                anti_injector_logger.warning(f"用户被反注入系统封禁: {reason}")
-                return
-            elif result == ProcessResult.BLOCKED_INJECTION:
-                # 消息被阻止（危险内容等）
-                anti_injector_logger.warning(f"消息被反注入系统阻止: {reason}")
-                return
-            elif result == ProcessResult.COUNTER_ATTACK:
-                # 反击模式：发送反击消息并阻止原消息
-                anti_injector_logger.info(f"反击模式启动: {reason}")
-                if modified_content:
-                    # 发送反击消息
-                    try:
-                        await send_api.text_to_stream(modified_content, message.chat_stream.stream_id)
-                        anti_injector_logger.info(f"反击消息已发送: {modified_content[:50]}...")
-                    except Exception as e:
-                        anti_injector_logger.error(f"发送反击消息失败: {e}")
-                return
-            
-            # 检查是否需要双重保护（消息加盾 + 系统提示词）
-            safety_prompt = None
-            if result == ProcessResult.SHIELDED:
-                # 获取安全系统提示词
-                shield = anti_injector.shield
-                safety_prompt = shield.get_safety_system_prompt()
-                anti_injector_logger.info(f"消息已被反注入系统加盾处理: {reason}")
-
-            if modified_content:
-                # 消息内容被修改（宽松模式下的加盾处理）
-                message.processed_plain_text = modified_content
-                anti_injector_logger.info(f"消息内容已被反注入系统修改: {reason}")
                 
             # 过滤检查
             if _check_ban_words(message.processed_plain_text, chat, user_info) or _check_ban_regex(  # type: ignore
@@ -360,11 +323,6 @@ class ChatBot:
                 template_group_name = None
 
             async def preprocess():
-                # 如果需要安全提示词加盾，先注入安全提示词
-                if safety_prompt:
-                    await Prompt.create_async(safety_prompt, "anti_injection_safety_prompt")
-                    anti_injector_logger.info("已注入反注入安全系统提示词")
-                
                 await self.heartflow_message_receiver.process_message(message)
 
             if template_group_name:

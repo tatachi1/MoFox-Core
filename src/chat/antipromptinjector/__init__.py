@@ -16,11 +16,7 @@ MaiBot 反注入系统模块
 from .anti_injector import AntiPromptInjector, get_anti_injector, initialize_anti_injector
 from .types import DetectionResult, ProcessResult
 from .core import PromptInjectionDetector, MessageShield
-from .processors import (
-    initialize_skip_list, 
-    should_skip_injection_detection, 
-    MessageProcessor
-)
+from .processors.message_processor import MessageProcessor
 from .management import AntiInjectionStatistics, UserBanManager
 from .decision import CounterAttackGenerator, ProcessingDecisionMaker
     
@@ -36,9 +32,7 @@ __all__ = [
     "AntiInjectionStatistics",
     "UserBanManager", 
     "CounterAttackGenerator",
-    "ProcessingDecisionMaker",
-    "initialize_skip_list",
-    "should_skip_injection_detection"
+    "ProcessingDecisionMaker"
 ]
 
 

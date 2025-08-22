@@ -9,7 +9,13 @@ from src.plugin_system.apis import generator_api, send_api, message_api, databas
 from src.person_info.person_info import get_person_info_manager
 from .hfc_context import HfcContext
 
+# 导入反注入系统
+from src.chat.antipromptinjector import get_anti_injector
+from src.chat.antipromptinjector.types import ProcessResult
+from src.chat.utils.prompt_builder import Prompt
+
 logger = get_logger("hfc")
+anti_injector_logger = get_logger("anti_injector")
 
 class ResponseHandler:
     def __init__(self, context: HfcContext):
@@ -195,15 +201,69 @@ class ResponseHandler:
             list: 生成的回复内容列表，失败时返回None
             
         功能说明:
+        - 在生成回复前进行反注入检测（提高效率）
         - 调用生成器API生成回复
         - 根据配置启用或禁用工具功能
         - 处理生成失败的情况
         - 记录生成过程中的错误和异常
         """
         try:
+            # === 反注入检测（仅在需要生成回复时） ===
+            # 执行反注入检测（直接使用字典格式）
+            anti_injector = get_anti_injector()
+            result, modified_content, reason = await anti_injector.process_message(
+                message_data, self.context.chat_stream
+            )
+            
+            # 根据反注入结果处理消息数据
+            await anti_injector.handle_message_storage(
+                result, modified_content, reason, message_data
+            )
+            
+            if result == ProcessResult.BLOCKED_BAN:
+                # 用户被封禁 - 直接阻止回复生成
+                anti_injector_logger.warning(f"用户被反注入系统封禁，阻止回复生成: {reason}")
+                return None
+            elif result == ProcessResult.BLOCKED_INJECTION:
+                # 消息被阻止（危险内容等） - 直接阻止回复生成
+                anti_injector_logger.warning(f"消息被反注入系统阻止，阻止回复生成: {reason}")
+                return None
+            elif result == ProcessResult.COUNTER_ATTACK:
+                # 反击模式：生成反击消息作为回复
+                anti_injector_logger.info(f"反击模式启动，生成反击回复: {reason}")
+                if modified_content:
+                    # 返回反击消息作为回复内容
+                    return [("text", modified_content)]
+                else:
+                    # 没有反击内容时阻止回复生成
+                    return None
+            
+            # 检查是否需要加盾处理
+            safety_prompt = None
+            if result == ProcessResult.SHIELDED:
+                # 获取安全系统提示词并注入
+                shield = anti_injector.shield
+                safety_prompt = shield.get_safety_system_prompt()
+                await Prompt.create_async(safety_prompt, "anti_injection_safety_prompt")
+                anti_injector_logger.info(f"消息已被反注入系统加盾处理，已注入安全提示词: {reason}")
+            
+            # 处理被修改的消息内容（用于生成回复）
+            modified_reply_to = reply_to
+            if modified_content:
+                # 更新消息内容用于生成回复
+                anti_injector_logger.info(f"消息内容已被反注入系统修改，使用修改后内容生成回复: {reason}")
+                # 解析原始reply_to格式："发送者:消息内容"
+                if ":" in reply_to:
+                    sender_part, _ = reply_to.split(":", 1)
+                    modified_reply_to = f"{sender_part}:{modified_content}"
+                else:
+                    # 如果格式不标准，直接使用修改后的内容
+                    modified_reply_to = modified_content
+            
+            # === 正常的回复生成流程 ===
             success, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.context.chat_stream,
-                reply_to=reply_to,
+                reply_to=modified_reply_to,  # 使用可能被修改的内容
                 available_actions=available_actions,
                 enable_tool=global_config.tool.enable_tool,
                 request_type=request_type,

@@ -11,9 +11,6 @@
 
 from src.plugin_system.base import BaseCommand
 from src.chat.antipromptinjector import get_anti_injector
-from src.chat.antipromptinjector.processors.command_skip_list import (
-    get_skip_patterns_info
-)
 from src.common.logger import get_logger
 
 logger = get_logger("anti_injector.commands")
@@ -62,32 +59,3 @@ class AntiInjectorStatusCommand(BaseCommand):
             logger.error(f"获取反注入系统状态失败: {e}")
             await self.send_text(f"获取状态失败: {str(e)}")
             return False, f"获取状态失败: {str(e)}", True
-
-
-class AntiInjectorSkipListCommand(BaseCommand):
-    """反注入跳过列表管理命令"""
-    
-    command_name = "反注入跳过列表"
-    command_description = "管理反注入系统的命令跳过列表"
-    command_pattern = r"^/反注入跳过列表$"
-
-    async def execute(self) -> tuple[bool, str, bool]:
-        result_text = "🛡️ 所有跳过模式列表\n\n"
-        patterns_info = get_skip_patterns_info()
-        for source_type, patterns in patterns_info.items():
-                if patterns:
-                    type_name = {
-                        "system": "📱 系统命令",
-                        "plugin": "🔌 插件命令"
-                    }.get(source_type, source_type)
-                    
-                result_text += f"{type_name} ({len(patterns)} 个):\n"
-                for i, pattern in enumerate(patterns[:10], 1):  # 限制显示前10个
-                    result_text += f"  {i}. {pattern['pattern']}\n"
-                    if pattern['description']:
-                        result_text += f"     说明: {pattern['description']}\n"
-                    
-                if len(patterns) > 10:
-                    result_text += f"  ... 还有 {len(patterns) - 10} 个模式\n"
-        await self.send_text(result_text)
-        return True, result_text, True

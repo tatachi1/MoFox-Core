@@ -655,10 +655,6 @@ class AntiPromptInjectionConfig(ValidatedConfigBase):
     auto_ban_duration_hours: int = Field(default=2, description="自动禁用持续时间（小时）")
     shield_prefix: str = Field(default="🛡️ ", description="保护前缀")
     shield_suffix: str = Field(default=" 🛡️", description="保护后缀")
-    enable_command_skip_list: bool = Field(default=True, description="启用命令跳过列表")
-    auto_collect_plugin_commands: bool = Field(default=True, description="启用自动收集插件命令")
-    manual_skip_patterns: list[str] = Field(default_factory=list, description="手动跳过模式")
-    skip_system_commands: bool = Field(default=True, description="启用跳过系统命令")
 
 
 
