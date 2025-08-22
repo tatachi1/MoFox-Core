@@ -13,6 +13,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.chat.memory_system.async_instant_memory_wrapper import get_async_instant_memory
 
 logger = get_logger("async_memory_optimizer")
 
@@ -140,11 +141,16 @@ class AsyncMemoryQueue:
         # 这里需要根据具体的记忆系统来实现
         # 为了避免循环导入，这里使用延迟导入
         try:
-            from src.chat.memory_system.instant_memory import InstantMemory
+            # 获取包装器实例
+            memory_wrapper = get_async_instant_memory(task.chat_id)
             
-            instant_memory = InstantMemory(task.chat_id)
-            await instant_memory.create_and_store_memory(task.content)
-            return True
+            # 使用包装器中的llm_memory实例
+            if memory_wrapper and memory_wrapper.llm_memory:
+                await memory_wrapper.llm_memory.create_and_store_memory(task.content)
+                return True
+            else:
+                logger.warning(f"无法获取记忆系统实例，存储任务失败: chat_id={task.chat_id}")
+                return False
         except Exception as e:
             logger.error(f"记忆存储失败: {e}")
             return False
@@ -152,11 +158,16 @@ class AsyncMemoryQueue:
     async def _handle_retrieve_task(self, task: MemoryTask) -> Any:
         """处理记忆检索任务"""
         try:
-            from src.chat.memory_system.instant_memory import InstantMemory
+            # 获取包装器实例
+            memory_wrapper = get_async_instant_memory(task.chat_id)
             
-            instant_memory = InstantMemory(task.chat_id)
-            memories = await instant_memory.get_memory(task.content)
-            return memories or []
+            # 使用包装器中的llm_memory实例
+            if memory_wrapper and memory_wrapper.llm_memory:
+                memories = await memory_wrapper.llm_memory.get_memory(task.content)
+                return memories or []
+            else:
+                logger.warning(f"无法获取记忆系统实例，检索任务失败: chat_id={task.chat_id}")
+                return []
         except Exception as e:
             logger.error(f"记忆检索失败: {e}")
             return []

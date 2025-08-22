@@ -449,6 +449,8 @@ class MemoryConfig(ValidatedConfigBase):
     consolidate_memory_percentage: float = Field(default=0.01, description="巩固记忆百分比")
     memory_ban_words: list[str] = Field(default_factory=lambda: ["表情包", "图片", "回复", "聊天记录"], description="记忆禁用词")
     enable_instant_memory: bool = Field(default=True, description="启用即时记忆")
+    enable_llm_instant_memory: bool = Field(default=True, description="启用基于LLM的瞬时记忆")
+    enable_vector_instant_memory: bool = Field(default=True, description="启用基于向量的瞬时记忆")
 
 
 

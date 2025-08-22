@@ -22,27 +22,32 @@ class AsyncInstantMemoryWrapper:
         self.cache: Dict[str, tuple[Any, float]] = {}  # 缓存：(结果, 时间戳)
         self.cache_ttl = 300  # 缓存5分钟
         self.default_timeout = 3.0  # 默认超时3秒
-        
-        # 延迟加载记忆系统
-        self._initialize_memory_systems()
-    
-    def _initialize_memory_systems(self):
-        """延迟初始化记忆系统"""
-        try:
-            # 初始化LLM记忆系统
-            from src.chat.memory_system.instant_memory import InstantMemory
-            self.llm_memory = InstantMemory(self.chat_id)
-            logger.debug(f"LLM瞬时记忆系统已初始化: {self.chat_id}")
-        except Exception as e:
-            logger.warning(f"LLM瞬时记忆系统初始化失败: {e}")
-        
-        try:
-            # 初始化向量记忆系统
-            from src.chat.memory_system.vector_instant_memory import VectorInstantMemoryV2
-            self.vector_memory = VectorInstantMemoryV2(self.chat_id)
-            logger.debug(f"向量瞬时记忆系统已初始化: {self.chat_id}")
-        except Exception as e:
-            logger.warning(f"向量瞬时记忆系统初始化失败: {e}")
+
+        # 从配置中读取是否启用各种记忆系统
+        self.llm_memory_enabled = global_config.memory.enable_llm_instant_memory
+        self.vector_memory_enabled = global_config.memory.enable_vector_instant_memory
+
+    async def _ensure_llm_memory(self):
+        """确保LLM记忆系统已初始化"""
+        if self.llm_memory is None and self.llm_memory_enabled:
+            try:
+                from src.chat.memory_system.instant_memory import InstantMemory
+                self.llm_memory = InstantMemory(self.chat_id)
+                logger.debug(f"LLM瞬时记忆系统已初始化: {self.chat_id}")
+            except Exception as e:
+                logger.warning(f"LLM瞬时记忆系统初始化失败: {e}")
+                self.llm_memory_enabled = False  # 初始化失败则禁用
+
+    async def _ensure_vector_memory(self):
+        """确保向量记忆系统已初始化"""
+        if self.vector_memory is None and self.vector_memory_enabled:
+            try:
+                from src.chat.memory_system.vector_instant_memory import VectorInstantMemoryV2
+                self.vector_memory = VectorInstantMemoryV2(self.chat_id)
+                logger.debug(f"向量瞬时记忆系统已初始化: {self.chat_id}")
+            except Exception as e:
+                logger.warning(f"向量瞬时记忆系统初始化失败: {e}")
+                self.vector_memory_enabled = False # 初始化失败则禁用
     
     def _get_cache_key(self, operation: str, content: str) -> str:
         """生成缓存键"""
@@ -67,17 +72,16 @@ class AsyncInstantMemoryWrapper:
         """缓存结果"""
         self.cache[cache_key] = (result, time.time())
     
-    async def store_memory_async(self, content: str, timeout: float = None) -> bool:
+    async def store_memory_async(self, content: str, timeout: Optional[float] = None) -> bool:
         """异步存储记忆（带超时控制）"""
         if timeout is None:
             timeout = self.default_timeout
         
         success_count = 0
-        total_systems = 0
         
         # 异步存储到LLM记忆系统
+        await self._ensure_llm_memory()
         if self.llm_memory:
-            total_systems += 1
             try:
                 await asyncio.wait_for(
                     self.llm_memory.create_and_store_memory(content),
@@ -91,8 +95,8 @@ class AsyncInstantMemoryWrapper:
                 logger.error(f"LLM记忆存储失败: {e}")
         
         # 异步存储到向量记忆系统
+        await self._ensure_vector_memory()
         if self.vector_memory:
-            total_systems += 1
             try:
                 await asyncio.wait_for(
                     self.vector_memory.store_message(content),
@@ -107,7 +111,7 @@ class AsyncInstantMemoryWrapper:
         
         return success_count > 0
     
-    async def retrieve_memory_async(self, query: str, timeout: float = None, 
+    async def retrieve_memory_async(self, query: str, timeout: Optional[float] = None,
                                    use_cache: bool = True) -> Optional[Any]:
         """异步检索记忆（带缓存和超时控制）"""
         if timeout is None:
@@ -125,6 +129,7 @@ class AsyncInstantMemoryWrapper:
         results = []
         
         # 从向量记忆系统检索（优先，速度快）
+        await self._ensure_vector_memory()
         if self.vector_memory:
             try:
                 vector_result = await asyncio.wait_for(
@@ -140,6 +145,7 @@ class AsyncInstantMemoryWrapper:
                 logger.error(f"向量记忆检索失败: {e}")
         
         # 从LLM记忆系统检索（备用，更准确但较慢）
+        await self._ensure_llm_memory()
         if self.llm_memory and len(results) == 0:  # 只有向量检索失败时才使用LLM
             try:
                 llm_result = await asyncio.wait_for(
