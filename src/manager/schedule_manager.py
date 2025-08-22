@@ -3,6 +3,7 @@ import asyncio
 import random
 from datetime import datetime, time, timedelta
 from typing import Optional, List, Dict, Any
+from lunar_python import Lunar
 from pydantic import BaseModel, ValidationError, validator
 
 from src.common.database.sqlalchemy_models import Schedule, get_db_session
@@ -175,6 +176,18 @@ class ScheduleManager:
         current_month_str = now.strftime("%Y-%m")
         weekday = now.strftime("%A")
 
+        # 新增：获取节日信息
+        lunar = Lunar.fromDate(now)
+        festivals = lunar.getFestivals()
+        other_festivals = lunar.getOtherFestivals()
+        all_festivals = festivals + other_festivals
+        
+        festival_block = ""
+        if all_festivals:
+            festival_text = "、".join(all_festivals)
+            festival_block = f"**今天也是一个特殊的日子: {festival_text}！请在日程中考虑和庆祝这个节日。**"
+
+
         # 获取月度计划作为额外参考
         monthly_plans_block = ""
         used_plan_ids = []
@@ -198,7 +211,7 @@ class ScheduleManager:
 
         prompt = f"""
 我，{global_config.bot.nickname}，需要为自己规划一份今天（{today_str}，星期{weekday}）的详细日程安排。
-
+{festival_block}
 **关于我**:
 - **核心人设**: {personality}
 - **具体习惯与兴趣**:
