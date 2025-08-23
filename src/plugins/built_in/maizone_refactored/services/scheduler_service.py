@@ -35,6 +35,7 @@ class SchedulerService:
         self.qzone_service = qzone_service
         self.is_running = False
         self.task = None
+        self.last_processed_activity = None
 
     async def start(self):
         """启动定时任务的主循环。"""
@@ -69,30 +70,41 @@ class SchedulerService:
                 if not self.get_config("schedule.enable_schedule", False):
                     await asyncio.sleep(60)  # 如果被禁用，则每分钟检查一次状态
                     continue
-                
+
                 # 2. 获取当前时间的日程活动
                 current_activity = schedule_manager.get_current_activity()
-                logger.info(current_activity)
+                logger.info(f"当前检测到的日程活动: {current_activity}")
+
                 if current_activity:
-                    now = datetime.datetime.now()
-                    hour_str = now.strftime("%Y-%m-%d %H")
+                    # 3. 检查活动是否在黑名单中
+                    activity_blacklist = self.get_config("schedule.activity_blacklist", ["睡觉", "睡眠"])
+                    if any(keyword in current_activity for keyword in activity_blacklist):
+                        logger.info(f"活动 '{current_activity}' 包含黑名单关键字，本次跳过。")
+                        self.last_processed_activity = current_activity  # 更新状态以防活动切换后立即触发
                     
-                    # 3. 检查这个小时的这个活动是否已经处理过，防止重复发送
-                    if not await self._is_processed(hour_str, current_activity):
+                    # 4. 检查活动是否是新的活动
+                    elif current_activity != self.last_processed_activity:
                         logger.info(f"检测到新的日程活动: '{current_activity}'，准备发送说说。")
                         
-                        # 4. 调用QZoneService执行完整的发送流程
+                        # 5. 调用QZoneService执行完整的发送流程
                         result = await self.qzone_service.send_feed_from_activity(current_activity)
                         
-                        # 5. 将处理结果记录到数据库
+                        # 6. 将处理结果记录到数据库
+                        now = datetime.datetime.now()
+                        hour_str = now.strftime("%Y-%m-%d %H")
                         await self._mark_as_processed(
-                            hour_str, 
-                            current_activity, 
-                            result.get("success", False), 
+                            hour_str,
+                            current_activity,
+                            result.get("success", False),
                             result.get("message", "")
                         )
-                
-                # 6. 计算并等待一个随机的时间间隔
+                        
+                        # 7. 更新上一个处理的活动
+                        self.last_processed_activity = current_activity
+                    else:
+                        logger.info(f"活动 '{current_activity}' 与上次相同，本次跳过。")
+
+                # 8. 计算并等待一个随机的时间间隔
                 min_minutes = self.get_config("schedule.random_interval_min_minutes", 5)
                 max_minutes = self.get_config("schedule.random_interval_max_minutes", 15)
                 wait_seconds = random.randint(min_minutes * 60, max_minutes * 60)
