@@ -635,7 +635,7 @@ def get_db_session():
         _, SessionLocal = initialize_database()
         session = SessionLocal()
         yield session
-        #session.commit()
+        session.commit()
     except Exception:
         if session:
             session.rollback()
