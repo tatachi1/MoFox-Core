@@ -26,6 +26,8 @@ class WakeUpManager:
         self.angry_start_time = 0.0  # 愤怒状态开始时间
         self.last_decay_time = time.time()  # 上次衰减时间
         self._decay_task: Optional[asyncio.Task] = None
+        self.last_log_time = 0
+        self.log_interval = 30
         
         # 从配置文件获取参数
         wakeup_config = global_config.wakeup_system
@@ -123,7 +125,12 @@ class WakeUpManager:
             # 群聊未被艾特，不增加唤醒度
             return False
         
-        logger.info(f"{self.context.log_prefix} 唤醒度变化: {old_value:.1f} -> {self.wakeup_value:.1f} (阈值: {self.wakeup_threshold})")
+        current_time = time.time()
+        if current_time - self.last_log_time > self.log_interval:
+            logger.info(f"{self.context.log_prefix} 唤醒度变化: {old_value:.1f} -> {self.wakeup_value:.1f} (阈值: {self.wakeup_threshold})")
+            self.last_log_time = current_time
+        else:
+            logger.debug(f"{self.context.log_prefix} 唤醒度变化: {old_value:.1f} -> {self.wakeup_value:.1f} (阈值: {self.wakeup_threshold})")
         
         # 检查是否达到唤醒阈值
         if self.wakeup_value >= self.wakeup_threshold:

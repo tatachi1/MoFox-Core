@@ -418,7 +418,12 @@ class ScheduleManager:
                     if is_in_time_range:
                         # 检查是否被唤醒
                         if wakeup_manager and wakeup_manager.is_in_angry_state():
-                            logger.info(f"在休眠活动 '{activity}' 期间，但已被唤醒。")
+                            current_timestamp = datetime.now().timestamp()
+                            if current_timestamp - self.last_sleep_log_time > self.sleep_log_interval:
+                                logger.info(f"在休眠活动 '{activity}' 期间，但已被唤醒。")
+                                self.last_sleep_log_time = current_timestamp
+                            else:
+                                logger.debug(f"在休眠活动 '{activity}' 期间，但已被唤醒。")
                             return False
                         
                         current_timestamp = datetime.now().timestamp()
