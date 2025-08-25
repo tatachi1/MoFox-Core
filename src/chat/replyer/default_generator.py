@@ -995,6 +995,11 @@ class DefaultReplyer:
             video_prompt_injection = "\n请注意，以上内容是你刚刚观看的视频，请以第一人称分享你的观后感，而不是在分析一份报告。"
             memory_block += video_prompt_injection
 
+        # 检查是否为视频分析结果，并注入引导语
+        if target and ("[视频内容]" in target or "好的，我将根据您提供的" in target):
+            video_prompt_injection = "\n请注意，以上内容是你刚刚观看的视频，请以第一人称分享你的观后感，而不是在分析一份报告。"
+            memory_block += video_prompt_injection
+
         keywords_reaction_prompt = await self.build_keywords_reaction_prompt(target)
 
         if extra_info:

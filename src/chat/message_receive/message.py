@@ -222,9 +222,9 @@ class MessageRecv(Message):
                                 # 使用video analyzer分析视频
                                 video_analyzer = get_video_analyzer()
                                 result = await video_analyzer.analyze_video_from_bytes(
-                                    video_bytes, 
+                                    video_bytes,
                                     filename,
-                                    prompt="请详细分析这个视频的内容，包括场景、人物、动作、情感等"
+                                    prompt=global_config.video_analysis.batch_analysis_prompt
                                 )
                                 
                                 logger.info(f"视频分析结果: {result}")
@@ -397,9 +397,9 @@ class MessageRecvS4U(MessageRecv):
                                 # 使用video analyzer分析视频
                                 video_analyzer = get_video_analyzer()
                                 result = await video_analyzer.analyze_video_from_bytes(
-                                    video_bytes, 
+                                    video_bytes,
                                     filename,
-                                    prompt="请详细分析这个视频的内容，包括场景、人物、动作、情感等"
+                                    prompt=global_config.video_analysis.batch_analysis_prompt
                                 )
                                 
                                 logger.info(f"视频分析结果: {result}")
