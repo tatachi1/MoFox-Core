@@ -1,10 +1,10 @@
 # 🚀 快速开始指南
 
-本指南将带你从零开始创建一个功能完整的MaiCore插件。
+本指南将带你从零开始创建一个功能完整的MoFox_Bot插件。
 
 ## 📖 概述
 
-这个指南将带你快速创建你的第一个MaiCore插件。我们将创建一个简单的问候插件，展示插件系统的基本概念。
+这个指南将带你快速创建你的第一个MoFox_Bot插件。我们将创建一个简单的问候插件，展示插件系统的基本概念。
 
 以下代码都在我们的`plugins/hello_world_plugin/`目录下。
 
@@ -18,7 +18,7 @@
 
 确保你已经：
 
-1. 克隆了MaiCore项目
+1. 克隆了MoFox_Bot项目
 2. 安装了Python依赖
 3. 了解基本的Python语法
 
@@ -84,7 +84,7 @@ class HelloWorldPlugin(BasePlugin):
 
 ### 4. 测试基础插件
 
-现在就可以测试这个插件了！启动MaiCore：
+现在就可以测试这个插件了！启动MoFox_Bot：
 
 直接通过启动器运行MaiCore或者 `python bot.py`
 
@@ -160,7 +160,7 @@ class HelloWorldPlugin(BasePlugin):
 
 - `HelloAction` 是我们定义的问候动作类，继承自 `BaseAction`，并实现了核心功能。
 - 在 `HelloWorldPlugin` 中，我们通过 `get_plugin_components()` 方法，通过调用`get_action_info()`这个内置方法将 `HelloAction` 注册为插件的一个组件。
-- 这样一来，当插件被加载时，问候动作也会被一并加载，并可以在MaiCore中使用。
+- 这样一来，当插件被加载时，问候动作也会被一并加载，并可以在MoFox_Bot中使用。
 - `execute()` 函数是Action的核心，定义了当Action被MaiCore选择后，具体要做什么
 - `self.send_text()` 是发送文本消息的便捷方法
 
@@ -168,13 +168,13 @@ Action 组件中有关`activation_type`、`action_parameters`、`action_require`
 
 ### 6. 测试问候Action
 
-重启MaiCore，然后在聊天中发送任意消息，比如：
+重启MoFox_Bot，然后在聊天中发送任意消息，比如：
 
 ```
 你好
 ```
 
-MaiCore可能会选择使用你的问候Action，发送回复：
+MoFox_Bot可能会选择使用你的问候Action，发送回复：
 
 ```
 嗨！很开心见到你！😊
@@ -182,7 +182,7 @@ MaiCore可能会选择使用你的问候Action，发送回复：
 
 ![1750332508760](image/quick-start/1750332508760.png)
 
-> **💡 小提示**：MaiCore会智能地决定什么时候使用它。如果没有立即看到效果，多试几次不同的消息。
+> **💡 小提示**：MoFox_Bot会智能地决定什么时候使用它。如果没有立即看到效果，多试几次不同的消息。
 
 🎉 太棒了！你的插件已经有实际功能了！
 
@@ -222,7 +222,7 @@ class TimeCommand(BaseCommand):
 
 @register_plugin
 class HelloWorldPlugin(BasePlugin):
-    """Hello World插件 - 你的第一个MaiCore插件"""
+    """Hello World插件 - 你的第一个MoFox_Bot插件"""
 
     # 插件基本信息
     plugin_name = "hello_world_plugin"
@@ -250,7 +250,7 @@ class HelloWorldPlugin(BasePlugin):
 
 ### 8. 测试时间查询Command
 
-重启MaiCore，发送命令：
+重启MoFox_Bot，发送命令：
 
 ```
 /time
@@ -319,7 +319,7 @@ class HelloWorldPlugin(BasePlugin):
 
 ```toml
 # hello_world_plugin - 自动生成的配置文件
-# 我的第一个MaiCore插件，包含问候功能和时间查询等基础示例
+# 我的第一个MoFox_Bot插件，包含问候功能和时间查询等基础示例
 
 # 插件基本信息
 [plugin]
@@ -417,11 +417,6 @@ class TimeCommand(BaseCommand):
 
 你可以创建一个 `README.md` 文件，描述插件的功能和使用方法。
 
-### 3. 发布到插件市场
-
-如果你想让更多人使用你的插件，可以将它发布到MaiCore的插件市场。
-
-这部分请参考 [plugin-repo](https://github.com/Maim-with-u/plugin-repo) 的文档。
 
 ---
 
