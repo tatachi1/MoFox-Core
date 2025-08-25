@@ -96,9 +96,9 @@ class HelloWorldPlugin(BasePlugin):
 
 现在我们要给插件加入一个有用的功能，我们从最好玩的Action做起
 
-Action是一类可以让MaiCore根据自身意愿选择使用的“动作”，在MaiCore中，不论是“回复”还是“不回复”，或者“发送表情”以及“禁言”等等，都是通过Action实现的。
+Action是一类可以让MoFox_Bot根据自身意愿选择使用的“动作”，在MoFox_Bot中，不论是“回复”还是“不回复”，或者“发送表情”以及“禁言”等等，都是通过Action实现的。
 
-你可以通过编写动作，来拓展MaiCore的能力，包括发送语音，截图，甚至操作文件，编写代码......
+你可以通过编写动作，来拓展MoFox_Bot的能力，包括发送语音，截图，甚至操作文件，编写代码......
 
 现在让我们给插件添加第一个简单的功能。这个Action可以对用户发送一句问候语。
 
@@ -138,7 +138,7 @@ class HelloAction(BaseAction):
 
 @register_plugin
 class HelloWorldPlugin(BasePlugin):
-    """Hello World插件 - 你的第一个MaiCore插件"""
+    """Hello World插件 - 你的第一个MoFox_Bot插件"""
 
     # 插件基本信息
     plugin_name = "hello_world_plugin"
@@ -161,7 +161,7 @@ class HelloWorldPlugin(BasePlugin):
 - `HelloAction` 是我们定义的问候动作类，继承自 `BaseAction`，并实现了核心功能。
 - 在 `HelloWorldPlugin` 中，我们通过 `get_plugin_components()` 方法，通过调用`get_action_info()`这个内置方法将 `HelloAction` 注册为插件的一个组件。
 - 这样一来，当插件被加载时，问候动作也会被一并加载，并可以在MoFox_Bot中使用。
-- `execute()` 函数是Action的核心，定义了当Action被MaiCore选择后，具体要做什么
+- `execute()` 函数是Action的核心，定义了当Action被MoFox_Bot选择后，具体要做什么
 - `self.send_text()` 是发送文本消息的便捷方法
 
 Action 组件中有关`activation_type`、`action_parameters`、`action_require`、`associated_types` 等的详细说明请参考 [Action组件指南](./action-components.md)。
