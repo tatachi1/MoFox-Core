@@ -169,9 +169,23 @@ class VideoAnalyzer:
         self.frame_quality = getattr(config, 'frame_quality', 85)
         self.max_image_size = getattr(config, 'max_image_size', 600)
         self.enable_frame_timing = getattr(config, 'enable_frame_timing', True)
-        self.batch_analysis_prompt = getattr(config, 'batch_analysis_prompt', """请分析这个视频的内容。这些图片是从视频中按时间顺序提取的关键帧。
+        
+        # 从personality配置中获取人格信息
+        try:
+            personality_config = global_config.personality
+            self.personality_core = getattr(personality_config, 'personality_core', "是一个积极向上的女大学生")
+            self.personality_side = getattr(personality_config, 'personality_side', "用一句话或几句话描述人格的侧面特点")
+        except AttributeError:
+            # 如果没有personality配置，使用默认值
+            self.personality_core = "是一个积极向上的女大学生"
+            self.personality_side = "用一句话或几句话描述人格的侧面特点"
+        
+        self.batch_analysis_prompt = getattr(config, 'batch_analysis_prompt', """请以第一人称的视角来观看这一个视频，你看到的这些是从视频中按时间顺序提取的关键帧。
 
-请提供详细的分析，包括：
+你的核心人设是：{personality_core}。
+你的人格细节是：{personality_side}。
+
+请提供详细的视频内容描述，涵盖以下方面：
 1. 视频的整体内容和主题
 2. 主要人物、对象和场景描述
 3. 动作、情节和时间线发展
@@ -179,7 +193,7 @@ class VideoAnalyzer:
 5. 整体氛围和情感表达
 6. 任何特殊的视觉效果或文字内容
 
-请用中文回答，分析要详细准确。""")
+请用中文回答，结果要详细准确。""")
         
         # 新增的线程池配置
         self.use_multiprocessing = getattr(config, 'use_multiprocessing', True)
@@ -424,8 +438,11 @@ class VideoAnalyzer:
         if not frames:
             return "❌ 没有可分析的帧"
         
-        # 构建提示词
-        prompt = self.batch_analysis_prompt
+        # 构建提示词并格式化人格信息，要不然占位符的那个会爆炸
+        prompt = self.batch_analysis_prompt.format(
+            personality_core=self.personality_core,
+            personality_side=self.personality_side
+        )
         
         if user_question:
             prompt += f"\n\n用户问题: {user_question}"
