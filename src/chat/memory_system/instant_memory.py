@@ -109,7 +109,7 @@ class InstantMemory:
             memory_id=memory_item.memory_id,
             chat_id=memory_item.chat_id,
             memory_text=memory_item.memory_text,
-            keywords=memory_item.keywords,
+            keywords=json.dumps(memory_item.keywords, ensure_ascii=False),
             create_time=memory_item.create_time,
             last_view_time=memory_item.last_view_time,
         )
@@ -171,11 +171,10 @@ class InstantMemory:
                         query = session.execute(select(Memory).where(Memory.chat_id == self.chat_id)).scalars()
                 for mem in query:
                     # 对每条记忆
-                    mem_keywords = mem.keywords or ""
-                    parsed = ast.literal_eval(mem_keywords)
-                    if isinstance(parsed, list):
-                        mem_keywords = [str(k).strip() for k in parsed if str(k).strip()]
-                    else:
+                    mem_keywords_str = mem.keywords or "[]"
+                    try:
+                        mem_keywords = json.loads(mem_keywords_str)
+                    except json.JSONDecodeError:
                         mem_keywords = []
                     # logger.info(f"mem_keywords: {mem_keywords}")
                     # logger.info(f"keywords_list: {keywords_list}")
