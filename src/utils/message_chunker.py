@@ -3,7 +3,7 @@ MaiBot 端的消息切片处理模块
 用于接收和重组来自 Napcat-Adapter 的切片消息
 """
 
-import json
+import orjson
 import time
 import asyncio
 from typing import Dict, Any, Optional
@@ -131,8 +131,8 @@ class MessageReassembler:
                 
                 # 尝试反序列化重组后的消息
                 try:
-                    return json.loads(reassembled_message)
-                except json.JSONDecodeError as e:
+                    return orjson.loads(reassembled_message)
+                except orjson.JSONDecodeError as e:
                     logger.error(f"重组消息反序列化失败: {e}")
                     return None
                 

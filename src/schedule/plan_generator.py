@@ -1,6 +1,6 @@
 # mmc/src/schedule/plan_generator.py
 
-import json
+import orjson
 from typing import List
 from pydantic import BaseModel, ValidationError
 from json_repair import repair_json
@@ -95,7 +95,7 @@ class PlanGenerator:
                 
                 # 修复并解析JSON
                 repaired_json_str = repair_json(clean_content)
-                data = json.loads(repaired_json_str)
+                data = orjson.loads(repaired_json_str)
 
                 # 使用Pydantic进行验证
                 validated_response = PlanResponse.model_validate(data)
@@ -104,7 +104,7 @@ class PlanGenerator:
                 logger.info(f"成功生成并验证了 {len(plans)} 个月度计划。")
                 return plans
 
-            except json.JSONDecodeError:
+            except orjson.JSONDecodeError:
                 logger.error(f"修复后仍然无法解析LLM返回的JSON: {llm_content}")
                 return []
             except ValidationError as e:

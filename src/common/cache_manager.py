@@ -1,5 +1,5 @@
 import time
-import json
+import orjson
 import hashlib
 from pathlib import Path
 import numpy as np
@@ -106,7 +106,7 @@ class CacheManager:
             logger.warning(f"无法获取文件信息: {tool_file_path}，错误: {e}")
         
         try:
-            sorted_args = json.dumps(function_args, sort_keys=True)
+            sorted_args = orjson.dumps(function_args, option=orjson.OPT_SORT_KEYS).decode('utf-8')
         except TypeError:
             sorted_args = repr(sorted(function_args.items()))
         return f"{tool_name}::{sorted_args}::{file_hash}"
@@ -163,7 +163,7 @@ class CacheManager:
             expires_at = cache_results["expires_at"]
             if time.time() < expires_at:
                 logger.info(f"命中L2键值缓存: {key}")
-                data = json.loads(cache_results["cache_value"])
+                data = orjson.loads(cache_results["cache_value"])
                 
                 # 更新访问统计
                 await db_query(
@@ -188,34 +188,43 @@ class CacheManager:
                 )
 
         # 步骤 2c: L2 语义缓存 (ChromaDB)
-        if query_embedding is not None:
-            results = self.chroma_collection.query(query_embeddings=query_embedding.tolist(), n_results=1)
-            if results and results['ids'] and results['ids'][0]:
-                distance = results['distances'][0][0] if results['distances'] and results['distances'][0] else 'N/A'
-                logger.debug(f"L2语义搜索找到最相似的结果: id={results['ids'][0]}, 距离={distance}")
-                if distance != 'N/A' and distance < 0.75:
-                    l2_hit_key = results['ids'][0]
-                    logger.info(f"命中L2语义缓存: key='{l2_hit_key}', 距离={distance:.4f}")
-                    with sqlite3.connect(self.db_path) as conn:
-                        cursor = conn.cursor()
-                    cursor.execute("SELECT value, expires_at FROM cache WHERE key = ?", (l2_hit_key if isinstance(l2_hit_key, str) else l2_hit_key[0],))
-                    row = cursor.fetchone()
-                    if row:
-                        value, expires_at = row
-                        if time.time() < expires_at:
-                            data = json.loads(value)
-                            logger.debug(f"L2语义缓存返回的数据: {data}")
-                            # 回填 L1
-                            self.l1_kv_cache[key] = {"data": data, "expires_at": expires_at}
-                            if query_embedding is not None:
-                                try:
-                                    new_id = self.l1_vector_index.ntotal
-                                    faiss.normalize_L2(query_embedding)
-                                    self.l1_vector_index.add(x=query_embedding)
-                                    self.l1_vector_id_to_key[new_id] = key
-                                except Exception as e:
-                                    logger.error(f"回填L1向量索引时发生错误: {e}")
-                            return data
+        if query_embedding is not None and self.chroma_collection:
+            try:
+                results = self.chroma_collection.query(query_embeddings=query_embedding.tolist(), n_results=1)
+                if results and results['ids'] and results['ids'][0]:
+                    distance = results['distances'][0][0] if results['distances'] and results['distances'][0] else 'N/A'
+                    logger.debug(f"L2语义搜索找到最相似的结果: id={results['ids'][0]}, 距离={distance}")
+                    if distance != 'N/A' and distance < 0.75:
+                        l2_hit_key = results['ids'][0][0] if isinstance(results['ids'][0], list) else results['ids'][0]
+                        logger.info(f"命中L2语义缓存: key='{l2_hit_key}', 距离={distance:.4f}")
+                        
+                        # 从数据库获取缓存数据
+                        semantic_cache_results = await db_query(
+                            model_class=CacheEntries,
+                            query_type="get",
+                            filters={"cache_key": l2_hit_key},
+                            single_result=True
+                        )
+                        
+                        if semantic_cache_results:
+                            expires_at = semantic_cache_results["expires_at"]
+                            if time.time() < expires_at:
+                                data = orjson.loads(semantic_cache_results["cache_value"])
+                                logger.debug(f"L2语义缓存返回的数据: {data}")
+                                
+                                # 回填 L1
+                                self.l1_kv_cache[key] = {"data": data, "expires_at": expires_at}
+                                if query_embedding is not None:
+                                    try:
+                                        new_id = self.l1_vector_index.ntotal
+                                        faiss.normalize_L2(query_embedding)
+                                        self.l1_vector_index.add(x=query_embedding)
+                                        self.l1_vector_id_to_key[new_id] = key
+                                    except Exception as e:
+                                        logger.error(f"回填L1向量索引时发生错误: {e}")
+                                return data
+            except Exception as e:
+                logger.warning(f"ChromaDB查询失败: {e}")
 
         logger.debug(f"缓存未命中: {key}")
         return None
@@ -236,7 +245,7 @@ class CacheManager:
         # 写入 L2 (数据库)
         cache_data = {
             "cache_key": key,
-            "cache_value": json.dumps(data, ensure_ascii=False),
+            "cache_value": orjson.dumps(data).decode('utf-8'),
             "expires_at": expires_at,
             "tool_name": tool_name,
             "created_at": time.time(),

@@ -3,7 +3,7 @@
 历史记录工具模块
 提供用于获取QQ空间发送历史的功能。
 """
-import json
+import orjson
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -30,7 +30,7 @@ class _CookieManager:
         if os.path.exists(cookie_file):
             try:
                 with open(cookie_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    return orjson.loads(f.read())
             except Exception as e:
                 logger.error(f"加载Cookie文件失败: {e}")
         return None
@@ -67,7 +67,7 @@ class _SimpleQZoneAPI:
 
             data = res.text
             json_str = data[len('_preloadCallback('):-2] if data.startswith('_preloadCallback(') else data
-            json_data = json.loads(json_str)
+            json_data = orjson.loads(json_str)
 
             return json_data.get("msglist", [])
         except Exception as e:

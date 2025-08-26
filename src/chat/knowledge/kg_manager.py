@@ -1,4 +1,4 @@
-import json
+import orjson
 import os
 import time
 from typing import Dict, List, Tuple
@@ -74,7 +74,7 @@ class KGManager:
         # 保存段落hash到文件
         with open(self.pg_hash_file_path, "w", encoding="utf-8") as f:
             data = {"stored_paragraph_hashes": list(self.stored_paragraph_hashes)}
-            f.write(json.dumps(data, ensure_ascii=False, indent=4))
+            f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2).decode('utf-8'))
 
     def load_from_file(self):
         """从文件加载KG数据"""
@@ -88,7 +88,7 @@ class KGManager:
 
         # 加载段落hash
         with open(self.pg_hash_file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            data = orjson.loads(f.read())
             self.stored_paragraph_hashes = set(data["stored_paragraph_hashes"])
 
         # 加载实体计数

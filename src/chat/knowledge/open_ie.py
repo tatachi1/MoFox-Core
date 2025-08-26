@@ -1,4 +1,4 @@
-import json
+import orjson
 import os
 import glob
 from typing import Any, Dict, List
@@ -113,7 +113,7 @@ class OpenIE:
         data_list = []
         for file in json_files:
             with open(file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                data = orjson.loads(f.read())
                 data_list.append(data)
         if not data_list:
             # print(f"111111111111111111111Root Path : \n{ROOT_PATH}")

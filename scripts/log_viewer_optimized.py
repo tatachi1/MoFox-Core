@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, colorchooser
-import json
+import orjson
 from pathlib import Path
 import threading
 import toml
@@ -199,7 +199,7 @@ class LogFormatter:
             parts.append(event)
         elif isinstance(event, dict):
             try:
-                parts.append(json.dumps(event, ensure_ascii=False, indent=None))
+                parts.append(orjson.dumps(event).decode('utf-8'))
             except (TypeError, ValueError):
                 parts.append(str(event))
         else:
@@ -212,7 +212,7 @@ class LogFormatter:
             if key not in ("timestamp", "level", "logger_name", "event"):
                 if isinstance(value, (dict, list)):
                     try:
-                        value_str = json.dumps(value, ensure_ascii=False, indent=None)
+                        value_str = orjson.dumps(value).decode('utf-8')
                     except (TypeError, ValueError):
                         value_str = str(value)
                 else:
@@ -428,10 +428,10 @@ class AsyncLogLoader:
                         # 处理这批数据
                         for line in lines:
                             try:
-                                log_entry = json.loads(line.strip())
+                                log_entry = orjson.loads(line.strip())
                                 log_index.add_entry(line_count, log_entry)
                                 line_count += 1
-                            except json.JSONDecodeError:
+                            except orjson.JSONDecodeError:
                                 continue
 
                         # 更新进度
@@ -844,7 +844,7 @@ class LogViewer:
         if mapping_file.exists():
             try:
                 with open(mapping_file, "r", encoding="utf-8") as f:
-                    custom_mapping = json.load(f)
+                    custom_mapping = orjson.loads(f.read())
                     self.module_name_mapping.update(custom_mapping)
             except Exception as e:
                 print(f"加载模块映射失败: {e}")
@@ -855,7 +855,10 @@ class LogViewer:
         mapping_file.parent.mkdir(exist_ok=True)
         try:
             with open(mapping_file, "w", encoding="utf-8") as f:
-                json.dump(self.module_name_mapping, f, ensure_ascii=False, indent=2)
+                f.write(orjson.dumps(
+                    self.module_name_mapping,
+                    option=orjson.OPT_INDENT_2
+                ).decode('utf-8'))
         except Exception as e:
             print(f"保存模块映射失败: {e}")
 
@@ -1178,7 +1181,7 @@ class LogViewer:
             for line in f:
                 if line.strip():
                     try:
-                        log_entry = json.loads(line)
+                        log_entry = orjson.loads(line)
                         self.log_index.add_entry(line_count, log_entry)
                         new_entries.append(log_entry)
 
@@ -1187,7 +1190,7 @@ class LogViewer:
                             new_modules.add(logger_name)
 
                         line_count += 1
-                    except json.JSONDecodeError:
+                    except orjson.JSONDecodeError:
                         continue
         
         # 如果发现了新模块，在主线程中更新模块集合

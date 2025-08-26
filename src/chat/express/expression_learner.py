@@ -1,6 +1,6 @@
 import time
 import random
-import json
+import orjson
 import os
 from datetime import datetime
 
@@ -507,11 +507,8 @@ class ExpressionLearnerManager:
                     continue
 
                 try:
-                    chat_ids = os.listdir(type_dir)
-                    logger.debug(f"在 {type_dir} 中找到 {len(chat_ids)} 个聊天ID目录")
-                except Exception as e:
-                    logger.error(f"读取目录失败 {type_dir}: {e}")
-                    continue
+                    with open(expr_file, "r", encoding="utf-8") as f:
+                        expressions = orjson.loads(f.read())
 
                 for chat_id in chat_ids:
                     expr_file = os.path.join(type_dir, chat_id, "expressions.json")
@@ -565,7 +562,7 @@ class ExpressionLearnerManager:
                             
                             migrated_count += 1
                     logger.info(f"已迁移 {expr_file} 到数据库，包含 {len(expressions)} 个表达方式")
-                except json.JSONDecodeError as e:
+                except orjson.JSONDecodeError as e:
                     logger.error(f"JSON解析失败 {expr_file}: {e}")
                 except Exception as e:
                     logger.error(f"迁移表达方式 {expr_file} 失败: {e}")

@@ -2,7 +2,7 @@
 错别字生成器 - 基于拼音和字频的中文错别字生成工具
 """
 
-import json
+import orjson
 import math
 import os
 import random
@@ -52,7 +52,7 @@ class ChineseTypoGenerator:
         # 如果缓存文件存在，直接加载
         if cache_file.exists():
             with open(cache_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+                return orjson.loads(f.read())
 
         # 使用内置的词频文件
         char_freq = defaultdict(int)
@@ -73,7 +73,9 @@ class ChineseTypoGenerator:
 
         # 保存到缓存文件
         with open(cache_file, "w", encoding="utf-8") as f:
-            json.dump(normalized_freq, f, ensure_ascii=False, indent=2)
+            f.write(orjson.dumps(
+                normalized_freq, option=orjson.OPT_INDENT_2).decode('utf-8')
+            )
 
         return normalized_freq
 

@@ -340,14 +340,14 @@ async def store_action_info(
         保存的记录数据或None
     """
     try:
-        import json
+        import orjson
 
         # 构建动作记录数据
         record_data = {
             "action_id": thinking_id or str(int(time.time() * 1000000)),
             "time": time.time(),
             "action_name": action_name,
-            "action_data": json.dumps(action_data or {}, ensure_ascii=False),
+            "action_data": orjson.dumps(action_data or {}).decode('utf-8'),
             "action_done": action_done,
             "action_build_into_prompt": action_build_into_prompt,
             "action_prompt_display": action_prompt_display,

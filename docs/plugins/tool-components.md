@@ -96,7 +96,7 @@ definition: Dict[str, Any] = {"name": cls.name, "description": cls.description, 
 ```python
 from src.plugin_system import BaseTool
 import aiohttp
-import json
+import orjson
 
 class WeatherTool(BaseTool):
     """天气查询工具 - 获取指定城市的实时天气信息"""

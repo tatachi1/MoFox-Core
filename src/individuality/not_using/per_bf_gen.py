@@ -1,5 +1,5 @@
 from typing import Dict, List
-import json
+import orjson
 import os
 from dotenv import load_dotenv
 import sys
@@ -158,7 +158,7 @@ class PersonalityEvaluatorDirect:
             end_idx = ai_response.rfind("}") + 1
             if start_idx != -1 and end_idx != 0:
                 json_str = ai_response[start_idx:end_idx]
-                scores = json.loads(json_str)
+                scores = orjson.loads(json_str)
                 # 确保所有分数在1-6之间
                 return {k: max(1, min(6, float(v))) for k, v in scores.items()}
             else:
@@ -296,14 +296,18 @@ def main():
 
     # 保存简化的结果
     with open(save_path, "w", encoding="utf-8") as f:
-        json.dump(simplified_result, f, ensure_ascii=False, indent=4)
+        f.write(orjson.dumps(
+            simplified_result, option=orjson.OPT_INDENT_2).decode('utf-8')
+        )
 
     print(f"\n结果已保存到 {save_path}")
 
     # 同时保存完整结果到results目录
     os.makedirs("results", exist_ok=True)
     with open("results/personality_result.json", "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
+        f.write(orjson.dumps(
+            result, option=orjson.OPT_INDENT_2).decode('utf-8')
+        )
 
 
 if __name__ == "__main__":

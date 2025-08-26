@@ -1,5 +1,5 @@
 import asyncio
-import json
+import orjson
 import io
 from typing import Callable, Any, Coroutine, Optional
 import aiohttp
@@ -200,7 +200,7 @@ class AiohttpGeminiStreamParser:
             if chunk_text == "[DONE]":
                 return
             
-            chunk_data = json.loads(chunk_text)
+            chunk_data = orjson.loads(chunk_text)
             
             # 解析候选项
             if "candidates" in chunk_data and chunk_data["candidates"]:
@@ -231,7 +231,7 @@ class AiohttpGeminiStreamParser:
                     usage.get("totalTokenCount", 0)
                 )
         
-        except json.JSONDecodeError as e:
+        except orjson.JSONDecodeError as e:
             logger.warning(f"解析流式数据块失败: {e}, 数据: {chunk_text}")
         except Exception as e:
             logger.error(f"处理流式数据块时出错: {e}")

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-import json
+import orjson
 import os
 import math
 import asyncio
@@ -277,8 +277,11 @@ class EmbeddingStore:
                 test_vectors[str(idx)] = self._get_embedding(s)
         
         with open(self.get_test_file_path(), "w", encoding="utf-8") as f:
-            json.dump(test_vectors, f, ensure_ascii=False, indent=2)
-        
+            f.write(orjson.dumps(
+                test_vectors,
+                option=orjson.OPT_INDENT_2
+            ).decode('utf-8'))
+
         logger.info("测试字符串嵌入向量保存完成")
 
     def load_embedding_test_vectors(self):
@@ -287,7 +290,7 @@ class EmbeddingStore:
         if not os.path.exists(path):
             return None
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            return orjson.loads(f.read())
 
     def check_embedding_model_consistency(self):
         """校验当前模型与本地嵌入模型是否一致（使用多线程优化）"""
@@ -416,7 +419,9 @@ class EmbeddingStore:
             logger.info(f"{self.namespace}嵌入库的FaissIndex保存成功")
             logger.info(f"正在保存{self.namespace}嵌入库的idx2hash映射到文件{self.idx2hash_file_path}")
             with open(self.idx2hash_file_path, "w", encoding="utf-8") as f:
-                f.write(json.dumps(self.idx2hash, ensure_ascii=False, indent=4))
+                f.write(orjson.dumps(
+                    self.idx2hash,  option=orjson.OPT_INDENT_2
+                ).decode('utf-8'))
             logger.info(f"{self.namespace}嵌入库的idx2hash映射保存成功")
 
     def load_from_file(self) -> None:
@@ -457,7 +462,7 @@ class EmbeddingStore:
                 logger.info(f"正在加载{self.namespace}嵌入库的idx2hash映射...")
                 logger.debug(f"正在从文件{self.idx2hash_file_path}中加载{self.namespace}嵌入库的idx2hash映射")
                 with open(self.idx2hash_file_path, "r") as f:
-                    self.idx2hash = json.load(f)
+                    self.idx2hash = orjson.loads(f.read())
                 logger.info(f"{self.namespace}嵌入库的idx2hash映射加载成功")
             else:
                 raise Exception(f"文件{self.idx2hash_file_path}不存在")

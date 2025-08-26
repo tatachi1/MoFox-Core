@@ -1,5 +1,5 @@
 import asyncio
-import json
+import orjson
 from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -299,7 +299,7 @@ class ContextWebManager:
              ws.onmessage = function(event) {
                  console.log('收到WebSocket消息:', event.data);
                  try {
-                     const data = JSON.parse(event.data);
+                     const data = orjson.parse(event.data);
                      updateMessages(data.contexts);
                  } catch (e) {
                      console.error('解析消息失败:', e, event.data);
@@ -573,7 +573,7 @@ class ContextWebManager:
     </div>
     
     <script>
-        console.log('调试信息:', {json.dumps(debug_info, ensure_ascii=False, indent=2)});
+        console.log('调试信息:', {orjson.dumps(debug_info,option=orjson.OPT_INDENT_2).decode('utf-8')});
         setTimeout(() => location.reload(), 5000); // 5秒自动刷新
     </script>
 </body>
@@ -619,7 +619,7 @@ class ContextWebManager:
         contexts_data = [msg.to_dict() for msg in all_context_msgs[-self.max_messages:]]
         
         data = {"contexts": contexts_data}
-        await ws.send_str(json.dumps(data, ensure_ascii=False))
+        await ws.send_str(orjson.dumps(data).decode('utf-8'))
         
     async def broadcast_contexts(self):
         """向所有WebSocket连接广播上下文更新"""
@@ -638,8 +638,8 @@ class ContextWebManager:
         contexts_data = [msg.to_dict() for msg in all_context_msgs[-self.max_messages:]]
         
         data = {"contexts": contexts_data}
-        message = json.dumps(data, ensure_ascii=False)
-        
+        message = orjson.dumps(data).decode('utf-8')
+
         logger.info(f"广播 {len(contexts_data)} 条消息到 {len(self.websockets)} 个WebSocket连接")
         
         # 创建WebSocket列表的副本，避免在遍历时修改

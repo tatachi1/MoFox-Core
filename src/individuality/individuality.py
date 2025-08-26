@@ -1,4 +1,4 @@
-import json
+import orjson
 import os
 import hashlib
 import time
@@ -95,7 +95,7 @@ class Individuality:
             "personality_side": personality_side,
             "compress_personality": global_config.personality.compress_personality,
         }
-        personality_str = json.dumps(personality_config, sort_keys=True)
+        personality_str = orjson.dumps(personality_config, option=orjson.OPT_SORT_KEYS).decode('utf-8')
         personality_hash = hashlib.md5(personality_str.encode("utf-8")).hexdigest()
 
         # 身份配置哈希
@@ -103,7 +103,7 @@ class Individuality:
             "identity": identity,
             "compress_identity": global_config.personality.compress_identity,
         }
-        identity_str = json.dumps(identity_config, sort_keys=True)
+        identity_str = orjson.dumps(identity_config,option=orjson.OPT_SORT_KEYS).decode('utf-8')
         identity_hash = hashlib.md5(identity_str.encode("utf-8")).hexdigest()
 
         return personality_hash, identity_hash
@@ -147,8 +147,8 @@ class Individuality:
         if os.path.exists(self.meta_info_file_path):
             try:
                 with open(self.meta_info_file_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
+                    return orjson.loads(f.read())
+            except (orjson.JSONDecodeError, IOError) as e:
                 logger.error(f"读取meta_info文件失败: {e}, 将创建新文件。")
                 return {}
         return {}
@@ -158,7 +158,9 @@ class Individuality:
         try:
             os.makedirs(os.path.dirname(self.meta_info_file_path), exist_ok=True)
             with open(self.meta_info_file_path, "w", encoding="utf-8") as f:
-                json.dump(meta_info, f, ensure_ascii=False, indent=2)
+                f.write(orjson.dumps(
+                    meta_info, option=orjson.OPT_INDENT_2).decode('utf-8')
+                )
         except IOError as e:
             logger.error(f"保存meta_info文件失败: {e}")
 
@@ -167,8 +169,8 @@ class Individuality:
         if os.path.exists(self.personality_data_file_path):
             try:
                 with open(self.personality_data_file_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
+                    return orjson.loads(f.read())
+            except (orjson.JSONDecodeError, IOError) as e:
                 logger.error(f"读取personality_data文件失败: {e}, 将创建新文件。")
                 return {}
         return {}
@@ -178,7 +180,9 @@ class Individuality:
         try:
             os.makedirs(os.path.dirname(self.personality_data_file_path), exist_ok=True)
             with open(self.personality_data_file_path, "w", encoding="utf-8") as f:
-                json.dump(personality_data, f, ensure_ascii=False, indent=2)
+                f.write(orjson.dumps(
+                    personality_data, option=orjson.OPT_INDENT_2).decode('utf-8')
+                )
             logger.debug(f"已保存personality数据到文件: {self.personality_data_file_path}")
         except IOError as e:
             logger.error(f"保存personality_data文件失败: {e}")

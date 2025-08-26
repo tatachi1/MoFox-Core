@@ -453,7 +453,7 @@ class ManifestValidator:
 #         try:
 #             manifest_path = os.path.join(plugin_dir, "_manifest.json")
 #             with open(manifest_path, "w", encoding="utf-8") as f:
-#                 json.dump(manifest_data, f, ensure_ascii=False, indent=2)
+#                 orjson.dumps(manifest_data, f, ensure_ascii=False, indent=2)
 #             logger.info(f"Manifest文件已保存: {manifest_path}")
 #             return True
 #         except Exception as e:
@@ -478,7 +478,7 @@ class ManifestValidator:
 
 #     try:
 #         with open(manifest_path, "r", encoding="utf-8") as f:
-#             manifest_data = json.load(f)
+#             manifest_data = orjson.loads(f.read())
 
 #         validator = ManifestValidator()
 #         is_valid = validator.validate_manifest(manifest_data)

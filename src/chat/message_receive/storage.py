@@ -1,7 +1,7 @@
 import re
 import json
 import traceback
-import json
+import orjson
 from typing import Union
 
 from src.common.database.sqlalchemy_models import Messages, Images
@@ -92,7 +92,7 @@ class MessageStorage:
             user_info_from_chat = chat_info_dict.get("user_info") or {}
 
             # 将priority_info字典序列化为JSON字符串，以便存储到数据库的Text字段
-            priority_info_json = json.dumps(priority_info) if priority_info else None
+            priority_info_json = orjson.dumps(priority_info).decode('utf-8') if priority_info else None
 
             # 获取数据库会话
 

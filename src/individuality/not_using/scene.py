@@ -1,4 +1,4 @@
-import json
+import orjson
 import os
 from typing import Any
 
@@ -14,7 +14,7 @@ def load_scenes() -> dict[str, Any]:
     json_path = os.path.join(current_dir, "template_scene.json")
 
     with open(json_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        return orjson.loads(f.read())
 
 
 PERSONALITY_SCENES = load_scenes()

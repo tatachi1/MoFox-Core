@@ -1,5 +1,5 @@
 import asyncio
-import json
+import orjson
 import time
 
 from src.chat.message_receive.message import MessageRecv
@@ -132,7 +132,7 @@ class ChatMood:
             elif "```" in response:
                 response = response.split("```")[1].split("```")[0]
 
-            data = json.loads(response)
+            data = orjson.loads(response)
 
             # Validate
             required_keys = {"joy", "anger", "sorrow", "fear"}
@@ -148,7 +148,7 @@ class ChatMood:
 
             return {key: data[key] for key in required_keys}
 
-        except json.JSONDecodeError:
+        except orjson.JSONDecodeError:
             logger.warning(f"Failed to parse numerical mood JSON: {response}")
             return None
         except Exception as e:

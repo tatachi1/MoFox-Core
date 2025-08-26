@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Union
 import os
 import toml
-import json
+import orjson
 import shutil
 import datetime
 
@@ -144,14 +144,14 @@ class PluginBase(ABC):
 
         try:
             with open(manifest_path, "r", encoding="utf-8") as f:
-                self.manifest_data = json.load(f)
+                self.manifest_data = orjson.loads(f.read())
 
             logger.debug(f"{self.log_prefix} 成功加载manifest文件: {manifest_path}")
 
             # 验证manifest格式
             self._validate_manifest()
 
-        except json.JSONDecodeError as e:
+        except orjson.JSONDecodeError as e:
             error_msg = f"{self.log_prefix} manifest文件格式错误: {e}"
             logger.error(error_msg)
             raise ValueError(error_msg)  # noqa

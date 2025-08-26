@@ -5,7 +5,7 @@ QQ空间服务模块
 """
 
 import asyncio
-import json
+import orjson
 import os
 import random
 import time
@@ -291,14 +291,14 @@ class QZoneService:
                 cookie_str = cookie_data["cookies"]
                 parsed_cookies = {k.strip(): v.strip() for k, v in (p.split('=', 1) for p in cookie_str.split('; ') if '=' in p)}
                 with open(cookie_file_path, "w", encoding="utf-8") as f:
-                    json.dump(parsed_cookies, f)
+                    orjson.dump(parsed_cookies, f)
                 logger.info(f"Cookie已更新并保存至: {cookie_file_path}")
                 return parsed_cookies
 
             # 如果HTTP获取失败，尝试读取本地文件
             if cookie_file_path.exists():
                 with open(cookie_file_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    return orjson.loads(f)
             return None
         except Exception as e:
             logger.error(f"更新或加载Cookie时发生异常: {e}")
@@ -422,7 +422,7 @@ class QZoneService:
                         logger.warning("所有图片上传失败，将发布纯文本说说")
 
                 res_text = await _request("POST", self.EMOTION_PUBLISH_URL, params={"g_tk": gtk}, data=post_data)
-                result = json.loads(res_text)
+                result = orjson.loads(res_text)
                 tid = result.get("tid", "")
                 
                 if tid:
@@ -576,7 +576,7 @@ class QZoneService:
                 }
                 res_text = await _request("GET", self.LIST_URL, params=params)
                 json_str = res_text[len("_preloadCallback(") : -2]
-                json_data = json.loads(json_str)
+                json_data = orjson.loads(json_str)
 
                 if json_data.get("code") != 0:
                     return []

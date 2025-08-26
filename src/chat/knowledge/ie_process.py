@@ -1,5 +1,5 @@
 import asyncio
-import json
+import orjson
 import time
 from typing import List, Union
 
@@ -20,7 +20,7 @@ def _extract_json_from_text(text: str):
     try:
         fixed_json = repair_json(text)
         if isinstance(fixed_json, str):
-            parsed_json = json.loads(fixed_json)
+            parsed_json = orjson.loads(fixed_json)
         else:
             parsed_json = fixed_json
 
@@ -95,8 +95,9 @@ def _entity_extract(llm_req: LLMRequest, paragraph: str) -> List[str]:
 def _rdf_triple_extract(llm_req: LLMRequest, paragraph: str, entities: list) -> List[List[str]]:
     """对段落进行实体提取，返回提取出的实体列表（JSON格式）"""
     rdf_extract_context = prompt_template.build_rdf_triple_extract_context(
-        paragraph, entities=json.dumps(entities, ensure_ascii=False)
+        paragraph, entities=orjson.dumps(entities).decode('utf-8')
     )
+
 
     # 使用 asyncio.run 来运行异步方法
     try:

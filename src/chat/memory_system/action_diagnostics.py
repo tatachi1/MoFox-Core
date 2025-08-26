@@ -356,10 +356,12 @@ def main():
         result = diagnostics.run_full_diagnosis()
         
         # 保存诊断结果
-        import json
+        import orjson
         with open("action_diagnosis_results.json", "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False, default=str)
-        
+            f.write(orjson.dumps(
+                result, option=orjson.OPT_INDENT_2).decode('utf-8')
+            )
+
         logger.info("📄 诊断结果已保存到: action_diagnosis_results.json")
         
         # 根据诊断结果返回适当的退出代码

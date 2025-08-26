@@ -1,4 +1,5 @@
-import json
+import difflib
+import orjson
 
 from json_repair import repair_json
 from typing import List, Dict
@@ -30,7 +31,7 @@ def get_keywords_from_json(json_str) -> List:
         fixed_json = repair_json(json_str)
 
         # 如果repair_json返回的是字符串，需要解析为Python对象
-        result = json.loads(fixed_json) if isinstance(fixed_json, str) else fixed_json
+        result = orjson.loads(fixed_json) if isinstance(fixed_json, str) else fixed_json
         return result.get("keywords", [])
     except Exception as e:
         logger.error(f"解析关键词JSON失败: {e}")

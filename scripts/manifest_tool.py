@@ -7,7 +7,7 @@
 import os
 import sys
 import argparse
-import json
+import orjson
 from pathlib import Path
 from src.common.logger import get_logger
 from src.plugin_system.utils.manifest_utils import (
@@ -51,7 +51,10 @@ def create_minimal_manifest(plugin_dir: str, plugin_name: str, description: str 
 
     try:
         with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(minimal_manifest, f, ensure_ascii=False, indent=2)
+            f.write(orjson.dumps(
+                minimal_manifest,
+                option=orjson.OPT_INDENT_2
+            ).decode('utf-8'))
         print(f"✅ 已创建最小化manifest文件: {manifest_path}")
         return True
     except Exception as e:
@@ -99,7 +102,10 @@ def create_complete_manifest(plugin_dir: str, plugin_name: str) -> bool:
 
     try:
         with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(complete_manifest, f, ensure_ascii=False, indent=2)
+            f.write(orjson.dumps(
+                complete_manifest,
+                option=orjson.OPT_INDENT_2
+            ).decode('utf-8'))
         print(f"✅ 已创建完整manifest模板: {manifest_path}")
         print("💡 请根据实际情况修改manifest文件中的内容")
         return True
@@ -125,7 +131,7 @@ def validate_manifest_file(plugin_dir: str) -> bool:
 
     try:
         with open(manifest_path, "r", encoding="utf-8") as f:
-            manifest_data = json.load(f)
+            manifest_data = orjson.loads(f.read())
 
         validator = ManifestValidator()
         is_valid = validator.validate_manifest(manifest_data)
@@ -141,7 +147,7 @@ def validate_manifest_file(plugin_dir: str) -> bool:
 
         return is_valid
 
-    except json.JSONDecodeError as e:
+    except orjson.JSONDecodeError as e:
         print(f"❌ Manifest文件格式错误: {e}")
         return False
     except Exception as e:

@@ -1,7 +1,7 @@
 # 使用基于时间戳的文件处理器，简单的轮转份数限制
 
 import logging
-import json
+import orjson
 import threading
 import time
 import structlog
@@ -737,7 +737,7 @@ class ModuleColoredConsoleRenderer:
         elif isinstance(event, dict):
             # 如果是字典，格式化为可读字符串
             try:
-                event_content = json.dumps(event, ensure_ascii=False, indent=None)
+                event_content = orjson.dumps(event).decode("utf-8")
             except (TypeError, ValueError):
                 event_content = str(event)
         else:
@@ -757,7 +757,7 @@ class ModuleColoredConsoleRenderer:
                 # 确保值也转换为字符串
                 if isinstance(value, (dict, list)):
                     try:
-                        value_str = json.dumps(value, ensure_ascii=False, indent=None)
+                        value_str = orjson.dumps(value).decode("utf-8")
                     except (TypeError, ValueError):
                         value_str = str(value)
                 else:

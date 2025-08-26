@@ -1,5 +1,5 @@
 import os
-import json
+import orjson
 import sys  # 新增系统模块导入
 
 # import time
@@ -369,7 +369,7 @@ class MongoToSQLiteMigrator:
 
             if field_type in ["CharField", "TextField"]:
                 if isinstance(value, (list, dict)):
-                    return json.dumps(value, ensure_ascii=False)
+                    return orjson.dumps(value, ensure_ascii=False)
                 return str(value) if value is not None else ""
 
             elif field_type == "IntegerField":
@@ -895,7 +895,7 @@ class MongoToSQLiteMigrator:
 
         try:
             with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(error_report, f, ensure_ascii=False, indent=2)
+                orjson.dumps(error_report, f, ensure_ascii=False, indent=2)
             logger.info(f"错误报告已导出到: {filepath}")
         except Exception as e:
             logger.error(f"导出错误报告失败: {e}")

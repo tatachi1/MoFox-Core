@@ -1,4 +1,4 @@
-import json
+import orjson
 import time
 import random
 import hashlib
@@ -294,7 +294,7 @@ class ExpressionSelector:
             # 5. 解析结果
             result = repair_json(content)
             if isinstance(result, str):
-                result = json.loads(result)
+                result = orjson.loads(result)
 
             if not isinstance(result, dict) or "selected_situations" not in result:
                 logger.error("LLM返回格式错误")

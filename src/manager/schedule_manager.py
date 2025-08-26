@@ -1,4 +1,4 @@
-import json
+import orjson
 import asyncio
 import random
 from datetime import datetime, time, timedelta
@@ -151,7 +151,7 @@ class ScheduleManager:
                     logger.info(f"从数据库加载今天的日程 ({today_str})。")
                     
                     try:
-                        schedule_data = json.loads(str(schedule_record.schedule_data))
+                        schedule_data = orjson.loads(str(schedule_record.schedule_data))
                         
                         # 使用Pydantic验证日程数据
                         if self._validate_schedule_with_pydantic(schedule_data):
@@ -164,7 +164,7 @@ class ScheduleManager:
                         else:
                             logger.warning("数据库中的日程数据格式无效，将异步重新生成日程")
                             await self.generate_and_save_schedule()
-                    except json.JSONDecodeError as e:
+                    except orjson.JSONDecodeError as e:
                         logger.error(f"日程数据JSON解析失败: {e}，将异步重新生成日程")
                         await self.generate_and_save_schedule()
                 else:
@@ -282,7 +282,7 @@ class ScheduleManager:
                     response, _ = await self.llm.generate_response_async(prompt)
                     
                     # 尝试解析和验证JSON（项目内置的反截断机制会自动处理截断问题）
-                    schedule_data = json.loads(repair_json(response))
+                    schedule_data = orjson.loads(repair_json(response))
                     
                     # 使用Pydantic验证生成的日程数据
                     if self._validate_schedule_with_pydantic(schedule_data):
@@ -293,14 +293,14 @@ class ScheduleManager:
                             if existing_schedule:
                                 # 更新现有日程
                                 session.query(Schedule).filter(Schedule.date == today_str).update({
-                                    Schedule.schedule_data: json.dumps(schedule_data),
+                                    Schedule.schedule_data: orjson.dumps(schedule_data).decode('utf-8'),
                                     Schedule.updated_at: datetime.now()
                                 })
                             else:
                                 # 创建新日程
                                 new_schedule = Schedule(
                                     date=today_str,
-                                    schedule_data=json.dumps(schedule_data)
+                                    schedule_data=orjson.dumps(schedule_data).decode('utf-8')
                                 )
                                 session.add(new_schedule)
                             session.commit()

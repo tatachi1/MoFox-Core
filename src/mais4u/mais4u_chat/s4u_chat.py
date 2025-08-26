@@ -12,7 +12,7 @@ from src.config.config import global_config
 from src.common.message.api import get_global_api
 from src.chat.message_receive.storage import MessageStorage
 from .s4u_watching_manager import watching_manager
-import json
+import orjson
 from .s4u_mood_manager import mood_manager
 from src.person_info.relationship_builder_manager import relationship_builder_manager
 from src.mais4u.s4u_config import s4u_config
@@ -214,8 +214,8 @@ class S4UChat:
         priority_info = {}
         if isinstance(priority_info_raw, str):
             try:
-                priority_info = json.loads(priority_info_raw)
-            except json.JSONDecodeError:
+                priority_info = orjson.loads(priority_info_raw)
+            except orjson.JSONDecodeError:
                 logger.warning(f"Failed to parse priority_info JSON: {priority_info_raw}")
         elif isinstance(priority_info_raw, dict):
             priority_info = priority_info_raw

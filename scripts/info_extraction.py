@@ -1,4 +1,4 @@
-import json
+import orjson
 import os
 import signal
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -74,8 +74,8 @@ def process_single_text(pg_hash, raw_data):
                 # 存在对应的提取结果
                 logger.info(f"找到缓存的提取结果：{pg_hash}")
                 with open(temp_file_path, "r", encoding="utf-8") as f:
-                    return json.load(f), None
-            except json.JSONDecodeError:
+                    return orjson.loads(f.read()), None
+            except orjson.JSONDecodeError:
                 # 如果JSON文件损坏，删除它并重新处理
                 logger.warning(f"缓存文件损坏，重新处理：{pg_hash}")
                 os.remove(temp_file_path)
@@ -97,7 +97,7 @@ def process_single_text(pg_hash, raw_data):
     with file_lock:
         try:
             with open(temp_file_path, "w", encoding="utf-8") as f:
-                json.dump(doc_item, f, ensure_ascii=False, indent=4)
+                f.write(orjson.dumps(doc_item, option=orjson.OPT_INDENT_2).decode('utf-8'))
         except Exception as e:
             logger.error(f"保存缓存文件失败：{pg_hash}, 错误：{e}")
             # 如果保存失败，确保不会留下损坏的文件
@@ -199,12 +199,12 @@ def main():  # sourcery skip: comprehension-to-generator, extract-method
         filename = now.strftime("%m-%d-%H-%S-openie.json")
         output_path = os.path.join(OPENIE_OUTPUT_DIR, filename)
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(
+            f.write(
+                orjson.dumps(
                 openie_obj.to_dict() if hasattr(openie_obj, "to_dict") else openie_obj.__dict__,
-                f,
-                ensure_ascii=False,
-                indent=4,
-            )
+                option=orjson.OPT_INDENT_2
+            ).decode('utf-8')
+                )
         logger.info(f"信息提取结果已保存到: {output_path}")
     else:
         logger.warning("没有可保存的信息提取结果")

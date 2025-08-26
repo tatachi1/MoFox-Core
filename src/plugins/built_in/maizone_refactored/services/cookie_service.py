@@ -3,7 +3,7 @@
 Cookie服务模块
 负责从多种来源获取、缓存和管理QZone的Cookie。
 """
-import json
+import orjson
 from pathlib import Path
 from typing import Callable, Optional, Dict
 
@@ -33,7 +33,7 @@ class CookieService:
         cookie_file_path = self._get_cookie_file_path(qq_account)
         try:
             with open(cookie_file_path, "w", encoding="utf-8") as f:
-                json.dump(cookies, f)
+                f.write(orjson.dumps(cookies, option=orjson.OPT_INDENT_2).decode('utf-8'))
             logger.info(f"Cookie已成功缓存至: {cookie_file_path}")
         except IOError as e:
             logger.error(f"无法写入Cookie文件 {cookie_file_path}: {e}")
@@ -44,8 +44,8 @@ class CookieService:
         if cookie_file_path.exists():
             try:
                 with open(cookie_file_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except (IOError, json.JSONDecodeError) as e:
+                    return orjson.loads(f.read())
+            except (IOError, orjson.JSONDecodeError) as e:
                 logger.error(f"无法读取或解析Cookie文件 {cookie_file_path}: {e}")
         return None
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import time
 import re
-import json
+import orjson
 import ast
 import traceback
 
@@ -69,7 +69,7 @@ class InstantMemory:
                 return None
             try:
                 repaired = repair_json(response)
-                result = json.loads(repaired)
+                result = orjson.loads(repaired)
                 memory_text = result.get("memory_text", "")
                 keywords = result.get("keywords", "")
                 if isinstance(keywords, str):
@@ -142,7 +142,7 @@ class InstantMemory:
                 return None
             try:
                 repaired = repair_json(response)
-                result = json.loads(repaired)
+                result = orjson.loads(repaired)
                 # 解析keywords
                 keywords = result.get("keywords", "")
                 if isinstance(keywords, str):

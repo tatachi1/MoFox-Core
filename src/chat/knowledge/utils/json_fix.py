@@ -1,4 +1,4 @@
-import json
+import orjson
 from json_repair import repair_json
 
 
@@ -45,7 +45,7 @@ def fix_broken_generated_json(json_str: str) -> str:
     - Iterating over the JSON string once to determine and fix unclosed braces or brackets.
     - Ensuring braces and brackets inside string literals are not considered.
 
-    If the original json_str string can be successfully loaded by json.loads(), will directly return it without any modification.
+    If the original json_str string can be successfully loaded by orjson.loads(), will directly return it without any modification.
 
     Args:
         json_str (str): The malformed JSON string to be fixed.
@@ -56,9 +56,9 @@ def fix_broken_generated_json(json_str: str) -> str:
 
     try:
         # Try to load the JSON to see if it is valid
-        json.loads(json_str)
+        orjson.loads(json_str)
         return json_str  # Return as-is if valid
-    except json.JSONDecodeError: ...
+    except orjson.JSONDecodeError: ...
 
     # Step 1: Remove trailing content after the last comma.
     last_comma_index = json_str.rfind(",")
@@ -80,7 +80,7 @@ def new_fix_broken_generated_json(json_str: str) -> str:
     """
     使用 json-repair 库修复格式错误的 JSON 字符串。
 
-    如果原始 json_str 字符串可以被 json.loads() 成功加载，则直接返回而不进行任何修改。
+    如果原始 json_str 字符串可以被 orjson.loads() 成功加载，则直接返回而不进行任何修改。
 
     参数:
         json_str (str): 需要修复的格式错误的 JSON 字符串。
@@ -90,8 +90,8 @@ def new_fix_broken_generated_json(json_str: str) -> str:
     """
     try:
         # 尝试加载 JSON 以查看其是否有效
-        json.loads(json_str)
+        orjson.loads(json_str)
         return json_str  # 如果有效则按原样返回
-    except json.JSONDecodeError:
+    except orjson.JSONDecodeError:
         # 如果无效，则尝试修复它
         return repair_json(json_str)

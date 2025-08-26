@@ -1,6 +1,6 @@
 import asyncio
 import io
-import json
+import orjson
 import re
 import base64
 from collections.abc import Iterable
@@ -218,13 +218,13 @@ def _build_stream_api_resp(
                 raw_arg_data = arguments_buffer.getvalue()
                 arguments_buffer.close()
                 try:
-                    arguments = json.loads(repair_json(raw_arg_data))
+                    arguments = orjson.loads(repair_json(raw_arg_data))
                     if not isinstance(arguments, dict):
                         raise RespParseException(
                             None,
                             f"响应解析失败，工具调用参数无法解析为字典类型。工具调用参数原始响应：\n{raw_arg_data}",
                         )
-                except json.JSONDecodeError as e:
+                except orjson.JSONDecodeError as e:
                     raise RespParseException(
                         None,
                         f"响应解析失败，无法解析工具调用参数。工具调用参数原始响应：{raw_arg_data}",
@@ -357,11 +357,11 @@ def _default_normal_response_parser(
         api_response.tool_calls = []
         for call in message_part.tool_calls:
             try:
-                arguments = json.loads(repair_json(call.function.arguments))
+                arguments = orjson.loads(repair_json(call.function.arguments))
                 if not isinstance(arguments, dict):
                     raise RespParseException(resp, "响应解析失败，工具调用参数无法解析为字典类型")
                 api_response.tool_calls.append(ToolCall(call.id, call.function.name, arguments))
-            except json.JSONDecodeError as e:
+            except orjson.JSONDecodeError as e:
                 raise RespParseException(resp, "响应解析失败，无法解析工具调用参数") from e
 
     # 提取Usage信息
