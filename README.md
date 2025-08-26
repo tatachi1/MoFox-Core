@@ -1,7 +1,6 @@
 <div align="center">
-  <img src="depends-data/maimai.png" alt="MoFox_Bot" title="作者:略nd" width="300">
   
-  # 麦麦Plus！MoFox_Bot
+  # 麦麦Fork！MoFox_Bot
   
   <p>
     <strong>基于 MaiCore 的增强版智能体，提供更完善的功能和更好的使用体验</strong>
@@ -9,42 +8,9 @@
 
   [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&style=for-the-badge)](https://www.python.org/)
   [![License](https://img.shields.io/badge/License-GPLv3-blue?logo=gnu&style=for-the-badge)](https://github.com/MoFox-Studio/MoFox_Bot/blob/master/LICENSE)
-  [![Status](https://img.shields.io/badge/%E7%8A%B6%E6%80%81-%E6%B4%BB%E8%B7%83%E5%BC%80%E5%8F%91-brightgreen?style=for-the-badge)](https://github.com/MoFox-Studio/MoFox_Bot)
   [![Contributors](https://img.shields.io/github/contributors/MaiBot-Plus/MaiMbot-Pro-Max.svg?style=for-the-badge&label=贡献者)](https://github.com/MoFox-Studio/MoFox_Bot/graphs/contributors)
-  [![Forks](https://img.shields.io/github/forks/MaiBot-Plus/MaiMbot-Pro-Max.svg?style=for-the-badge&label=分支数)](https://github.com/MoFox-Studio/MoFox_Bot/network/members)
   [![Stars](https://img.shields.io/github/stars/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&label=星标数)](https://github.com/MoFox-Studio/MoFox_Bot/stargazers)
-  [![Issues](https://img.shields.io/github/issues/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&label=问题)](https://github.com/MoFox-Studio/MoFox_Bot/issues)
-  [![Enhanced](https://img.shields.io/badge/Enhanced-MaiMbot_Pro_Max-purple?style=for-the-badge&logo=github)](https://github.com/MoFox-Studio/MoFox_Bot)
 
-  <p>
-    <strong>
-      <a href="https://github.com/MoFox-Studio/MoFox_Bot">项目主页</a> • 
-      <a href="#-快速开始">快速开始</a> • 
-      <a href="#-核心优势">核心优势</a> • 
-      <a href="#-讨论交流">讨论交流</a> • 
-      <a href="#-贡献指南">贡献指南</a>
-    </strong>
-  </p>
-</div>
-
----
-
-## 目录
-
-- [项目介绍](#-项目介绍)
-- [核心优势](#-核心优势)
-- [原版功能](#-原版功能)
-- [系统要求](#-系统要求)
-- [快速开始](#-快速开始)
-- [配置说明](#-配置说明)
-- [使用指南](#-使用指南)
-- [讨论交流](#-讨论交流)
-- [文档资源](#-文档资源)
-- [贡献指南](#-贡献指南)
-- [注意事项](#-注意事项)
-- [开源协议](#-开源协议)
-
----
 
 ## 项目介绍
 
@@ -52,29 +18,10 @@
 
 **请注意！这个版本的所有后续更新均为我们的第三方更新，不代表MaiBot官方立场**
 
-无论你是想要一个智能的聊天伙伴，还是需要一个功能强大的群聊助手，MoFox_Bot 都能满足你的需求。
-
-## 核心优势
-
-相比官方版本，MoFox_Bot 带来以下增强：
-
-| 特性 | 官方版本 | MoFox_Bot 版本 |
-|------|----------|-------------|
-| **多模型支持** | 基础支持 | 适配 Gemini 等主流大语言模型 |
-| **插件生态** | 标准插件 | 额外提供实用插件，涵盖更多使用场景 |
-| **稳定性** | 一般 | 修复已知问题，提供更稳定的运行体验 |
-| **易用性** | 基础 | 优化配置流程，开箱即用 |
-| **性能** | 标准 | 优化性能，响应更快速 |
 
 > [!TIP]
 > 请注意！ 从官方版本到 MoFox_Bot 版本迁移暂时存在问题，因为数据库结构有改变
 
-### 核心优势
-
-相比官方版本，MoFox_Bot 拥有更完善的功能：
-
-- **增强插件**：额外提供 一些插件，涵盖更多使用场景
-- **稳定性提升**：修复官方版本的一些已知问题，提供更稳定的运行体验
 
 ### 原版功能（全部保留）
 
@@ -87,6 +34,15 @@
 - **动态人格系统**：自适应的性格特征和表达方式
 - **数据分析**：内置数据统计和分析功能，更好了解麦麦状态
 
+### 拓展功能
+- **数据库切换**: 支持SQLite与MySQL自由切换,采用 SQLAlchemy 2.0重新构建
+- **反注入集成**: 内置一整套回复前注入过滤系统,为人格保价护航
+- **视频分析**: 支持多种视频识别模式，拓展原版视觉
+- **苏醒系统**: 能够睡觉, 失眠, 被吵醒,更具乐趣
+- **日程系统**: 让墨狐规划每一天
+- **完善的Event**: 支持动态事件注册和处理器订阅，并实现了聚合结果管理
+- **内嵌魔改插件**: 内置联网搜索等诸多功能,等你来探索
+- **还有更多**: 请参阅详细修改[(commits)](https://github.com/MoFox-Studio/MoFox_Bot/commits)
 ## 系统要求
 
 在开始使用之前，请确保你的系统满足以下要求：
@@ -99,59 +55,14 @@
 
 ### 依赖服务
 - **QQ协议端**: [NapCat](https://github.com/NapNeko/NapCatQQ) 或其他兼容协议端
-- **数据库**: SQLite (内置) 或 MySQL (可选)
-
-**MoFox_Bot 是基于 MaiCore 的增强版智能体，提供更完善的功能和更好的使用体验** 
+- **数据库**: SQLite (内置) 或 MySQL (可选)，chat2db(可选)
 
 
-## 更新和安装
-
-**最新版本: v1.0.0-MoFox_Bot** 
-
-
-**GitHub 分支说明：**
-- `master`: 稳定发布版本(推荐)
-- `dev`: 开发测试版本(新功能预览，暂时未开放)
-
---main暂时没用()
-
-> [!TIP]
-> - 内置第三方 Gemini API 适配，开箱即用
-
-## 讨论交流
-
-### 官方社区
-- **交流群**: [MoFox_Bot 交流群] - 群号：169850076
-- **功能建议**: [GitHub Discussions](https://github.com/MoFox-Studio/MoFox_Bot/discussions)
-- **问题反馈**: [GitHub Issues](https://github.com/MoFox-Studio/MoFox_Bot/issues)
-
-**其他资源：**
-- [问题反馈](https://github.com/MoFox-Studio/MoFox_Bot/issues)
-- [功能建议](https://github.com/MoFox-Studio/MoFox_Bot/discussions)
-
-## 文档资源
-
-- **官方文档**: [docs.mai-mai.org](https://docs.mai-mai.org) - 核心功能参考
-- **插件开发**: [插件开发指南](docs/plugins/) - 如何开发自定义插件
-- **部署指南**: [部署文档](docs/deployment.md) - Docker 和传统部署方式
-- **常见问题**: [FAQ](docs/faq.md) - 常见问题解答
-
-## 贡献和致谢
-
-MoFox_Bot 是一个开源项目，欢迎所有人参与贡献！
-
-### 贡献者
-
-感谢所有为 MoFox_Bot 做出贡献的开发者！
-
-
-### 致谢
+## 致谢
 
 - [MaiM-with-u](https://github.com/MaiM-with-u/MaiBot): 原版 MaiBot 项目，感谢提供优秀的基础框架
-- [略nd](https://space.bilibili.com/1344099355): 为麦麦绘制人设
 - [NapCat](https://github.com/NapNeko/NapCatQQ): 现代化的基于 NTQQ 的 Bot 协议端实现
-- **MoFox_Bot 社区**: 感谢所有提供建议和反馈的用户
-
+- [Maizone](https://github.com/internetsb/Maizone): 魔改空间插件部分借鉴该插件
 ## 注意事项
 
 > [!WARNING]
