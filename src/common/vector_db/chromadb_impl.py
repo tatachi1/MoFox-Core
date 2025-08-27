@@ -102,6 +102,32 @@ class ChromaDBImpl(VectorDBBase):
                 logger.error(f"查询集合 '{collection_name}' 失败: {e}")
         return {}
 
+    def get(
+        self,
+        collection_name: str,
+        ids: Optional[List[str]] = None,
+        where: Optional[Dict[str, Any]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        where_document: Optional[Dict[str, Any]] = None,
+        include: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """根据条件从集合中获取数据"""
+        collection = self.get_or_create_collection(collection_name)
+        if collection:
+            try:
+                return collection.get(
+                    ids=ids,
+                    where=where,
+                    limit=limit,
+                    offset=offset,
+                    where_document=where_document,
+                    include=include,
+                )
+            except Exception as e:
+                logger.error(f"从集合 '{collection_name}' 获取数据失败: {e}")
+        return {}
+
     def delete(
         self,
         collection_name: str,

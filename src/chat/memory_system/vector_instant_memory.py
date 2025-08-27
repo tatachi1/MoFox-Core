@@ -87,22 +87,38 @@ class VectorInstantMemoryV2:
         """清理过期的聊天记录"""
         try:
             expire_time = time.time() - (self.retention_hours * 3600)
-            
-            # 使用 where 条件来删除过期记录
-            # 注意: ChromaDB 的 where 过滤器目前对 timestamp 的 $lt 操作支持可能有限
-            # 一个更可靠的方法是 get() -> filter -> delete()
-            # 但为了简化，我们先尝试直接 delete
-            
-            # TODO: 确认 ChromaDB 对 $lt 在 metadata 上的支持。如果不支持，需要实现 get-filter-delete 模式。
-            vector_db_service.delete(
+
+            # 采用 get -> filter -> delete 模式，避免复杂的 where 查询
+            # 1. 获取当前 chat_id 的所有文档
+            results = vector_db_service.get(
                 collection_name=self.collection_name,
-                where={
-                    "chat_id": self.chat_id,
-                    "timestamp": {"$lt": expire_time}
-                }
+                where={"chat_id": self.chat_id},
+                include=["metadatas"]
             )
-            logger.info(f"已为 chat_id '{self.chat_id}' 触发过期记录清理")
-                
+
+            if not results or not results.get('ids'):
+                logger.info(f"chat_id '{self.chat_id}' 没有找到任何记录，无需清理")
+                return
+
+            # 2. 在内存中过滤出过期的文档
+            expired_ids = []
+            metadatas = results.get('metadatas', [])
+            ids = results.get('ids', [])
+
+            for i, metadata in enumerate(metadatas):
+                if metadata and metadata.get('timestamp', float('inf')) < expire_time:
+                    expired_ids.append(ids[i])
+
+            # 3. 如果有过期文档，根据 ID 进行删除
+            if expired_ids:
+                vector_db_service.delete(
+                    collection_name=self.collection_name,
+                    ids=expired_ids
+                )
+                logger.info(f"为 chat_id '{self.chat_id}' 清理了 {len(expired_ids)} 条过期记录")
+            else:
+                logger.info(f"chat_id '{self.chat_id}' 没有需要清理的过期记录")
+
         except Exception as e:
             logger.error(f"清理过期记录失败: {e}")
     

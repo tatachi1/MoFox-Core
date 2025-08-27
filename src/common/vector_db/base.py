@@ -94,6 +94,34 @@ class VectorDBBase(ABC):
         pass
 
     @abstractmethod
+    def get(
+        self,
+        collection_name: str,
+        ids: Optional[List[str]] = None,
+        where: Optional[Dict[str, Any]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        where_document: Optional[Dict[str, Any]] = None,
+        include: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        根据条件从集合中获取数据。
+
+        Args:
+            collection_name (str): 目标集合的名称。
+            ids (Optional[List[str]], optional): 要获取的条目的 ID 列表。Defaults to None.
+            where (Optional[Dict[str, Any]], optional): 基于元数据的过滤条件。Defaults to None.
+            limit (Optional[int], optional): 返回结果的数量限制。Defaults to None.
+            offset (Optional[int], optional): 返回结果的偏移量。Defaults to None.
+            where_document (Optional[Dict[str, Any]], optional): 基于文档内容的过滤条件。Defaults to None.
+            include (Optional[List[str]], optional): 指定返回的数据字段 (e.g., ["metadatas", "documents"])。Defaults to None.
+
+        Returns:
+            Dict[str, Any]: 获取到的数据。
+        """
+        pass
+
+    @abstractmethod
     def count(self, collection_name: str) -> int:
         """
         获取指定集合中的条目总数。
