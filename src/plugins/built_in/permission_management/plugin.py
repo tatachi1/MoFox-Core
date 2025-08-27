@@ -49,12 +49,18 @@ class PermissionCommand(BaseCommand):
         # 基本权限检查由权限系统处理
         return True
     
-    async def execute(self, args: List[str]) -> None:
+    async def execute(self) -> Tuple[bool, Optional[str], bool]:
         """执行权限管理命令"""
-        if not args:
-            await self._show_help()
-            return
+        # 从消息中解析命令和参数
+        message_text = self.message.processed_plain_text.strip()
+        # 移除 /permission 前缀，获取后续参数
+        args_text = message_text[11:].strip()  # "/permission" 是11个字符
         
+        if not args_text:
+            await self._show_help()
+            return True, "显示帮助信息", True
+        
+        args = args_text.split()
         subcommand = args[0].lower()
         remaining_args = args[1:]
         chat_stream = self.message.chat_stream
@@ -75,38 +81,52 @@ class PermissionCommand(BaseCommand):
         if subcommand in ["grant", "授权", "give"]:
             if not can_manage:
                 await self.send_text("❌ 你没有权限管理的权限")
-                return
+                return True, "权限不足", True
             await self._grant_permission(chat_stream, remaining_args)
+            return True, "执行授权命令", True
             
         elif subcommand in ["revoke", "撤销", "remove"]:
             if not can_manage:
                 await self.send_text("❌ 你没有权限管理的权限")
-                return
+                return True, "权限不足", True
             await self._revoke_permission(chat_stream, remaining_args)
+            return True, "执行撤销命令", True
             
         elif subcommand in ["list", "列表", "ls"]:
             if not can_view:
                 await self.send_text("❌ 你没有查看权限的权限")
-                return
+                return True, "权限不足", True
             await self._list_permissions(chat_stream, remaining_args)
+            return True, "执行列表命令", True
             
         elif subcommand in ["check", "检查"]:
             if not can_view:
                 await self.send_text("❌ 你没有查看权限的权限")
-                return
+                return True, "权限不足", True
             await self._check_permission(chat_stream, remaining_args)
+            return True, "执行检查命令", True
             
         elif subcommand in ["nodes", "节点"]:
             if not can_view:
                 await self.send_text("❌ 你没有查看权限的权限")
-                return
+                return True, "权限不足", True
             await self._list_nodes(chat_stream, remaining_args)
+            return True, "执行节点命令", True
+            
+        elif subcommand in ["allnodes", "全部节点", "all"]:
+            if not can_view:
+                await self.send_text("❌ 你没有查看权限的权限")
+                return True, "权限不足", True
+            await self._list_all_nodes_with_description(chat_stream)
+            return True, "执行全部节点命令", True
             
         elif subcommand in ["help", "帮助"]:
-            await self._show_help(chat_stream)
+            await self._show_help()
+            return True, "显示帮助信息", True
             
         else:
             await self.send_text(f"❌ 未知的子命令: {subcommand}\n使用 /permission help 查看帮助")
+            return True, "未知子命令", True
 
     async def _show_help(self):
         """显示帮助信息"""
@@ -120,6 +140,7 @@ class PermissionCommand(BaseCommand):
 • /permission list [用户] - 查看用户权限列表
 • /permission check <@用户|QQ号> <权限节点> - 检查用户是否拥有权限
 • /permission nodes [插件名] - 查看权限节点列表
+• /permission allnodes - 查看所有插件的权限节点详情
 
 ❓ 其他：
 • /permission help - 显示此帮助
@@ -127,7 +148,8 @@ class PermissionCommand(BaseCommand):
 📝 示例：
 • /permission grant @张三 plugin.example.command
 • /permission list 123456789
-• /permission nodes example_plugin"""
+• /permission nodes example_plugin
+• /permission allnodes"""
         
         await self.send_text(help_text)
     
@@ -282,6 +304,73 @@ class PermissionCommand(BaseCommand):
             response = title + "\n" + "\n".join(node_list)
         
         await self.send_text(response)
+
+    async def _list_all_nodes_with_description(self, chat_stream):
+        """列出所有插件的权限节点（带详细描述）"""
+        # 获取所有权限节点
+        all_nodes = permission_api.get_all_permission_nodes()
+        
+        if not all_nodes:
+            response = "📋 系统中没有任何权限节点"
+            await self.send_text(response)
+            return
+        
+        # 按插件名分组节点
+        plugins_dict = {}
+        for node in all_nodes:
+            plugin_name = node["plugin_name"]
+            if plugin_name not in plugins_dict:
+                plugins_dict[plugin_name] = []
+            plugins_dict[plugin_name].append(node)
+        
+        # 构建响应消息
+        response_parts = ["📋 所有插件权限节点详情：\n"]
+        
+        for plugin_name in sorted(plugins_dict.keys()):
+            nodes = plugins_dict[plugin_name]
+            response_parts.append(f"🔌 **{plugin_name}** ({len(nodes)}个节点)：")
+            
+            for node in nodes:
+                default_text = "✅默认授权" if node["default_granted"] else "❌默认拒绝"
+                response_parts.append(f"  • `{node['node_name']}` - {default_text}")
+                response_parts.append(f"    📄 {node['description']}")
+            
+            response_parts.append("")  # 插件间空行分隔
+        
+        # 添加统计信息
+        total_nodes = len(all_nodes)
+        total_plugins = len(plugins_dict)
+        response_parts.append(f"📊 统计：共 {total_plugins} 个插件，{total_nodes} 个权限节点")
+        
+        response = "\n".join(response_parts)
+        
+        # 如果消息太长，分段发送
+        if len(response) > 4000:  # 预留一些空间避免超出限制
+            await self._send_long_message(response)
+        else:
+            await self.send_text(response)
+    
+    async def _send_long_message(self, message: str):
+        """发送长消息，自动分段"""
+        lines = message.split('\n')
+        current_chunk = []
+        current_length = 0
+        
+        for line in lines:
+            line_length = len(line) + 1  # +1 for newline
+            
+            # 如果添加这一行会超出限制，先发送当前块
+            if current_length + line_length > 3500 and current_chunk:
+                await self.send_text('\n'.join(current_chunk))
+                current_chunk = []
+                current_length = 0
+            
+            current_chunk.append(line)
+            current_length += line_length
+        
+        # 发送最后一块
+        if current_chunk:
+            await self.send_text('\n'.join(current_chunk))
 
 
 @register_plugin
