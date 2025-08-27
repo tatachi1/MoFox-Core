@@ -438,7 +438,7 @@ angry_duration = 300.0 #"愤怒状态持续时间(秒)"
 angry_prompt = "你被人吵醒了非常生气，说话带着怒气" # "被吵醒后的愤怒提示词"
 
 # --- 失眠机制相关参数 ---
-enable_insomnia_system = true # 是否启用失眠系统
+enable_insomnia_system = false # 是否启用失眠系统
 # 触发“压力不足型失眠”的睡眠压力阈值
 sleep_pressure_threshold = 30.0
 # 进入“深度睡眠”的睡眠压力阈值
@@ -451,6 +451,7 @@ insomnia_chance_normal_pressure = 0.1
 sleep_pressure_increment = 1.5
 # 睡眠时，每分钟衰减的睡眠压力值
 sleep_pressure_decay_rate = 1.5
+insomnia_duration_minutes = 30 # 单次失眠状态的持续时间（分钟）
 
 [cross_context] # 跨群聊上下文共享配置
 # 这是总开关，用于一键启用或禁用此功能
