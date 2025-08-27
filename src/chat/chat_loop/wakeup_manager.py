@@ -3,6 +3,7 @@ import time
 from typing import Optional
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.manager.local_store_manager import local_storage
 from .hfc_context import HfcContext
 
 logger = get_logger("wakeup")
@@ -46,6 +47,33 @@ class WakeUpManager:
         self.deep_sleep_threshold = wakeup_config.deep_sleep_threshold
         self.insomnia_chance_low_pressure = wakeup_config.insomnia_chance_low_pressure
         self.insomnia_chance_normal_pressure = wakeup_config.insomnia_chance_normal_pressure
+        
+        self._load_wakeup_state()
+
+    def _get_storage_key(self) -> str:
+        """获取当前聊天流的本地存储键"""
+        return f"wakeup_manager_state_{self.context.stream_id}"
+
+    def _load_wakeup_state(self):
+        """从本地存储加载状态"""
+        state = local_storage[self._get_storage_key()]
+        if state and isinstance(state, dict):
+            self.wakeup_value = state.get("wakeup_value", 0.0)
+            self.is_angry = state.get("is_angry", False)
+            self.angry_start_time = state.get("angry_start_time", 0.0)
+            logger.info(f"{self.context.log_prefix} 成功从本地存储加载唤醒状态: {state}")
+        else:
+            logger.info(f"{self.context.log_prefix} 未找到本地唤醒状态，将使用默认值初始化。")
+
+    def _save_wakeup_state(self):
+        """将当前状态保存到本地存储"""
+        state = {
+            "wakeup_value": self.wakeup_value,
+            "is_angry": self.is_angry,
+            "angry_start_time": self.angry_start_time,
+        }
+        local_storage[self._get_storage_key()] = state
+        logger.debug(f"{self.context.log_prefix} 已将唤醒状态保存到本地存储: {state}")
 
     async def start(self):
         """启动唤醒度管理器"""
@@ -89,6 +117,7 @@ class WakeUpManager:
                 from src.mood.mood_manager import mood_manager
                 mood_manager.clear_angry_from_wakeup(self.context.stream_id)
                 logger.info(f"{self.context.log_prefix} 愤怒状态结束，恢复正常")
+                self._save_wakeup_state()
             
             # 唤醒度自然衰减
             if self.wakeup_value > 0:
@@ -96,6 +125,7 @@ class WakeUpManager:
                 self.wakeup_value = max(0, self.wakeup_value - self.decay_rate)
                 if old_value != self.wakeup_value:
                     logger.debug(f"{self.context.log_prefix} 唤醒度衰减: {old_value:.1f} -> {self.wakeup_value:.1f}")
+                    self._save_wakeup_state()
 
     def add_wakeup_value(self, is_private_chat: bool, is_mentioned: bool = False) -> bool:
         """
@@ -112,9 +142,9 @@ class WakeUpManager:
         if not self.enabled:
             return False
             
-        # 只有在休眠状态下才累积唤醒度
+        # 只有在休眠且非失眠状态下才累积唤醒度
         from src.schedule.schedule_manager import schedule_manager
-        if not schedule_manager.is_sleeping():
+        if not schedule_manager.is_sleeping() or self.context.is_in_insomnia:
             return False
             
         old_value = self.wakeup_value
@@ -142,7 +172,8 @@ class WakeUpManager:
         if self.wakeup_value >= self.wakeup_threshold:
             self._trigger_wakeup()
             return True
-            
+        
+        self._save_wakeup_state()
         return False
 
     def _trigger_wakeup(self):
@@ -150,6 +181,8 @@ class WakeUpManager:
         self.is_angry = True
         self.angry_start_time = time.time()
         self.wakeup_value = 0.0  # 重置唤醒度
+        
+        self._save_wakeup_state()
         
         # 通知情绪管理系统进入愤怒状态
         from src.mood.mood_manager import mood_manager
@@ -204,9 +237,12 @@ class WakeUpManager:
             return False
             
         # 根据睡眠压力决定失眠概率
+        from src.schedule.schedule_manager import schedule_manager
         if pressure < self.sleep_pressure_threshold:
             # 压力不足型失眠
-            if random.random() < self.insomnia_chance_low_pressure:
+            if schedule_manager._is_in_voluntary_delay:
+                logger.debug(f"{self.context.log_prefix} 处于主动延迟睡眠期间，跳过压力不足型失眠判断。")
+            elif random.random() < self.insomnia_chance_low_pressure:
                 logger.info(f"{self.context.log_prefix} 睡眠压力不足 ({pressure:.1f})，触发失眠！")
                 return True
         else:

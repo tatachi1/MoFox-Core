@@ -265,6 +265,9 @@ class HeartFChatting:
 
         # 更新上一帧的睡眠状态
         self.context.was_sleeping = is_sleeping
+        
+        # 保存HFC上下文状态
+        self.context.save_context_state()
                     
         return has_new_messages
 

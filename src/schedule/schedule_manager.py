@@ -16,6 +16,7 @@ from src.llm_models.utils_model import LLMRequest
 from src.common.logger import get_logger
 from json_repair import repair_json
 from src.manager.async_task_manager import AsyncTask, async_task_manager
+from src.manager.local_store_manager import local_storage
 from src.plugin_system.apis import send_api, generator_api
 
 
@@ -135,6 +136,10 @@ class ScheduleManager:
         self._sleep_buffer_end_time: Optional[datetime] = None
         self._total_delayed_minutes_today: int = 0
         self._last_sleep_check_date: Optional[datetime.date] = None
+        self._last_fully_slept_log_time: float = 0
+        self._is_in_voluntary_delay: bool = False # 新增：标记是否处于主动延迟睡眠状态
+        
+        self._load_sleep_state()
 
     async def start_daily_schedule_generation(self):
         """启动每日零点自动生成新日程的任务"""
@@ -422,11 +427,16 @@ class ScheduleManager:
             self._is_preparing_sleep = False
             self._sleep_buffer_end_time = None
             self._last_sleep_check_date = today
+            self._is_in_voluntary_delay = False
+            self._save_sleep_state()
 
         # --- 检查是否在“准备入睡”的缓冲期 ---
         if self._is_preparing_sleep and self._sleep_buffer_end_time:
             if now >= self._sleep_buffer_end_time:
-                logger.info("睡眠缓冲期结束，正式进入休眠状态。")
+                current_timestamp = now.timestamp()
+                if current_timestamp - self._last_fully_slept_log_time > 45:
+                    logger.info("睡眠缓冲期结束，正式进入休眠状态。")
+                    self._last_fully_slept_log_time = current_timestamp
                 return True
             else:
                 remaining_seconds = (self._sleep_buffer_end_time - now).total_seconds()
@@ -442,6 +452,8 @@ class ScheduleManager:
                 logger.info("已离开理论休眠时间，取消“准备入睡”状态。")
                 self._is_preparing_sleep = False
                 self._sleep_buffer_end_time = None
+                self._is_in_voluntary_delay = False
+                self._save_sleep_state()
             return False
 
         # --- 处理唤醒状态 ---
@@ -466,9 +478,11 @@ class ScheduleManager:
                 delay_minutes = 15  # 每次延迟15分钟
                 self._total_delayed_minutes_today += delay_minutes
                 self._sleep_buffer_end_time = now + timedelta(minutes=delay_minutes)
+                self._is_in_voluntary_delay = True # 标记进入主动延迟
                 logger.info(f"睡眠压力 ({sleep_pressure:.1f}) 低于阈值 ({pressure_threshold})，延迟入睡 {delay_minutes} 分钟。今日已累计延迟 {self._total_delayed_minutes_today} 分钟。")
             else:
                 # 3. 计算5-10分钟的入睡缓冲
+                self._is_in_voluntary_delay = False # 非主动延迟
                 buffer_seconds = random.randint(5 * 60, 10 * 60)
                 self._sleep_buffer_end_time = now + timedelta(seconds=buffer_seconds)
                 logger.info(f"睡眠压力正常或已达今日最大延迟，将在 {buffer_seconds / 60:.1f} 分钟内入睡。")
@@ -478,6 +492,7 @@ class ScheduleManager:
                 asyncio.create_task(self._send_pre_sleep_notification())
 
             self._is_preparing_sleep = True
+            self._save_sleep_state()
             return False  # 进入准备阶段，但尚未正式入睡
 
         # --- 经典模式或已在弹性睡眠流程中 ---
@@ -575,6 +590,43 @@ class ScheduleManager:
 
         except Exception as e:
             logger.error(f"发送睡前通知任务失败: {e}")
+
+    def _save_sleep_state(self):
+        """将当前弹性睡眠状态保存到本地存储"""
+        try:
+            state = {
+                "is_preparing_sleep": self._is_preparing_sleep,
+                "sleep_buffer_end_time_ts": self._sleep_buffer_end_time.timestamp() if self._sleep_buffer_end_time else None,
+                "total_delayed_minutes_today": self._total_delayed_minutes_today,
+                "last_sleep_check_date_str": self._last_sleep_check_date.isoformat() if self._last_sleep_check_date else None,
+                "is_in_voluntary_delay": self._is_in_voluntary_delay,
+            }
+            local_storage["schedule_sleep_state"] = state
+            logger.debug(f"已保存睡眠状态: {state}")
+        except Exception as e:
+            logger.error(f"保存睡眠状态失败: {e}")
+
+    def _load_sleep_state(self):
+        """从本地存储加载弹性睡眠状态"""
+        try:
+            state = local_storage["schedule_sleep_state"]
+            if state and isinstance(state, dict):
+                self._is_preparing_sleep = state.get("is_preparing_sleep", False)
+                
+                end_time_ts = state.get("sleep_buffer_end_time_ts")
+                if end_time_ts:
+                    self._sleep_buffer_end_time = datetime.fromtimestamp(end_time_ts)
+                
+                self._total_delayed_minutes_today = state.get("total_delayed_minutes_today", 0)
+                self._is_in_voluntary_delay = state.get("is_in_voluntary_delay", False)
+                
+                date_str = state.get("last_sleep_check_date_str")
+                if date_str:
+                    self._last_sleep_check_date = datetime.fromisoformat(date_str).date()
+
+                logger.info(f"成功从本地存储加载睡眠状态: {state}")
+        except Exception as e:
+            logger.warning(f"加载睡眠状态失败，将使用默认值: {e}")
 
     def _validate_schedule_with_pydantic(self, schedule_data) -> bool:
         """使用Pydantic验证日程数据格式和完整性"""
