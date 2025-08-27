@@ -387,7 +387,7 @@ class Config(ValidatedConfigBase):
     chinese_typo: ChineseTypoConfig = Field(..., description="中文错别字配置")
     response_post_process: ResponsePostProcessConfig = Field(..., description="响应后处理配置")
     response_splitter: ResponseSplitterConfig = Field(..., description="响应分割配置")
-    experimental: ExperimentalConfig = Field(..., description="实验性功能配置")
+    experimental: ExperimentalConfig = Field(default_factory=lambda: ExperimentalConfig(), description="实验性功能配置")
     maim_message: MaimMessageConfig = Field(..., description="Maim消息配置")
     lpmm_knowledge: LPMMKnowledgeConfig = Field(..., description="LPMM知识配置")
     tool: ToolConfig = Field(..., description="工具配置")
