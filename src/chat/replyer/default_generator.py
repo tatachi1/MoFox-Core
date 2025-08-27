@@ -30,7 +30,7 @@ from src.mood.mood_manager import mood_manager
 from src.person_info.person_info import Person, is_person_known
 from src.plugin_system.base.component_types import ActionInfo, EventType
 from src.plugin_system.apis import llm_api
-from src.manager.schedule_manager import schedule_manager
+from src.schedule.schedule_manager import schedule_manager
 
 logger = get_logger("replyer")
 

@@ -226,7 +226,7 @@ class ScheduleManager:
                 # 如果计划耗尽，则触发补充生成
                 if not sampled_plans:
                     logger.info("可用的月度计划已耗尽或不足，尝试进行补充生成...")
-                    from src.manager.monthly_plan_manager import monthly_plan_manager
+                    from mmc.src.schedule.monthly_plan_manager import monthly_plan_manager
                     success = await monthly_plan_manager.generate_monthly_plans(current_month_str)
                     if success:
                         logger.info("补充生成完成，重新抽取月度计划...")

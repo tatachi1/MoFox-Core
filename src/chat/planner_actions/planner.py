@@ -21,7 +21,7 @@ from src.chat.planner_actions.action_manager import ActionManager
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.plugin_system.base.component_types import ActionInfo, ChatMode, ComponentType
 from src.plugin_system.core.component_registry import component_registry
-from src.manager.schedule_manager import schedule_manager
+from src.schedule.schedule_manager import schedule_manager
 from src.mood.mood_manager import mood_manager
 from src.chat.memory_system.Hippocampus import hippocampus_manager
 logger = get_logger("planner")

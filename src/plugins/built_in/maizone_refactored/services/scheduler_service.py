@@ -10,7 +10,7 @@ import traceback
 from typing import Callable
 
 from src.common.logger import get_logger
-from src.manager.schedule_manager import schedule_manager
+from src.schedule.schedule_manager import schedule_manager
 from src.common.database.sqlalchemy_database_api import get_db_session
 from src.common.database.sqlalchemy_models import MaiZoneScheduleStatus
 

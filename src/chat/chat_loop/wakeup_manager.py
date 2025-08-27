@@ -105,7 +105,7 @@ class WakeUpManager:
         if not self.enabled:
             return False
             
-        from src.manager.schedule_manager import schedule_manager
+        from src.schedule.schedule_manager import schedule_manager
         
         # 只有在休眠状态下才累积唤醒度
         if not schedule_manager.is_sleeping():

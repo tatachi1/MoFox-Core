@@ -8,7 +8,7 @@ from src.config.config import global_config
 from src.person_info.relationship_builder_manager import relationship_builder_manager
 from src.chat.express.expression_learner import expression_learner_manager
 from src.plugin_system.base.component_types import ChatMode
-from src.manager.schedule_manager import schedule_manager
+from src.schedule.schedule_manager import schedule_manager
 from src.plugin_system.apis import message_api
 
 from .hfc_context import HfcContext

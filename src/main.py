@@ -16,8 +16,8 @@ from src.individuality.individuality import get_individuality, Individuality
 from src.common.server import get_global_server, Server
 from src.mood.mood_manager import mood_manager
 from rich.traceback import install
-from src.manager.schedule_manager import schedule_manager
-from src.manager.monthly_plan_manager import monthly_plan_manager
+from src.schedule.schedule_manager import schedule_manager
+from src.schedule.monthly_plan_manager import monthly_plan_manager
 from src.plugin_system.core.event_manager import event_manager
 from src.plugin_system.base.component_types import EventType
 # from src.api.main import start_api_server
