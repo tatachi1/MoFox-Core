@@ -108,7 +108,7 @@ class InstantMemory:
             memory_id=memory_item.memory_id,
             chat_id=memory_item.chat_id,
             memory_text=memory_item.memory_text,
-            keywords=orjson.dumps(memory_item.keywords),
+            keywords=orjson.dumps(memory_item.keywords).decode('utf-8'),
             create_time=memory_item.create_time,
             last_view_time=memory_item.last_view_time,
         )
@@ -172,8 +172,8 @@ class InstantMemory:
                     # 对每条记忆
                     mem_keywords_str = mem.keywords or "[]"
                     try:
-                        mem_keywords = json.loads(mem_keywords_str)
-                    except json.JSONDecodeError:
+                        mem_keywords = orjson.loads(mem_keywords_str)
+                    except orjson.JSONDecodeError:
                         mem_keywords = []
                     # logger.info(f"mem_keywords: {mem_keywords}")
                     # logger.info(f"keywords_list: {keywords_list}")
