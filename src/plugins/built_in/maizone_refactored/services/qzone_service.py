@@ -27,6 +27,7 @@ from src.chat.utils.chat_message_builder import (
 from .content_service import ContentService
 from .image_service import ImageService
 from .cookie_service import CookieService
+from .reply_tracker_service import ReplyTrackerService
 
 logger = get_logger("MaiZone.QZoneService")
 
@@ -55,6 +56,7 @@ class QZoneService:
         self.content_service = content_service
         self.image_service = image_service
         self.cookie_service = cookie_service
+        self.reply_tracker = ReplyTrackerService()
 
     # --- Public Methods (High-Level Business Logic) ---
 
@@ -249,43 +251,83 @@ class QZoneService:
         content = feed.get("content", "")
         fid = feed.get("tid", "")
 
-        if not comments:
-            return
-
-        # 筛选出未被自己回复过的评论
-        if not comments:
+        if not comments or not fid:
             return
 
         # 1. 将评论分为用户评论和自己的回复
         user_comments = [c for c in comments if str(c.get('qq_account')) != str(qq_account)]
         my_replies = [c for c in comments if str(c.get('qq_account')) == str(qq_account)]
+        
+        if not user_comments:
+            return
 
-        # 2. 获取所有已经被我回复过的评论的ID
-        replied_comment_ids = {reply.get('parent_tid') for reply in my_replies if reply.get('parent_tid')}
+        # 2. 验证已记录的回复是否仍然存在，清理已删除的回复记录
+        await self._validate_and_cleanup_reply_records(fid, my_replies)
 
-        # 3. 找出所有尚未被回复过的用户评论
-        comments_to_reply = [
-            comment for comment in user_comments
-            if comment.get('comment_tid') not in replied_comment_ids
-        ]
+        # 3. 使用验证后的持久化记录来筛选未回复的评论
+        comments_to_reply = []
+        for comment in user_comments:
+            comment_tid = comment.get('comment_tid')
+            if not comment_tid:
+                continue
+                
+            # 检查是否已经在持久化记录中标记为已回复
+            if not self.reply_tracker.has_replied(fid, comment_tid):
+                comments_to_reply.append(comment)
 
         if not comments_to_reply:
+            logger.debug(f"说说 {fid} 下的所有评论都已回复过")
             return
 
         logger.info(f"发现自己说说下的 {len(comments_to_reply)} 条新评论，准备回复...")
         for comment in comments_to_reply:
-            reply_content = await self.content_service.generate_comment_reply(
-                content, comment.get("content", ""), comment.get("nickname", "")
-            )
-            if reply_content:
-                success = await api_client["reply"](
-                    fid, qq_account, comment.get("nickname", ""), reply_content, comment.get("comment_tid")
+            comment_tid = comment.get("comment_tid")
+            nickname = comment.get("nickname", "")
+            comment_content = comment.get("content", "")
+            
+            try:
+                reply_content = await self.content_service.generate_comment_reply(
+                    content, comment_content, nickname
                 )
-                if success:
-                    logger.info(f"成功回复'{comment.get('nickname', '')}'的评论: '{reply_content}'")
+                if reply_content:
+                    success = await api_client["reply"](
+                        fid, qq_account, nickname, reply_content, comment_tid
+                    )
+                    if success:
+                        # 标记为已回复
+                        self.reply_tracker.mark_as_replied(fid, comment_tid)
+                        logger.info(f"成功回复'{nickname}'的评论: '{reply_content}'")
+                    else:
+                        logger.error(f"回复'{nickname}'的评论失败")
+                    await asyncio.sleep(random.uniform(10, 20))
                 else:
-                    logger.error(f"回复'{comment.get('nickname', '')}'的评论失败")
-                await asyncio.sleep(random.uniform(10, 20))
+                    logger.warning(f"生成回复内容失败，跳过回复'{nickname}'的评论")
+            except Exception as e:
+                logger.error(f"回复'{nickname}'的评论时发生异常: {e}", exc_info=True)
+
+    async def _validate_and_cleanup_reply_records(self, fid: str, my_replies: List[Dict]):
+        """验证并清理已删除的回复记录"""
+        # 获取当前记录中该说说的所有已回复评论ID
+        recorded_replied_comments = self.reply_tracker.get_replied_comments(fid)
+        
+        if not recorded_replied_comments:
+            return
+        
+        # 从API返回的我的回复中提取parent_tid（即被回复的评论ID）
+        current_replied_comments = set()
+        for reply in my_replies:
+            parent_tid = reply.get('parent_tid')
+            if parent_tid:
+                current_replied_comments.add(parent_tid)
+        
+        # 找出记录中有但实际已不存在的回复
+        deleted_replies = recorded_replied_comments - current_replied_comments
+        
+        if deleted_replies:
+            logger.info(f"检测到 {len(deleted_replies)} 个回复已被删除，清理记录...")
+            for comment_tid in deleted_replies:
+                self.reply_tracker.remove_reply_record(fid, comment_tid)
+                logger.debug(f"已清理删除的回复记录: feed_id={fid}, comment_id={comment_tid}")
 
     async def _process_single_feed(self, feed: Dict, api_client: Dict, target_qq: str, target_name: str):
         """处理单条说说，决定是否评论和点赞"""

@@ -24,6 +24,7 @@ from .services.qzone_service import QZoneService
 from .services.scheduler_service import SchedulerService
 from .services.monitor_service import MonitorService
 from .services.cookie_service import CookieService
+from .services.reply_tracker_service import ReplyTrackerService
 from .services.manager import register_service
 
 logger = get_logger("MaiZone.Plugin")
@@ -99,11 +100,13 @@ class MaiZoneRefactoredPlugin(BasePlugin):
         content_service = ContentService(self.get_config)
         image_service = ImageService(self.get_config)
         cookie_service = CookieService(self.get_config)
+        reply_tracker_service = ReplyTrackerService()
         qzone_service = QZoneService(self.get_config, content_service, image_service, cookie_service)
         scheduler_service = SchedulerService(self.get_config, qzone_service)
         monitor_service = MonitorService(self.get_config, qzone_service)
         
         register_service("qzone", qzone_service)
+        register_service("reply_tracker", reply_tracker_service)
         register_service("get_config", self.get_config)
         
         # 保存服务引用以便后续启动
