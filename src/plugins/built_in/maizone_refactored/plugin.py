@@ -42,6 +42,7 @@ class MaiZoneRefactoredPlugin(BasePlugin):
         "plugin": {"enable": ConfigField(type=bool, default=True, description="是否启用插件")},
         "models": {
             "text_model": ConfigField(type=str, default="maizone", description="生成文本的模型名称"),
+            "vision_model": ConfigField(type=str, default="YISHAN-gemini-2.5-flash", description="识别图片的模型名称"),
             "siliconflow_apikey": ConfigField(type=str, default="", description="硅基流动AI生图API密钥"),
         },
         "send": {

@@ -6,8 +6,19 @@
 from typing import Callable, Optional
 import datetime
 
+import base64
+import aiohttp
 from src.common.logger import get_logger
-from src.plugin_system.apis import llm_api, config_api
+import base64
+import aiohttp
+import imghdr
+import asyncio
+from src.common.logger import get_logger
+from src.plugin_system.apis import llm_api, config_api, generator_api, person_api
+from src.chat.message_receive.chat_stream import get_chat_manager
+from maim_message import UserInfo
+from src.llm_models.utils_model import LLMRequest
+from src.config.api_ada_configs import TaskConfig
 
 # 导入旧的工具函数，我们稍后会考虑是否也需要重构它
 from ..utils.history_utils import get_send_history
@@ -97,110 +108,181 @@ class ContentService:
             logger.error(f"生成说说内容时发生异常: {e}")
             return ""
 
-    async def generate_comment(self, content: str, target_name: str, rt_con: str = "") -> str:
+    async def generate_comment(self, content: str, target_name: str, rt_con: str = "", images: list = []) -> str:
         """
         针对一条具体的说说内容生成评论。
-
-        :param content: 好友的说说内容。
-        :param target_name: 好友的昵称。
-        :param rt_con: 如果是转发的说说，这里是原说说内容。
-        :return: 生成的评论内容，如果失败则返回空字符串。
         """
-        try:
-            # 获取模型配置
-            models = llm_api.get_available_models()
-            text_model = str(self.get_config("models.text_model", "replyer_1"))
-            model_config = models.get(text_model)
+        for i in range(3): # 重试3次
+            try:
+                chat_manager = get_chat_manager()
+                bot_platform = config_api.get_global_config('bot.platform')
+                bot_qq = str(config_api.get_global_config('bot.qq_account'))
+                bot_nickname = config_api.get_global_config('bot.nickname')
+                
+                bot_user_info = UserInfo(
+                    platform=bot_platform,
+                    user_id=bot_qq,
+                    user_nickname=bot_nickname
+                )
 
-            if not model_config:
-                logger.error("未配置LLM模型")
-                return ""
+                chat_stream = await chat_manager.get_or_create_stream(
+                    platform=bot_platform,
+                    user_info=bot_user_info
+                )
 
-            # 获取机器人信息
-            bot_personality = config_api.get_global_config("personality.personality_core", "一个机器人")
-            bot_expression = config_api.get_global_config("expression.expression_style", "内容积极向上")
+                if not chat_stream:
+                    logger.error(f"无法为QQ号 {bot_qq} 创建聊天流")
+                    return ""
 
-            # 构建提示词
-            if not rt_con:
-                prompt = f"""
-                你是'{bot_personality}'，你正在浏览你好友'{target_name}'的QQ空间，
-                你看到了你的好友'{target_name}'qq空间上内容是'{content}'的说说，你想要发表你的一条评论，
-                {bot_expression}，回复的平淡一些，简短一些，说中文，
-                不要刻意突出自身学科背景，不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出回复内容
-                """
-            else:
-                prompt = f"""
-                你是'{bot_personality}'，你正在浏览你好友'{target_name}'的QQ空间，
-                你看到了你的好友'{target_name}'在qq空间上转发了一条内容为'{rt_con}'的说说，你的好友的评论为'{content}'
-                你想要发表你的一条评论，{bot_expression}，回复的平淡一些，简短一些，说中文，
-                不要刻意突出自身学科背景，不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出回复内容
-                """
+                image_descriptions = []
+                if images:
+                    for image_url in images:
+                        description = await self._describe_image(image_url)
+                        if description:
+                            image_descriptions.append(description)
+                
+                extra_info = "正在评论QQ空间的好友说说。"
+                if image_descriptions:
+                    extra_info += "说说中包含的图片内容如下：\n" + "\n".join(image_descriptions)
 
-            logger.info(f"正在为'{target_name}'的说说生成评论: {content[:20]}...")
+                reply_to = f"{target_name}:{content}"
+                if rt_con:
+                    reply_to += f"\n[转发内容]: {rt_con}"
 
-            # 调用LLM生成评论
-            success, comment, _, _ = await llm_api.generate_with_model(
-                prompt=prompt,
-                model_config=model_config,
-                request_type="comment.generate",
-                temperature=0.3,
-                max_tokens=100
-            )
+                success, reply_set, _ = await generator_api.generate_reply(
+                    chat_stream=chat_stream,
+                    reply_to=reply_to,
+                    extra_info=extra_info,
+                    request_type="maizone.comment"
+                )
 
-            if success:
-                logger.info(f"成功生成评论内容：'{comment}'")
-                return comment
-            else:
-                logger.error("生成评论内容失败")
-                return ""
-
-        except Exception as e:
-            logger.error(f"生成评论内容时发生异常: {e}")
-            return ""
+                if success and reply_set:
+                    comment = "".join([content for type, content in reply_set if type == 'text'])
+                    logger.info(f"成功生成评论内容：'{comment}'")
+                    return comment
+                else:
+                    # 如果生成失败，则进行重试
+                    if i < 2:
+                        logger.warning(f"生成评论失败，将在5秒后重试 (尝试 {i+1}/3)")
+                        await asyncio.sleep(5)
+                        continue
+                    else:
+                        logger.error("使用 generator_api 生成评论失败")
+                        return ""
+            except Exception as e:
+                if i < 2:
+                    logger.warning(f"生成评论时发生异常，将在5秒后重试 (尝试 {i+1}/3): {e}")
+                    await asyncio.sleep(5)
+                    continue
+                else:
+                    logger.error(f"生成评论时发生异常: {e}")
+                    return ""
+        return ""
 
     async def generate_comment_reply(self, story_content: str, comment_content: str, commenter_name: str) -> str:
         """
         针对自己说说的评论，生成回复。
-
-        :param story_content: 原始说说内容。
-        :param comment_content: 好友的评论内容。
-        :param commenter_name: 评论者的昵称。
-        :return: 生成的回复内容。
         """
-        try:
-            models = llm_api.get_available_models()
-            text_model = str(self.get_config("models.text_model", "replyer_1"))
-            model_config = models.get(text_model)
-            if not model_config:
-                return ""
+        for i in range(3): # 重试3次
+            try:
+                chat_manager = get_chat_manager()
+                bot_platform = config_api.get_global_config('bot.platform')
+                bot_qq = str(config_api.get_global_config('bot.qq_account'))
+                bot_nickname = config_api.get_global_config('bot.nickname')
 
-            bot_personality = config_api.get_global_config("personality.personality_core", "一个机器人")
-            bot_expression = config_api.get_global_config("expression.expression_style", "内容积极向上")
+                bot_user_info = UserInfo(
+                    platform=bot_platform,
+                    user_id=bot_qq,
+                    user_nickname=bot_nickname
+                )
 
-            prompt = f"""
-            你是'{bot_personality}'，你的好友'{commenter_name}'评论了你QQ空间上的一条内容为“{story_content}”说说，
-            你的好友对该说说的评论为:“{comment_content}”，你想要对此评论进行回复
-            {bot_expression}，回复的平淡一些，简短一些，说中文，
-            不要刻意突出自身学科背景，不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出回复内容
-            """
-            
-            success, reply, _, _ = await llm_api.generate_with_model(
-                prompt=prompt,
-                model_config=model_config,
-                request_type="comment.reply.generate",
-                temperature=0.3,
-                max_tokens=100
-            )
+                chat_stream = await chat_manager.get_or_create_stream(
+                    platform=bot_platform,
+                    user_info=bot_user_info
+                )
 
-            if success:
-                logger.info(f"成功为'{commenter_name}'的评论生成回复: '{reply}'")
-                return reply
-            else:
-                logger.error("生成评论回复失败")
-                return ""
-        except Exception as e:
-            logger.error(f"生成评论回复时发生异常: {e}")
-            return ""
+                if not chat_stream:
+                    logger.error(f"无法为QQ号 {bot_qq} 创建聊天流")
+                    return ""
+
+                reply_to = f"{commenter_name}:{comment_content}"
+                extra_info = f"正在回复我的QQ空间说说“{story_content}”下的评论。"
+
+                success, reply_set, _ = await generator_api.generate_reply(
+                    chat_stream=chat_stream,
+                    reply_to=reply_to,
+                    extra_info=extra_info,
+                    request_type="maizone.comment_reply"
+                )
+
+                if success and reply_set:
+                    reply = "".join([content for type, content in reply_set if type == 'text'])
+                    logger.info(f"成功为'{commenter_name}'的评论生成回复: '{reply}'")
+                    return reply
+                else:
+                    if i < 2:
+                        logger.warning(f"生成评论回复失败，将在5秒后重试 (尝试 {i+1}/3)")
+                        await asyncio.sleep(5)
+                        continue
+                    else:
+                        logger.error("使用 generator_api 生成评论回复失败")
+                        return ""
+            except Exception as e:
+                if i < 2:
+                    logger.warning(f"生成评论回复时发生异常，将在5秒后重试 (尝试 {i+1}/3): {e}")
+                    await asyncio.sleep(5)
+                    continue
+                else:
+                    logger.error(f"生成评论回复时发生异常: {e}")
+                    return ""
+        return ""
+
+    async def _describe_image(self, image_url: str) -> Optional[str]:
+        """
+        使用LLM识别图片内容。
+        """
+        for i in range(3): # 重试3次
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url, timeout=30) as resp:
+                        if resp.status != 200:
+                            logger.error(f"下载图片失败: {image_url}, status: {resp.status}")
+                            await asyncio.sleep(2)
+                            continue
+                        image_bytes = await resp.read()
+
+                image_format = imghdr.what(None, image_bytes)
+                if not image_format:
+                    logger.error(f"无法识别图片格式: {image_url}")
+                    return None
+
+                image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+                vision_model_name = self.get_config("models.vision_model", "vision")
+                if not vision_model_name:
+                    logger.error("未在插件配置中指定视觉模型")
+                    return None
+
+                vision_model_config = TaskConfig(
+                    model_list=[vision_model_name],
+                    temperature=0.3,
+                    max_tokens=1500
+                )
+                
+                llm_request = LLMRequest(model_set=vision_model_config, request_type="maizone.image_describe")
+                
+                prompt = config_api.get_global_config("custom_prompt.image_prompt", "请描述这张图片")
+
+                description, _ = await llm_request.generate_response_for_image(
+                    prompt=prompt,
+                    image_base64=image_base64,
+                    image_format=image_format,
+                )
+                return description
+            except Exception as e:
+                logger.error(f"识别图片时发生异常 (尝试 {i+1}/3): {e}")
+                await asyncio.sleep(2)
+        return None
 
     async def generate_story_from_activity(self, activity: str) -> str:
         """

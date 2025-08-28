@@ -163,7 +163,7 @@ class QZoneService:
                     continue
 
                 # 区分是自己的说说还是他人的说说
-                if target_qq == qq_account:
+                if str(target_qq) == str(qq_account):
                     if self.get_config("monitor.enable_auto_reply", False):
                         await self._reply_to_own_feed_comments(feed, api_client)
                 else:
@@ -244,12 +244,20 @@ class QZoneService:
         if not comments:
             return
 
-        # 筛选出未被自己回复过的主评论
-        my_comment_tids = {
-            c["parent_tid"] for c in comments if c.get("parent_tid") and c.get("qq_account") == qq_account
+        # 筛选出未被自己回复过的评论
+        if not comments:
+            return
+
+        # 找到所有我已经回复过的评论的ID
+        replied_to_tids = {
+            c['parent_tid'] for c in comments
+            if c.get('parent_tid') and str(c.get('qq_account')) == str(qq_account)
         }
+
+        # 找出所有非我发出且我未回复过的评论
         comments_to_reply = [
-            c for c in comments if not c.get("parent_tid") and c.get("comment_tid") not in my_comment_tids
+            c for c in comments
+            if str(c.get('qq_account')) != str(qq_account) and c.get('comment_tid') not in replied_to_tids
         ]
 
         if not comments_to_reply:
@@ -275,9 +283,10 @@ class QZoneService:
         content = feed.get("content", "")
         fid = feed.get("tid", "")
         rt_con = feed.get("rt_con", "")
+        images = feed.get("images", [])
 
         if random.random() <= self.get_config("read.comment_possibility", 0.3):
-            comment_text = await self.content_service.generate_comment(content, target_name, rt_con)
+            comment_text = await self.content_service.generate_comment(content, target_name, rt_con, images)
             if comment_text:
                 await api_client["comment"](target_qq, fid, comment_text)
 
@@ -655,6 +664,8 @@ class QZoneService:
                         c.get("name") == my_name for c in msg.get("commentlist", []) if isinstance(c, dict)
                     )
                     if not is_commented:
+                        images = [pic['url1'] for pic in msg.get('pictotal', []) if 'url1' in pic]
+
                         feeds_list.append(
                             {
                                 "tid": msg.get("tid", ""),
@@ -665,6 +676,7 @@ class QZoneService:
                                 "rt_con": msg.get("rt_con", {}).get("content", "")
                                 if isinstance(msg.get("rt_con"), dict)
                                 else "",
+                                "images": images
                             }
                         )
                 return feeds_list
@@ -815,10 +827,45 @@ class QZoneService:
                     text_div = soup.find('div', class_='f-info')
                     text = text_div.get_text(strip=True) if text_div else ""
                     
+                    images = [img['src'] for img in soup.find_all('img') if 'src' in img.attrs and 'user-avatar' not in img.get('class', [])]
+                    
+                    comments = []
+                    comment_divs = soup.find_all('div', class_='f-single-comment')
+                    for comment_div in comment_divs:
+                        # --- 处理主评论 ---
+                        author_a = comment_div.find('a', class_='f-nick')
+                        content_span = comment_div.find('span', class_='f-re-con')
+                        
+                        if author_a and content_span:
+                            comments.append({
+                                'qq_account': str(comment_div.get('data-uin', '')),
+                                'nickname': author_a.get_text(strip=True),
+                                'content': content_span.get_text(strip=True),
+                                'comment_tid': comment_div.get('data-tid', ''),
+                                'parent_tid': None  # 主评论没有父ID
+                            })
+
+                        # --- 处理这条主评论下的所有回复 ---
+                        reply_divs = comment_div.find_all('div', class_='f-single-re')
+                        for reply_div in reply_divs:
+                            reply_author_a = reply_div.find('a', class_='f-nick')
+                            reply_content_span = reply_div.find('span', class_='f-re-con')
+                            
+                            if reply_author_a and reply_content_span:
+                                comments.append({
+                                    'qq_account': str(reply_div.get('data-uin', '')),
+                                    'nickname': reply_author_a.get_text(strip=True),
+                                    'content': reply_content_span.get_text(strip=True).lstrip(': '), # 移除回复内容前多余的冒号和空格
+                                    'comment_tid': reply_div.get('data-tid', ''),
+                                    'parent_tid': reply_div.get('data-parent-tid', comment_div.get('data-tid', '')) # 如果没有父ID，则将父ID设为主评论ID
+                                })
+
                     feeds_list.append({
                         'target_qq': target_qq,
                         'tid': tid,
                         'content': text,
+                        'images': images,
+                        'comments': comments
                     })
                 logger.info(f"监控任务发现 {len(feeds_list)} 条未处理的新说说。")
                 return feeds_list
