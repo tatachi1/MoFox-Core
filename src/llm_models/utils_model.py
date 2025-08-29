@@ -261,7 +261,7 @@ class LLMRequest:
         try:
             # 为 _execute_single_request 传递参数时，将 raise_when_empty 设为 False,
             # 这样单个请求失败时不会立即抛出异常，而是由 gather 统一处理
-            return await execute_concurrently(
+            content, (reasoning_content, model_name, tool_calls) = await execute_concurrently(
                 self._execute_single_request,
                 concurrency_count,
                 prompt,
@@ -270,6 +270,7 @@ class LLMRequest:
                 tools,
                 raise_when_empty=False,
             )
+            return content, (reasoning_content, model_name, tool_calls)
         except Exception as e:
             logger.error(f"所有 {concurrency_count} 个并发请求都失败了: {e}")
             if raise_when_empty:
