@@ -1,0 +1,43 @@
+{
+    "manifest_version": 1,
+    "name": "哔哩哔哩视频解析插件 (Bilibili Video Parser)",
+    "version": "1.0.0",
+    "description": "解析哔哩哔哩视频链接，获取视频的base64编码数据（无音频版本），支持BV号、AV号和短链接",
+    "author": {
+        "name": "雅诺狐"
+    },
+    "license": "GPL-v3.0-or-later",
+    "host_application": {
+        "min_version": "0.8.0"
+    },
+    "keywords": [
+        "bilibili",
+        "video",
+        "parser",
+        "tool",
+        "媒体处理"
+    ],
+    "categories": [
+        "Media",
+        "Tools"
+    ],
+    "default_locale": "zh-CN",
+    "plugin_info": {
+        "is_built_in": false,
+        "plugin_type": "tool",
+        "components": [
+            {
+                "type": "tool",
+                "name": "bilibili_video_parser",
+                "description": "解析哔哩哔哩视频链接，获取视频的base64编码数据（无音频版本）"
+            }
+        ],
+        "features": [
+            "支持BV号、AV号视频链接解析",
+            "支持b23.tv短链接解析",
+            "返回无音频的视频base64编码",
+            "自动处理重定向链接",
+            "详细的解析状态反馈"
+        ]
+    }
+}
