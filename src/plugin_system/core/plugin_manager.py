@@ -44,7 +44,7 @@ class PluginManager:
         同步单个插件的配置。
         """
         central_config_dir = os.path.join("config", "plugins", plugin_name)
-        plugin_config_dir = os.path.join(plugin_dir, "config")
+        plugin_config_dir = os.path.join(plugin_dir)
 
         # 确保中央配置目录存在
         os.makedirs(central_config_dir, exist_ok=True)
