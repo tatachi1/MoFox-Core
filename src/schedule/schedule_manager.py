@@ -159,42 +159,36 @@ class ScheduleManager:
                 schedule_record = session.query(Schedule).filter(Schedule.date == today_str).first()
                 if schedule_record:
                     logger.info(f"从数据库加载今天的日程 ({today_str})。")
-
-                    try:
-                        schedule_data = orjson.loads(str(schedule_record.schedule_data))
-
-                        # 使用Pydantic验证日程数据
-                        if self._validate_schedule_with_pydantic(schedule_data):
-                            self.today_schedule = schedule_data
-                            schedule_str = f"已成功加载今天的日程 ({today_str})：\n"
-                            if self.today_schedule:
-                                for item in self.today_schedule:
-                                    schedule_str += f"  - {item.get('time_range', '未知时间')}: {item.get('activity', '未知活动')}\n"
-                            logger.info(schedule_str)
-                        else:
-                            logger.warning("数据库中的日程数据格式无效，将异步重新生成日程")
-                            await self.generate_and_save_schedule()
-                    except orjson.JSONDecodeError as e:
-                        logger.error(f"日程数据JSON解析失败: {e}，将异步重新生成日程")
-                        await self.generate_and_save_schedule()
+                    schedule_data = orjson.loads(str(schedule_record.schedule_data))
+                    if self._validate_schedule_with_pydantic(schedule_data):
+                        self.today_schedule = schedule_data
+                        schedule_str = f"已成功加载今天的日程 ({today_str})：\n"
+                        if self.today_schedule:
+                            for item in self.today_schedule:
+                                schedule_str += f"  - {item.get('time_range', '未知时间')}: {item.get('activity', '未知活动')}\n"
+                        logger.info(schedule_str)
+                        return  # 成功加载，直接返回
+                    else:
+                        logger.warning("数据库中的日程数据格式无效，将重新生成日程")
                 else:
-                    logger.info(f"数据库中未找到今天的日程 ({today_str})，将异步调用 LLM 生成。")
-                    await self.generate_and_save_schedule()
+                    logger.info(f"数据库中未找到今天的日程 ({today_str})，将调用 LLM 生成。")
+            
+            # 仅在需要时生成
+            await self.generate_and_save_schedule()
+
         except Exception as e:
             logger.error(f"加载或生成日程时出错: {e}")
-            # 出错时也尝试异步生成
-            logger.info("尝试异步生成日程作为备用方案...")
+            logger.info("尝试生成日程作为备用方案...")
             await self.generate_and_save_schedule()
 
     async def generate_and_save_schedule(self):
-        """启动异步日程生成任务，避免阻塞主程序"""
+        """启动日程生成任务"""
         if self.schedule_generation_running:
             logger.info("日程生成任务已在运行中，跳过重复启动")
             return
 
-        # 创建异步任务进行日程生成，不阻塞主程序
-        asyncio.create_task(self._async_generate_and_save_schedule())
-        logger.info("已启动异步日程生成任务")
+        # 直接执行日程生成
+        await self._async_generate_and_save_schedule()
 
     async def _async_generate_and_save_schedule(self):
         """异步生成并保存日程的内部方法"""
@@ -234,12 +228,14 @@ class ScheduleManager:
                     logger.info("可用的月度计划已耗尽或不足，触发后台补充生成...")
                     from mmc.src.schedule.monthly_plan_manager import monthly_plan_manager
 
-                    # 以非阻塞方式触发月度计划生成
-                    monthly_plan_manager.trigger_generate_monthly_plans(current_month_str)
+                    # 等待月度计划生成完成
+                    await monthly_plan_manager.ensure_and_generate_plans_if_needed(current_month_str)
 
-                    # 注意：这里不再等待生成结果，因此后续代码不会立即获得新计划。
-                    # 日程将基于当前可用的信息生成，新计划将在下一次日程生成时可用。
-                    logger.info("月度计划的后台生成任务已启动，本次日程将不包含新计划。")
+                    # 重新获取月度计划
+                    sampled_plans = get_smart_plans_for_daily_schedule(
+                        current_month_str, max_count=3, avoid_days=avoid_days
+                    )
+                    logger.info("月度计划补充生成完毕，继续日程生成任务。")
 
                 if sampled_plans:
                     plan_texts = "\n".join([f"- {plan.plan_text}" for plan in sampled_plans])
@@ -471,9 +467,9 @@ class DailyScheduleGenerationTask(AsyncTask):
                 # 2. 等待直到零点
                 await asyncio.sleep(sleep_seconds)
 
-                # 3. 执行异步日程生成
-                logger.info("到达每日零点，开始异步生成新的一天日程...")
-                await self.schedule_manager.generate_and_save_schedule()
+                # 3. 执行日程生成
+                logger.info("到达每日零点，开始生成新的一天日程...")
+                await self.schedule_manager._async_generate_and_save_schedule()
 
             except asyncio.CancelledError:
                 logger.info("每日日程生成任务被取消。")

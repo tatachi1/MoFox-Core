@@ -64,8 +64,9 @@ class MonthlyPlanManager:
             target_month = datetime.now().strftime("%Y-%m")
 
         if not has_active_plans(target_month):
-            logger.info(f" {target_month} 没有任何有效的月度计划，将立即生成。")
-            return await self.generate_monthly_plans(target_month)
+            logger.info(f" {target_month} 没有任何有效的月度计划，将触发同步生成。")
+            generation_successful = await self._generate_monthly_plans_logic(target_month)
+            return generation_successful
         else:
             logger.info(f"{target_month} 已存在有效的月度计划。")
             plans = get_active_plans_for_month(target_month)
@@ -74,8 +75,8 @@ class MonthlyPlanManager:
             max_plans = global_config.monthly_plan_system.max_plans_per_month
             if len(plans) > max_plans:
                 logger.warning(f"当前月度计划数量 ({len(plans)}) 超出上限 ({max_plans})，将自动删除多余的计划。")
-                # 按创建时间升序排序（旧的在前），然后删除超出上限的部分（新的）
-                plans_to_delete = sorted(plans, key=lambda p: p.created_at, reverse=True)[: len(plans) - max_plans]
+                # 数据库查询结果已按创建时间降序排序（新的在前），直接截取超出上限的部分进行删除
+                plans_to_delete = plans[:len(plans)-max_plans]
                 delete_ids = [p.id for p in plans_to_delete]
                 delete_plans_by_ids(delete_ids)
                 # 重新获取计划列表
@@ -86,10 +87,21 @@ class MonthlyPlanManager:
                 logger.info(f"当前月度计划内容:\n{plan_texts}")
             return True  # 已经有计划，也算成功
 
-    async def generate_monthly_plans(self, target_month: Optional[str] = None) -> bool:
+    async def generate_monthly_plans(self, target_month: Optional[str] = None):
         """
-        生成指定月份的月度计划
+        启动月度计划生成。
+        """
+        if self.generation_running:
+            logger.info("月度计划生成任务已在运行中，跳过重复启动")
+            return
 
+        logger.info(f"已触发 {target_month or '当前月份'} 的月度计划生成任务。")
+        await self._generate_monthly_plans_logic(target_month)
+
+    async def _generate_monthly_plans_logic(self, target_month: Optional[str] = None) -> bool:
+        """
+        生成指定月份的月度计划的核心逻辑
+        
         :param target_month: 目标月份，格式为 "YYYY-MM"。如果为 None，则为当前月份。
         :return: 是否生成成功
         """
@@ -135,14 +147,6 @@ class MonthlyPlanManager:
             return False
         finally:
             self.generation_running = False
-
-    def trigger_generate_monthly_plans(self, target_month: Optional[str] = None):
-        """
-        以非阻塞的方式启动月度计划生成任务。
-        这允许其他模块（如ScheduleManager）触发计划生成，而无需等待其完成。
-        """
-        logger.info(f"已触发 {target_month or '当前月份'} 的非阻塞月度计划生成任务。")
-        asyncio.create_task(self.generate_monthly_plans(target_month))
 
     def _get_previous_month(self, current_month: str) -> str:
         """获取上个月的月份字符串"""
@@ -287,8 +291,6 @@ class MonthlyPlanManager:
 
         except Exception as e:
             logger.error(f" 归档 {target_month} 月度计划时发生错误: {e}")
-
-
 class MonthlyPlanGenerationTask(AsyncTask):
     """每月初自动生成新月度计划的任务"""
 
@@ -324,8 +326,8 @@ class MonthlyPlanGenerationTask(AsyncTask):
                 # 生成新月份的计划
                 current_month = next_month.strftime("%Y-%m")
                 logger.info(f" 到达月初，开始生成 {current_month} 的月度计划...")
-                await self.monthly_plan_manager.generate_monthly_plans(current_month)
-
+                await self.monthly_plan_manager._generate_monthly_plans_logic(current_month)
+                
             except asyncio.CancelledError:
                 logger.info(" 每月月度计划生成任务被取消。")
                 break

@@ -212,8 +212,6 @@ MoFox_Bot(第三方修改版)
 
                     await async_memory_manager.initialize()
                     logger.info("记忆管理器初始化成功")
-                except ImportError:
-                    logger.warning("异步记忆优化方法不可用，将回退使用同步模式")
                 except Exception as e:
                     logger.error(f"记忆管理器初始化失败: {e}")
         else:
