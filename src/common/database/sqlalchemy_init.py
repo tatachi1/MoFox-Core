@@ -7,9 +7,7 @@
 from typing import Optional
 from sqlalchemy.exc import SQLAlchemyError
 from src.common.logger import get_logger
-from src.common.database.sqlalchemy_models import (
-    Base, get_engine, initialize_database
-)
+from src.common.database.sqlalchemy_models import Base, get_engine, initialize_database
 
 logger = get_logger("sqlalchemy_init")
 
@@ -18,23 +16,23 @@ def initialize_sqlalchemy_database() -> bool:
     """
     初始化SQLAlchemy数据库
     创建所有表结构
-    
+
     Returns:
         bool: 初始化是否成功
     """
     try:
         logger.info("开始初始化SQLAlchemy数据库...")
-        
+
         # 初始化数据库引擎和会话
         engine, session_local = initialize_database()
-        
+
         if engine is None:
             logger.error("数据库引擎初始化失败")
             return False
-        
+
         logger.info("SQLAlchemy数据库初始化成功")
         return True
-        
+
     except SQLAlchemyError as e:
         logger.error(f"SQLAlchemy数据库初始化失败: {e}")
         return False
@@ -46,24 +44,24 @@ def initialize_sqlalchemy_database() -> bool:
 def create_all_tables() -> bool:
     """
     创建所有数据库表
-    
+
     Returns:
         bool: 创建是否成功
     """
     try:
         logger.info("开始创建数据库表...")
-        
+
         engine = get_engine()
         if engine is None:
             logger.error("无法获取数据库引擎")
             return False
-        
+
         # 创建所有表
         Base.metadata.create_all(bind=engine)
-        
+
         logger.info("数据库表创建成功")
         return True
-        
+
     except SQLAlchemyError as e:
         logger.error(f"创建数据库表失败: {e}")
         return False
@@ -72,11 +70,10 @@ def create_all_tables() -> bool:
         return False
 
 
-
 def get_database_info() -> Optional[dict]:
     """
     获取数据库信息
-    
+
     Returns:
         dict: 数据库信息字典，包含引擎信息等
     """
@@ -84,17 +81,17 @@ def get_database_info() -> Optional[dict]:
         engine = get_engine()
         if engine is None:
             return None
-        
+
         info = {
-            'engine_name': engine.name,
-            'driver': engine.driver,
-            'url': str(engine.url).replace(engine.url.password or '', '***'),  # 隐藏密码
-            'pool_size': getattr(engine.pool, 'size', None),
-            'max_overflow': getattr(engine.pool, 'max_overflow', None),
+            "engine_name": engine.name,
+            "driver": engine.driver,
+            "url": str(engine.url).replace(engine.url.password or "", "***"),  # 隐藏密码
+            "pool_size": getattr(engine.pool, "size", None),
+            "max_overflow": getattr(engine.pool, "max_overflow", None),
         }
-        
+
         return info
-        
+
     except Exception as e:
         logger.error(f"获取数据库信息失败: {e}")
         return None
@@ -102,24 +99,25 @@ def get_database_info() -> Optional[dict]:
 
 _database_initialized = False
 
+
 def initialize_database_compat() -> bool:
     """
     兼容性数据库初始化函数
     用于替换原有的Peewee初始化代码
-    
+
     Returns:
         bool: 初始化是否成功
     """
     global _database_initialized
-    
+
     if _database_initialized:
         return True
-    
+
     success = initialize_sqlalchemy_database()
     if success:
         success = create_all_tables()
-    
+
     if success:
         _database_initialized = True
-    
+
     return success

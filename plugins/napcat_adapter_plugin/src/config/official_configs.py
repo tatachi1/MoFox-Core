@@ -53,8 +53,6 @@ class MaiBotServerConfig(ConfigBase):
     """MaiMCore的端口号"""
 
 
-
-
 @dataclass
 class VoiceConfig(ConfigBase):
     use_tts: bool = False

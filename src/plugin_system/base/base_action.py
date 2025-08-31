@@ -147,7 +147,7 @@ class BaseAction(ABC):
         logger.debug(
             f"{self.log_prefix} 聊天信息: 类型={'群聊' if self.is_group else '私聊'}, 平台={self.platform}, 目标={self.target_id}"
         )
-        
+
         # 验证聊天类型限制
         if not self._validate_chat_type():
             logger.warning(
@@ -157,7 +157,7 @@ class BaseAction(ABC):
 
     def _validate_chat_type(self) -> bool:
         """验证当前聊天类型是否允许执行此Action
-        
+
         Returns:
             bool: 如果允许执行返回True，否则返回False
         """
@@ -172,9 +172,9 @@ class BaseAction(ABC):
 
     def is_chat_type_allowed(self) -> bool:
         """检查当前聊天类型是否允许执行此Action
-        
+
         这是一个公开的方法，供外部调用检查聊天类型限制
-        
+
         Returns:
             bool: 如果允许执行返回True，否则返回False
         """
@@ -240,9 +240,7 @@ class BaseAction(ABC):
             logger.error(f"{self.log_prefix} 等待新消息时发生错误: {e}")
             return False, f"等待新消息失败: {str(e)}"
 
-    async def send_text(
-        self, content: str, set_reply: bool = False,reply_message: Optional[Dict[str, Any]] = None, typing: bool = False
-    ) -> bool:
+    async def send_text(self, content: str, reply_to: str = "", typing: bool = False) -> bool:
         """发送文本消息
 
         Args:

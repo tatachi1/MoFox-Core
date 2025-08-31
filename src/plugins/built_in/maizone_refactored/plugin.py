@@ -2,16 +2,13 @@
 """
 MaiZone（麦麦空间）- 重构版
 """
+
 import asyncio
 from pathlib import Path
 from typing import List, Tuple, Type
 
 from src.common.logger import get_logger
-from src.plugin_system import (
-    BasePlugin,
-    ComponentInfo,
-    register_plugin
-)
+from src.plugin_system import BasePlugin, ComponentInfo, register_plugin
 from src.plugin_system.base.config_types import ConfigField
 from src.plugin_system.apis.permission_api import permission_api
 
@@ -28,6 +25,7 @@ from .services.reply_tracker_service import ReplyTrackerService
 from .services.manager import register_service
 
 logger = get_logger("MaiZone.Plugin")
+
 
 @register_plugin
 class MaiZoneRefactoredPlugin(BasePlugin):
@@ -49,17 +47,19 @@ class MaiZoneRefactoredPlugin(BasePlugin):
         },
         "send": {
             "permission": ConfigField(type=list, default=[], description="发送权限QQ号列表"),
-            "permission_type": ConfigField(type=str, default='whitelist', description="权限类型"),
+            "permission_type": ConfigField(type=str, default="whitelist", description="权限类型"),
             "enable_image": ConfigField(type=bool, default=False, description="是否启用说说配图"),
             "enable_ai_image": ConfigField(type=bool, default=False, description="是否启用AI生成配图"),
             "enable_reply": ConfigField(type=bool, default=True, description="完成后是否回复"),
             "ai_image_number": ConfigField(type=int, default=1, description="AI生成图片数量"),
             "image_number": ConfigField(type=int, default=1, description="本地配图数量（1-9张）"),
-            "image_directory": ConfigField(type=str, default=str(Path(__file__).parent / "images"), description="图片存储目录")
+            "image_directory": ConfigField(
+                type=str, default=str(Path(__file__).parent / "images"), description="图片存储目录"
+            ),
         },
         "read": {
             "permission": ConfigField(type=list, default=[], description="阅读权限QQ号列表"),
-            "permission_type": ConfigField(type=str, default='blacklist', description="权限类型"),
+            "permission_type": ConfigField(type=str, default="blacklist", description="权限类型"),
             "read_number": ConfigField(type=int, default=5, description="一次读取的说说数量"),
             "like_possibility": ConfigField(type=float, default=1.0, description="点赞概率"),
             "comment_possibility": ConfigField(type=float, default=0.3, description="评论概率"),
@@ -77,7 +77,9 @@ class MaiZoneRefactoredPlugin(BasePlugin):
             "forbidden_hours_end": ConfigField(type=int, default=6, description="禁止发送的结束小时(24小时制)"),
         },
         "cookie": {
-            "http_fallback_host": ConfigField(type=str, default="172.20.130.55", description="备用Cookie获取服务的主机地址"),
+            "http_fallback_host": ConfigField(
+                type=str, default="172.20.130.55", description="备用Cookie获取服务的主机地址"
+            ),
             "http_fallback_port": ConfigField(type=int, default=9999, description="备用Cookie获取服务的端口"),
             "napcat_token": ConfigField(type=str, default="", description="Napcat服务的认证Token（可选）"),
         },
@@ -87,16 +89,10 @@ class MaiZoneRefactoredPlugin(BasePlugin):
         super().__init__(*args, **kwargs)
         # 注册权限节点
         permission_api.register_permission_node(
-            "plugin.maizone.send_feed",
-            "是否可以使用机器人发送QQ空间说说",
-            "maiZone",
-            False
+            "plugin.maizone.send_feed", "是否可以使用机器人发送QQ空间说说", "maiZone", False
         )
         permission_api.register_permission_node(
-            "plugin.maizone.read_feed", 
-            "是否可以使用机器人读取QQ空间说说",
-            "maiZone",
-            True
+            "plugin.maizone.read_feed", "是否可以使用机器人读取QQ空间说说", "maiZone", True
         )
         content_service = ContentService(self.get_config)
         image_service = ImageService(self.get_config)
@@ -105,20 +101,20 @@ class MaiZoneRefactoredPlugin(BasePlugin):
         qzone_service = QZoneService(self.get_config, content_service, image_service, cookie_service)
         scheduler_service = SchedulerService(self.get_config, qzone_service)
         monitor_service = MonitorService(self.get_config, qzone_service)
-        
+
         register_service("qzone", qzone_service)
         register_service("reply_tracker", reply_tracker_service)
         register_service("get_config", self.get_config)
-        
+
         # 保存服务引用以便后续启动
         self.scheduler_service = scheduler_service
         self.monitor_service = monitor_service
-        
+
         logger.info("MaiZone重构版插件已加载，服务已注册。")
 
     async def on_plugin_loaded(self):
         """插件加载完成后的回调，启动异步服务"""
-        if hasattr(self, 'scheduler_service') and hasattr(self, 'monitor_service'):
+        if hasattr(self, "scheduler_service") and hasattr(self, "monitor_service"):
             asyncio.create_task(self.scheduler_service.start())
             asyncio.create_task(self.monitor_service.start())
             logger.info("MaiZone后台任务已启动。")

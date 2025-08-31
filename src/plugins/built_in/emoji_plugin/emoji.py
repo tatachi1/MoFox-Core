@@ -9,7 +9,9 @@ from src.common.logger import get_logger
 
 # 导入API模块 - 标准Python包方式
 from src.plugin_system.apis import emoji_api, llm_api, message_api
-# NoReplyAction已集成到heartFC_chat.py中，不再需要导入
+
+# 注释：不再需要导入NoReplyAction，因为计数器管理已移至heartFC_chat.py
+# from src.plugins.built_in.core_actions.no_reply import NoReplyAction
 from src.config.config import global_config
 
 

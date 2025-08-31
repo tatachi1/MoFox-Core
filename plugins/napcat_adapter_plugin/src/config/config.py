@@ -8,6 +8,7 @@ import shutil
 from tomlkit import TOMLDocument
 from tomlkit.items import Table
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 from rich.traceback import install
 
@@ -37,7 +38,7 @@ def update_config():
     """更新配置文件，统一使用 config/old 目录进行备份"""
     # 确保目录存在
     ensure_config_directories()
-    
+
     # 定义文件路径
     template_path = f"{TEMPLATE_DIR}/template_config.toml"
     config_path = f"{CONFIG_DIR}/config.toml"

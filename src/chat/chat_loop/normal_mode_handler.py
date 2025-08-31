@@ -11,15 +11,16 @@ if TYPE_CHECKING:
 
 logger = get_logger("hfc.normal_mode")
 
+
 class NormalModeHandler:
     def __init__(self, context: HfcContext, cycle_processor: "CycleProcessor"):
         """
         初始化普通模式处理器
-        
+
         Args:
             context: HFC聊天上下文对象
             cycle_processor: 循环处理器，用于处理决定回复的消息
-            
+
         功能说明:
         - 处理NORMAL模式下的消息
         - 根据兴趣度和回复概率决定是否回复
@@ -32,13 +33,13 @@ class NormalModeHandler:
     async def handle_message(self, message_data: Dict[str, Any]) -> bool:
         """
         处理NORMAL模式下的单条消息
-        
+
         Args:
             message_data: 消息数据字典，包含用户信息、消息内容、兴趣值等
-            
+
         Returns:
             bool: 是否进行了回复处理
-            
+
         功能说明:
         - 计算消息的兴趣度和基础回复概率
         - 应用谈话频率调整回复概率

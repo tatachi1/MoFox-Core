@@ -79,10 +79,10 @@ class ExpressionSelector:
     def can_use_expression_for_chat(self, chat_id: str) -> bool:
         """
         检查指定聊天流是否允许使用表达
-        
+
         Args:
             chat_id: 聊天流ID
-            
+
         Returns:
             bool: 是否允许使用表达
         """
@@ -143,13 +143,13 @@ class ExpressionSelector:
         # 支持多chat_id合并抽选
         related_chat_ids = self.get_related_chat_ids(chat_id)
         with get_db_session() as session:
-        # 优化：一次性查询所有相关chat_id的表达方式
-            style_query = session.execute(select(Expression).where(
-                (Expression.chat_id.in_(related_chat_ids)) & (Expression.type == "style")
-            ))
-            grammar_query = session.execute(select(Expression).where(
-                (Expression.chat_id.in_(related_chat_ids)) & (Expression.type == "grammar")
-            ))
+            # 优化：一次性查询所有相关chat_id的表达方式
+            style_query = session.execute(
+                select(Expression).where((Expression.chat_id.in_(related_chat_ids)) & (Expression.type == "style"))
+            )
+            grammar_query = session.execute(
+                select(Expression).where((Expression.chat_id.in_(related_chat_ids)) & (Expression.type == "grammar"))
+            )
 
             style_exprs = [
                 {
@@ -190,7 +190,7 @@ class ExpressionSelector:
                 selected_grammar = weighted_sample(grammar_exprs, grammar_weights, grammar_num)
             else:
                 selected_grammar = []
-            
+
             return selected_style, selected_grammar
 
     def update_expressions_count_batch(self, expressions_to_update: List[Dict[str, Any]], increment: float = 0.1):
@@ -211,19 +211,21 @@ class ExpressionSelector:
                 updates_by_key[key] = expr
         for chat_id, expr_type, situation, style in updates_by_key:
             with get_db_session() as session:
-                query = session.execute(select(Expression).where(
-                (Expression.chat_id == chat_id)
-                & (Expression.type == expr_type)
-                & (Expression.situation == situation)
-                & (Expression.style == style)
-            )).scalar()
+                query = session.execute(
+                    select(Expression).where(
+                        (Expression.chat_id == chat_id)
+                        & (Expression.type == expr_type)
+                        & (Expression.situation == situation)
+                        & (Expression.style == style)
+                    )
+                ).scalar()
             if query:
                 expr_obj = query
                 current_count = expr_obj.count
                 new_count = min(current_count + increment, 5.0)
                 expr_obj.count = new_count
                 expr_obj.last_active_time = time.time()
-                
+
                 logger.debug(
                     f"表达方式激活: 原count={current_count:.3f}, 增量={increment}, 新count={new_count:.3f} in db"
                 )
@@ -238,7 +240,7 @@ class ExpressionSelector:
     ) -> Tuple[List[Dict[str, Any]], List[int]]:
         # sourcery skip: inline-variable, list-comprehension
         """使用LLM选择适合的表达方式"""
-        
+
         # 检查是否允许在此聊天流中使用表达
         if not self.can_use_expression_for_chat(chat_id):
             logger.debug(f"聊天流 {chat_id} 不允许使用表达，返回空列表")
@@ -286,7 +288,6 @@ class ExpressionSelector:
 
         # 4. 调用LLM
         try:
-            
             # start_time = time.time()
             content, (reasoning_content, model_name, _) = await self.llm_model.generate_response_async(prompt=prompt)
             # logger.info(f"LLM请求时间: {model_name}  {time.time() - start_time} \n{prompt}")
@@ -332,8 +333,7 @@ class ExpressionSelector:
 
         except Exception as e:
             logger.error(f"LLM处理表达方式选择时出错: {e}")
-            return [], []
-    
+            return []
 
 
 init_prompt()

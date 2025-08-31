@@ -10,4 +10,4 @@
 from .statistics import AntiInjectionStatistics
 from .user_ban import UserBanManager
 
-__all__ = ['AntiInjectionStatistics', 'UserBanManager']
+__all__ = ["AntiInjectionStatistics", "UserBanManager"]

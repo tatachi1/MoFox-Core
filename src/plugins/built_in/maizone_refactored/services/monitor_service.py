@@ -2,6 +2,7 @@
 """
 好友动态监控服务
 """
+
 import asyncio
 import traceback
 from typing import Callable
@@ -9,7 +10,7 @@ from typing import Callable
 from src.common.logger import get_logger
 from .qzone_service import QZoneService
 
-logger = get_logger('MaiZone.MonitorService')
+logger = get_logger("MaiZone.MonitorService")
 
 
 class MonitorService:
@@ -46,7 +47,7 @@ class MonitorService:
         """监控任务主循环"""
         # 插件启动后，延迟一段时间再开始第一次监控
         await asyncio.sleep(60)
-        
+
         while self.is_running:
             try:
                 if not self.get_config("monitor.enable_auto_monitor", False):
@@ -54,12 +55,12 @@ class MonitorService:
                     continue
 
                 interval_minutes = self.get_config("monitor.interval_minutes", 10)
-                
+
                 await self.qzone_service.monitor_feeds()
-                
+
                 logger.info(f"本轮监控完成，将在 {interval_minutes} 分钟后进行下一次检查。")
                 await asyncio.sleep(interval_minutes * 60)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:

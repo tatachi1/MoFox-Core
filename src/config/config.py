@@ -182,7 +182,7 @@ def _update_dict(target: TOMLDocument | dict | Table, source: TOMLDocument | dic
         # 跳过version字段的更新
         if key == "version":
             continue
-        
+
         if key in target:
             # 键已存在，更新值
             target_value = target[key]
@@ -396,16 +396,28 @@ class Config(ValidatedConfigBase):
     schedule: ScheduleConfig = Field(..., description="调度配置")
     permission: PermissionConfig = Field(..., description="权限配置")
     command: CommandConfig = Field(..., description="命令系统配置")
-    
+
     # 有默认值的字段放在后面
-    anti_prompt_injection: AntiPromptInjectionConfig = Field(default_factory=lambda: AntiPromptInjectionConfig(), description="反提示注入配置")
-    video_analysis: VideoAnalysisConfig = Field(default_factory=lambda: VideoAnalysisConfig(), description="视频分析配置")
-    dependency_management: DependencyManagementConfig = Field(default_factory=lambda: DependencyManagementConfig(), description="依赖管理配置")
+    anti_prompt_injection: AntiPromptInjectionConfig = Field(
+        default_factory=lambda: AntiPromptInjectionConfig(), description="反提示注入配置"
+    )
+    video_analysis: VideoAnalysisConfig = Field(
+        default_factory=lambda: VideoAnalysisConfig(), description="视频分析配置"
+    )
+    dependency_management: DependencyManagementConfig = Field(
+        default_factory=lambda: DependencyManagementConfig(), description="依赖管理配置"
+    )
     web_search: WebSearchConfig = Field(default_factory=lambda: WebSearchConfig(), description="网络搜索配置")
     sleep_system: SleepSystemConfig = Field(default_factory=lambda: SleepSystemConfig(), description="睡眠系统配置")
-    monthly_plan_system: MonthlyPlanSystemConfig = Field(default_factory=lambda: MonthlyPlanSystemConfig(), description="月层计划系统配置")
-    cross_context: CrossContextConfig = Field(default_factory=lambda: CrossContextConfig(), description="跨群聊上下文共享配置")
-    maizone_intercom: MaizoneIntercomConfig = Field(default_factory=lambda: MaizoneIntercomConfig(), description="Maizone互通组配置")
+    monthly_plan_system: MonthlyPlanSystemConfig = Field(
+        default_factory=lambda: MonthlyPlanSystemConfig(), description="月层计划系统配置"
+    )
+    cross_context: CrossContextConfig = Field(
+        default_factory=lambda: CrossContextConfig(), description="跨群聊上下文共享配置"
+    )
+    maizone_intercom: MaizoneIntercomConfig = Field(
+        default_factory=lambda: MaizoneIntercomConfig(), description="Maizone互通组配置"
+    )
 
 
 class APIAdapterConfig(ValidatedConfigBase):
@@ -420,37 +432,37 @@ class APIAdapterConfig(ValidatedConfigBase):
         self.api_providers_dict = {provider.name: provider for provider in self.api_providers}
         self.models_dict = {model.name: model for model in self.models}
 
-    @field_validator('models')
+    @field_validator("models")
     @classmethod
     def validate_models_list(cls, v):
         """验证模型列表"""
         if not v:
             raise ValueError("模型列表不能为空，请在配置中设置有效的模型列表。")
-        
+
         # 检查模型名称是否重复
         model_names = [model.name for model in v]
         if len(model_names) != len(set(model_names)):
             raise ValueError("模型名称存在重复，请检查配置文件。")
-        
+
         # 检查模型标识符是否有效
         for model in v:
             if not model.model_identifier:
                 raise ValueError(f"模型 '{model.name}' 的 model_identifier 不能为空")
-        
+
         return v
 
-    @field_validator('api_providers')
+    @field_validator("api_providers")
     @classmethod
     def validate_api_providers_list(cls, v):
         """验证API提供商列表"""
         if not v:
             raise ValueError("API提供商列表不能为空，请在配置中设置有效的API提供商列表。")
-        
+
         # 检查API提供商名称是否重复
         provider_names = [provider.name for provider in v]
         if len(provider_names) != len(set(provider_names)):
             raise ValueError("API提供商名称存在重复，请检查配置文件。")
-        
+
         return v
 
     def get_model_info(self, model_name: str) -> ModelInfo:

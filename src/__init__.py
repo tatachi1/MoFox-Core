@@ -6,8 +6,8 @@ from src.common.logger import get_logger
 
 egg = get_logger("小彩蛋")
 
-def weighted_choice(data: Sequence[str],
-                    weights: Optional[List[float]] = None) -> str:
+
+def weighted_choice(data: Sequence[str], weights: Optional[List[float]] = None) -> str:
     """
     从 data 中按权重随机返回一条。
     若 weights 为 None，则所有元素权重默认为 1。
@@ -40,19 +40,22 @@ def weighted_choice(data: Sequence[str],
             left = mid + 1
     return data[left]
 
-class BaseMain():
+
+class BaseMain:
     """基础主程序类"""
-    
+
     def __init__(self):
         """初始化基础主程序"""
         self.easter_egg()
-    
+
     def easter_egg(self):
         # 彩蛋
         init()
-        items = ["多年以后，面对AI行刑队，张三将会回想起他2023年在会议上讨论人工智能的那个下午", 
-             "你知道吗？诺狐的耳朵很软，很好rua", 
-             "喵喵~你的麦麦被猫娘入侵了喵~"]
+        items = [
+            "多年以后，面对AI行刑队，张三将会回想起他2023年在会议上讨论人工智能的那个下午",
+            "你知道吗？诺狐的耳朵很软，很好rua",
+            "喵喵~你的麦麦被猫娘入侵了喵~",
+        ]
         w = [10, 5, 2]
         text = weighted_choice(items, w)
         rainbow_colors = [Fore.RED, Fore.YELLOW, Fore.GREEN, Fore.CYAN, Fore.BLUE, Fore.MAGENTA]

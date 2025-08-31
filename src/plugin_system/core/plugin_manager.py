@@ -104,7 +104,7 @@ class PluginManager:
             return False  # 目标文件不存在，视为不同
 
         # 使用 'rb' 模式以二进制方式读取文件，确保哈希值计算的一致性
-        with open(file1, 'rb') as f1, open(file2, 'rb') as f2:
+        with open(file1, "rb") as f1, open(file2, "rb") as f2:
             return hashlib.md5(f1.read()).hexdigest() == hashlib.md5(f2.read()).hexdigest()
 
     # === 插件目录管理 ===
@@ -300,7 +300,7 @@ class PluginManager:
             list: 已注册的插件类名称列表。
         """
         return list(self.plugin_classes.keys())
-    
+
     def get_plugin_path(self, plugin_name: str) -> Optional[str]:
         """
         获取指定插件的路径。
@@ -366,7 +366,7 @@ class PluginManager:
         # 生成模块名和插件信息
         plugin_path = Path(plugin_file)
         plugin_dir = plugin_path.parent  # 插件目录
-        plugin_name = plugin_dir.name    # 插件名称
+        plugin_name = plugin_dir.name  # 插件名称
         module_name = ".".join(plugin_path.parent.parts)
 
         try:
@@ -386,7 +386,7 @@ class PluginManager:
         except Exception as e:
             error_msg = f"加载插件模块 {plugin_file} 失败: {e}"
             logger.error(error_msg)
-            self.failed_plugins[plugin_name if 'plugin_name' in locals() else module_name] = error_msg
+            self.failed_plugins[plugin_name if "plugin_name" in locals() else module_name] = error_msg
             return False
 
     # == 兼容性检查 ==
@@ -478,9 +478,7 @@ class PluginManager:
                         command_components = [
                             c for c in plugin_info.components if c.component_type == ComponentType.COMMAND
                         ]
-                        tool_components = [
-                            c for c in plugin_info.components if c.component_type == ComponentType.TOOL
-                        ]
+                        tool_components = [c for c in plugin_info.components if c.component_type == ComponentType.TOOL]
                         event_handler_components = [
                             c for c in plugin_info.components if c.component_type == ComponentType.EVENT_HANDLER
                         ]
@@ -591,7 +589,7 @@ class PluginManager:
             plugin_instance = self.loaded_plugins[plugin_name]
 
             # 调用插件的清理方法（如果有的话）
-            if hasattr(plugin_instance, 'on_unload'):
+            if hasattr(plugin_instance, "on_unload"):
                 plugin_instance.on_unload()
 
             # 从组件注册表中移除插件的所有组件
@@ -654,10 +652,10 @@ class PluginManager:
 
     def force_reload_plugin(self, plugin_name: str) -> bool:
         """强制重载插件（使用简化的方法）
-        
+
         Args:
             plugin_name: 插件名称
-            
+
         Returns:
             bool: 重载是否成功
         """

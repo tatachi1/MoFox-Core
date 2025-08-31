@@ -22,7 +22,7 @@ class NoReplyAction(BaseAction):
     # 动作基本信息
     action_name = "no_reply"
     action_description = "暂时不回复消息"
-    
+
     # 最近三次no_reply的新消息兴趣度记录
     _recent_interest_records: deque = deque(maxlen=3)
 
@@ -46,9 +46,9 @@ class NoReplyAction(BaseAction):
 
         try:
             reason = self.action_data.get("reason", "")
-            
+
             logger.info(f"{self.log_prefix} 选择不回复，原因: {reason}")
-            
+
             await self.store_action_info(
                 action_build_into_prompt=False,
                 action_prompt_display=reason,
@@ -77,4 +77,3 @@ class NoReplyAction(BaseAction):
     def get_recent_interest_records(cls) -> List[float]:
         """获取最近的兴趣度记录"""
         return list(cls._recent_interest_records)
-

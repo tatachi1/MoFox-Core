@@ -5,14 +5,14 @@ if __name__ == "__main__":
     # 设置Python路径并执行bot.py
     import sys
     from pathlib import Path
-    
+
     # 添加当前目录到Python路径
     current_dir = Path(__file__).parent
     sys.path.insert(0, str(current_dir))
-    
+
     # 执行bot.py的代码
     bot_file = current_dir / "bot.py"
-    with open(bot_file, 'r', encoding='utf-8') as f:
+    with open(bot_file, "r", encoding="utf-8") as f:
         exec(f.read())
 
 

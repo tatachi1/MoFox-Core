@@ -87,7 +87,7 @@ class MessageHandler:
         """
         logger.debug(f"群聊id: {group_id}, 用户id: {user_id}")
         logger.debug("开始检查聊天白名单/黑名单")
-        
+
         # 使用新的权限管理器检查权限
         if group_id:
             if not features_manager.is_group_allowed(group_id):
@@ -97,7 +97,7 @@ class MessageHandler:
             if not features_manager.is_private_allowed(user_id):
                 logger.warning("私聊不在聊天权限范围内，消息被丢弃")
                 return False
-        
+
         # 检查全局禁止名单
         if not ignore_global_list and features_manager.is_user_banned(user_id):
             logger.warning("用户在全局黑名单中，消息被丢弃")
@@ -184,7 +184,9 @@ class MessageHandler:
                 # -------------------这里需要群信息吗？-------------------
 
                 # 获取群聊相关信息，在此单独处理group_name，因为默认发送的消息中没有
-                fetched_group_info: dict = await get_group_info(self.get_server_connection(), raw_message.get("group_id"))
+                fetched_group_info: dict = await get_group_info(
+                    self.get_server_connection(), raw_message.get("group_id")
+                )
                 group_name = ""
                 if fetched_group_info.get("group_name"):
                     group_name = fetched_group_info.get("group_name")
@@ -262,16 +264,16 @@ class MessageHandler:
             # 检查消息类型是否启用缓冲
             message_type = raw_message.get("message_type")
             should_use_buffer = False
-            
+
             if message_type == "group" and features_manager.is_message_buffer_group_enabled():
                 should_use_buffer = True
             elif message_type == "private" and features_manager.is_message_buffer_private_enabled():
                 should_use_buffer = True
-            
+
             if should_use_buffer:
                 logger.debug(f"尝试缓冲消息，消息类型: {message_type}, 用户: {user_info.user_id}")
                 logger.debug(f"原始消息段: {raw_message.get('message', [])}")
-                
+
                 # 尝试添加到缓冲器
                 buffered = await self.message_buffer.add_text_message(
                     event_data={
@@ -280,12 +282,9 @@ class MessageHandler:
                         "group_id": group_info.group_id if group_info else None,
                     },
                     message=raw_message.get("message", []),
-                    original_event={
-                        "message_info": message_info,
-                        "raw_message": raw_message
-                    }
+                    original_event={"message_info": message_info, "raw_message": raw_message},
                 )
-                
+
                 if buffered:
                     logger.info(f"✅ 文本消息已成功缓冲: {user_info.user_id}")
                     return None  # 缓冲成功，不立即发送
@@ -331,14 +330,18 @@ class MessageHandler:
                 case RealMessageType.text:
                     ret_seg = await self.handle_text_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.TEXT,plugin_name=PLUGIN_NAME,message_seg=ret_seg)   
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.TEXT, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("text处理失败")
                 case RealMessageType.face:
                     ret_seg = await self.handle_face_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.FACE,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.FACE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("face处理失败或不支持")
@@ -346,7 +349,9 @@ class MessageHandler:
                     if not in_reply:
                         ret_seg = await self.handle_reply_message(sub_message)
                         if ret_seg:
-                            await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.REPLY,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                            await event_manager.trigger_event(
+                                NapcatEvent.ON_RECEIVED.REPLY, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            )
                             seg_message += ret_seg
                         else:
                             logger.warning("reply处理失败")
@@ -354,7 +359,9 @@ class MessageHandler:
                     logger.debug("开始处理图片消息段")
                     ret_seg = await self.handle_image_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.IMAGE,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.IMAGE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                         logger.debug("图片处理成功，添加到消息段")
                     else:
@@ -363,7 +370,9 @@ class MessageHandler:
                 case RealMessageType.record:
                     ret_seg = await self.handle_record_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.RECORD,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.RECORD, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.clear()
                         seg_message.append(ret_seg)
                         break  # 使得消息只有record消息
@@ -372,7 +381,9 @@ class MessageHandler:
                 case RealMessageType.video:
                     ret_seg = await self.handle_video_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.VIDEO,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.VIDEO, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("video处理失败")
@@ -383,33 +394,43 @@ class MessageHandler:
                         raw_message.get("group_id"),
                     )
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.AT,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.AT, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("at处理失败")
                 case RealMessageType.rps:
                     ret_seg = await self.handle_rps_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.RPS,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.RPS, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("rps处理失败")
                 case RealMessageType.dice:
                     ret_seg = await self.handle_dice_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.DICE,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.DICE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("dice处理失败")
                 case RealMessageType.shake:
                     ret_seg = await self.handle_shake_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.SHAKE,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.SHAKE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("shake处理失败")
                 case RealMessageType.share:
-                    print("\n\n哦哦哦噢噢噢哦哦你收到了一个超级无敌SHARE消息，快速速把你刚刚收到的消息截图发到MoFox-Bot群里！！！！\n\n")
+                    print(
+                        "\n\n哦哦哦噢噢噢哦哦你收到了一个超级无敌SHARE消息，快速速把你刚刚收到的消息截图发到MoFox-Bot群里！！！！\n\n"
+                    )
                     logger.warning("暂时不支持链接解析")
                 case RealMessageType.forward:
                     messages = await self._get_forward_message(sub_message)
@@ -422,18 +443,22 @@ class MessageHandler:
                     else:
                         logger.warning("转发消息处理失败")
                 case RealMessageType.node:
-                    print("\n\n哦哦哦噢噢噢哦哦你收到了一个超级无敌NODE消息，快速速把你刚刚收到的消息截图发到MoFox-Bot群里！！！！\n\n")
+                    print(
+                        "\n\n哦哦哦噢噢噢哦哦你收到了一个超级无敌NODE消息，快速速把你刚刚收到的消息截图发到MoFox-Bot群里！！！！\n\n"
+                    )
                     logger.warning("不支持转发消息节点解析")
                 case RealMessageType.json:
                     ret_seg = await self.handle_json_message(sub_message)
                     if ret_seg:
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.JSON,plugin_name=PLUGIN_NAME,message_seg=ret_seg)
+                        await event_manager.trigger_event(
+                            NapcatEvent.ON_RECEIVED.JSON, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                        )
                         seg_message.append(ret_seg)
                     else:
                         logger.warning("json处理失败")
                 case _:
                     logger.warning(f"未知消息类型: {sub_message_type}")
-        
+
         logger.debug(f"handle_real_message完成，处理了{len(real_message)}个消息段，生成了{len(seg_message)}个seg")
         return seg_message
 
@@ -515,7 +540,9 @@ class MessageHandler:
                 else:
                     return None
             else:
-                member_info: dict = await get_member_info(self.get_server_connection(), group_id=group_id, user_id=qq_id)
+                member_info: dict = await get_member_info(
+                    self.get_server_connection(), group_id=group_id, user_id=qq_id
+                )
                 if member_info:
                     return Seg(type="text", data=f"@<{member_info.get('nickname')}:{member_info.get('user_id')}>")
                 else:
@@ -557,26 +584,26 @@ class MessageHandler:
             seg_data: Seg: 处理后的消息段
         """
         message_data: dict = raw_message.get("data")
-        
+
         # 添加详细的调试信息
         logger.debug(f"视频消息原始数据: {raw_message}")
         logger.debug(f"视频消息数据: {message_data}")
-        
+
         # QQ视频消息可能包含url或filePath字段
         video_url = message_data.get("url")
         file_path = message_data.get("filePath") or message_data.get("file_path")
-        
+
         logger.info(f"视频URL: {video_url}")
         logger.info(f"视频文件路径: {file_path}")
-        
+
         # 优先使用本地文件路径，其次使用URL
         video_source = file_path if file_path else video_url
-        
+
         if not video_source:
             logger.warning("视频消息缺少URL或文件路径信息")
             logger.warning(f"完整消息数据: {message_data}")
             return None
-        
+
         try:
             # 检查是否为本地文件路径
             if file_path and Path(file_path).exists():
@@ -584,45 +611,51 @@ class MessageHandler:
                 # 直接读取本地文件
                 with open(file_path, "rb") as f:
                     video_data = f.read()
-                
+
                 # 将视频数据编码为base64用于传输
-                video_base64 = base64.b64encode(video_data).decode('utf-8')
+                video_base64 = base64.b64encode(video_data).decode("utf-8")
                 logger.info(f"视频文件大小: {len(video_data) / (1024 * 1024):.2f} MB")
-                
+
                 # 返回包含详细信息的字典格式
-                return Seg(type="video", data={
-                    "base64": video_base64,
-                    "filename": Path(file_path).name,
-                    "size_mb": len(video_data) / (1024 * 1024)
-                })
-            
+                return Seg(
+                    type="video",
+                    data={
+                        "base64": video_base64,
+                        "filename": Path(file_path).name,
+                        "size_mb": len(video_data) / (1024 * 1024),
+                    },
+                )
+
             elif video_url:
                 logger.info(f"使用视频URL下载: {video_url}")
                 # 使用video_handler下载视频
                 video_downloader = get_video_downloader()
                 download_result = await video_downloader.download_video(video_url)
-                
+
                 if not download_result["success"]:
                     logger.warning(f"视频下载失败: {download_result.get('error', '未知错误')}")
                     logger.warning(f"失败的URL: {video_url}")
                     return None
-                
+
                 # 将视频数据编码为base64用于传输
-                video_base64 = base64.b64encode(download_result["data"]).decode('utf-8')
+                video_base64 = base64.b64encode(download_result["data"]).decode("utf-8")
                 logger.info(f"视频下载成功，大小: {len(download_result['data']) / (1024 * 1024):.2f} MB")
-                
+
                 # 返回包含详细信息的字典格式
-                return Seg(type="video", data={
-                    "base64": video_base64,
-                    "filename": download_result.get("filename", "video.mp4"),
-                    "size_mb": len(download_result["data"]) / (1024 * 1024),
-                    "url": video_url
-                })
-            
+                return Seg(
+                    type="video",
+                    data={
+                        "base64": video_base64,
+                        "filename": download_result.get("filename", "video.mp4"),
+                        "size_mb": len(download_result["data"]) / (1024 * 1024),
+                        "url": video_url,
+                    },
+                )
+
             else:
                 logger.warning("既没有有效的本地文件路径，也没有有效的视频URL")
                 return None
-                
+
         except Exception as e:
             logger.error(f"视频消息处理失败: {str(e)}")
             logger.error(f"视频源: {video_source}")
@@ -666,9 +699,7 @@ class MessageHandler:
         Parameters:
             message_list: list: 转发消息列表
         """
-        handled_message, image_count = await self._handle_forward_message(
-            message_list, 0
-        )
+        handled_message, image_count = await self._handle_forward_message(message_list, 0)
         handled_message: Seg
         image_count: int
         if not handled_message:
@@ -678,15 +709,11 @@ class MessageHandler:
         if image_count < 5 and image_count > 0:
             # 处理图片数量小于5的情况，此时解析图片为base64
             logger.info("图片数量小于5，开始解析图片为base64")
-            processed_message = await self._recursive_parse_image_seg(
-                handled_message, True
-            )
+            processed_message = await self._recursive_parse_image_seg(handled_message, True)
         elif image_count > 0:
             logger.info("图片数量大于等于5，开始解析图片为占位符")
             # 处理图片数量大于等于5的情况，此时解析图片为占位符
-            processed_message = await self._recursive_parse_image_seg(
-                handled_message, False
-            )
+            processed_message = await self._recursive_parse_image_seg(handled_message, False)
         else:
             # 处理没有图片的情况，此时直接返回
             logger.info("没有图片，直接返回")
@@ -697,21 +724,21 @@ class MessageHandler:
         return Seg(type="seglist", data=[forward_hint, processed_message])
 
     async def handle_dice_message(self, raw_message: dict) -> Seg:
-        message_data: dict = raw_message.get("data",{})
-        res = message_data.get("result","")
+        message_data: dict = raw_message.get("data", {})
+        res = message_data.get("result", "")
         return Seg(type="text", data=f"[扔了一个骰子，点数是{res}]")
 
     async def handle_shake_message(self, raw_message: dict) -> Seg:
         return Seg(type="text", data="[向你发送了窗口抖动，现在你的屏幕猛烈地震了一下！]")
-    
+
     async def handle_json_message(self, raw_message: dict) -> Seg:
-        message_data: str = raw_message.get("data","").get("data","")
+        message_data: str = raw_message.get("data", "").get("data", "")
         res = json.loads(message_data)
         return Seg(type="json", data=res)
 
     async def handle_rps_message(self, raw_message: dict) -> Seg:
-        message_data: dict = raw_message.get("data",{})
-        res = message_data.get("result","")
+        message_data: dict = raw_message.get("data", {})
+        res = message_data.get("result", "")
         if res == "1":
             shape = "布"
         elif res == "2":
@@ -719,7 +746,7 @@ class MessageHandler:
         else:
             shape = "石头"
         return Seg(type="text", data=f"[发送了一个魔法猜拳表情，结果是：{shape}]")
-    
+
     async def _recursive_parse_image_seg(self, seg_data: Seg, to_image: bool) -> Seg:
         # sourcery skip: merge-else-if-into-elif
         if to_image:
@@ -898,22 +925,25 @@ class MessageHandler:
             # 从原始事件数据中提取信息
             message_info = original_event.get("message_info")
             raw_message = original_event.get("raw_message")
-            
+
             if not message_info or not raw_message:
                 logger.error("缓冲消息缺少必要信息")
                 return
-            
+
             # 创建合并后的消息段 - 将合并的文本转换为Seg格式
             from maim_message import Seg
+
             merged_seg = Seg(type="text", data=merged_text)
             submit_seg = Seg(type="seglist", data=[merged_seg])
-            
+
             # 创建新的消息ID
             import time
+
             new_message_id = f"buffered-{message_info.message_id}-{int(time.time() * 1000)}"
-            
+
             # 更新消息信息
             from maim_message import BaseMessageInfo, MessageBase
+
             buffered_message_info = BaseMessageInfo(
                 platform=message_info.platform,
                 message_id=new_message_id,
@@ -924,17 +954,17 @@ class MessageHandler:
                 format_info=message_info.format_info,
                 additional_config=message_info.additional_config,
             )
-            
+
             # 创建MessageBase
             message_base = MessageBase(
                 message_info=buffered_message_info,
                 message_segment=submit_seg,
                 raw_message=raw_message.get("raw_message", ""),
             )
-            
+
             logger.info(f"发送缓冲合并消息到Maibot处理: {session_id}")
             await message_send_instance.message_send(message_base)
-            
+
         except Exception as e:
             logger.error(f"发送缓冲消息失败: {e}", exc_info=True)
 

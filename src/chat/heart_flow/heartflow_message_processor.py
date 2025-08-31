@@ -37,7 +37,7 @@ async def _calculate_interest(message: MessageRecv) -> Tuple[float, bool, list[s
     with Timer("记忆激活"):
         interested_rate, keywords = await hippocampus_manager.get_activate_from_text(
             message.processed_plain_text,
-            max_depth= 4,
+            max_depth=5,
             fast_retrieval=False,
         )
         message.key_words = keywords
@@ -47,7 +47,7 @@ async def _calculate_interest(message: MessageRecv) -> Tuple[float, bool, list[s
     text_len = len(message.processed_plain_text)
     # 根据文本长度分布调整兴趣度，采用分段函数实现更精确的兴趣度计算
     # 基于实际分布：0-5字符(26.57%), 6-10字符(27.18%), 11-20字符(22.76%), 21-30字符(10.33%), 31+字符(13.86%)
-    
+
     if text_len == 0:
         base_interest = 0.01  # 空消息最低兴趣度
     elif text_len <= 5:
@@ -71,7 +71,7 @@ async def _calculate_interest(message: MessageRecv) -> Tuple[float, bool, list[s
     else:
         # 100+字符：对数增长 0.26 -> 0.3，增长率递减
         base_interest = 0.26 + (0.3 - 0.26) * (math.log10(text_len - 99) / math.log10(901))  # 1000-99=901
-    
+
     # 确保在范围内
     base_interest = min(max(base_interest, 0.01), 0.3)
 
@@ -119,7 +119,7 @@ class HeartFCMessageReceiver:
             subheartflow: SubHeartflow = await heartflow.get_or_create_subheartflow(chat.stream_id)  # type: ignore
 
             # subheartflow.add_message_to_normal_chat_cache(message, interested_rate, is_mentioned)
-            if global_config.mood.enable_mood:  
+            if global_config.mood.enable_mood:
                 chat_mood = mood_manager.get_mood_by_chat_id(subheartflow.chat_id)
                 asyncio.create_task(chat_mood.update_mood_by_message(message, interested_rate))
 
@@ -129,18 +129,22 @@ class HeartFCMessageReceiver:
             # 如果消息中包含图片标识，则将 [picid:...] 替换为 [图片]
             picid_pattern = r"\[picid:([^\]]+)\]"
             processed_plain_text = re.sub(picid_pattern, "[图片]", message.processed_plain_text)
-            
+
             # 应用用户引用格式替换，将回复<aaa:bbb>和@<aaa:bbb>格式转换为可读格式
             processed_plain_text = replace_user_references_sync(
                 processed_plain_text,
-                message.message_info.platform, # type: ignore
-                replace_bot_name=True
+                message.message_info.platform,  # type: ignore
+                replace_bot_name=True,
             )
 
             if keywords:
-                logger.info(f"[{mes_name}]{userinfo.user_nickname}:{processed_plain_text}[兴趣度：{interested_rate:.2f}][关键词：{keywords}]")  # type: ignore
+                logger.info(
+                    f"[{mes_name}]{userinfo.user_nickname}:{processed_plain_text}[兴趣度：{interested_rate:.2f}][关键词：{keywords}]"
+                )  # type: ignore
             else:
-                logger.info(f"[{mes_name}]{userinfo.user_nickname}:{processed_plain_text}[兴趣度：{interested_rate:.2f}]")  # type: ignore
+                logger.info(
+                    f"[{mes_name}]{userinfo.user_nickname}:{processed_plain_text}[兴趣度：{interested_rate:.2f}]"
+                )  # type: ignore
 
             _ = Person.register_person(platform=message.message_info.platform, user_id=message.message_info.user_info.user_id,nickname=userinfo.user_nickname) # type: ignore
 

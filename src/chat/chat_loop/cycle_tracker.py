@@ -7,14 +7,15 @@ from .hfc_context import HfcContext
 
 logger = get_logger("hfc")
 
+
 class CycleTracker:
     def __init__(self, context: HfcContext):
         """
         初始化循环跟踪器
-        
+
         Args:
             context: HFC聊天上下文对象
-            
+
         功能说明:
         - 负责跟踪和记录每次思考循环的详细信息
         - 管理循环的开始、结束和信息存储
@@ -24,13 +25,13 @@ class CycleTracker:
     def start_cycle(self, is_proactive: bool = False) -> Tuple[Dict[str, float], str]:
         """
         开始新的思考循环
-        
+
         Args:
             is_proactive: 标记这个循环是否由主动思考发起
 
         Returns:
             tuple: (循环计时器字典, 思考ID字符串)
-            
+
         功能说明:
         - 增加循环计数器
         - 创建新的循环详情对象
@@ -39,7 +40,7 @@ class CycleTracker:
         """
         if not is_proactive:
             self.context.cycle_counter += 1
-        
+
         cycle_id = self.context.cycle_counter if not is_proactive else f"{self.context.cycle_counter}.p"
         self.context.current_cycle_detail = CycleDetail(cycle_id)
         self.context.current_cycle_detail.thinking_id = f"tid{str(round(time.time(), 2))}"
@@ -49,11 +50,11 @@ class CycleTracker:
     def end_cycle(self, loop_info: Dict[str, Any], cycle_timers: Dict[str, float]):
         """
         结束当前思考循环
-        
+
         Args:
             loop_info: 循环信息，包含规划和动作信息
             cycle_timers: 循环计时器，记录各阶段耗时
-            
+
         功能说明:
         - 设置循环详情的完整信息
         - 将当前循环加入历史记录
@@ -70,10 +71,10 @@ class CycleTracker:
     def print_cycle_info(self, cycle_timers: Dict[str, float]):
         """
         打印循环统计信息
-        
+
         Args:
             cycle_timers: 循环计时器字典
-            
+
         功能说明:
         - 格式化各阶段的耗时信息
         - 计算总体循环持续时间

@@ -20,12 +20,12 @@ logger = get_logger("plus_command")
 
 class PlusCommand(ABC):
     """增强版命令基类
-    
+
     提供更简单的命令定义方式，无需手写正则表达式
-    
+
     子类只需要定义：
     - command_name: 命令名称
-    - command_description: 命令描述  
+    - command_description: 命令描述
     - command_aliases: 命令别名列表（可选）
     - priority: 优先级（可选，数字越大优先级越高）
     - chat_type_allow: 允许的聊天类型（可选）
@@ -35,19 +35,19 @@ class PlusCommand(ABC):
     # 子类需要定义的属性
     command_name: str = ""
     """命令名称，如 'echo'"""
-    
+
     command_description: str = ""
     """命令描述"""
-    
+
     command_aliases: List[str] = []
     """命令别名列表，如 ['say', 'repeat']"""
-    
+
     priority: int = 0
     """命令优先级，数字越大优先级越高"""
-    
+
     chat_type_allow: ChatType = ChatType.ALL
     """允许的聊天类型"""
-    
+
     intercept_message: bool = False
     """是否拦截消息，不进行后续处理"""
 
@@ -61,13 +61,13 @@ class PlusCommand(ABC):
         self.message = message
         self.plugin_config = plugin_config or {}
         self.log_prefix = "[PlusCommand]"
-        
+
         # 解析命令参数
         self._parse_command()
-        
+
         # 验证聊天类型限制
         if not self._validate_chat_type():
-            is_group = hasattr(self.message, 'is_group_message') and self.message.is_group_message
+            is_group = hasattr(self.message, "is_group_message") and self.message.is_group_message
             logger.warning(
                 f"{self.log_prefix} 命令 '{self.command_name}' 不支持当前聊天类型: "
                 f"{'群聊' if is_group else '私聊'}, 允许类型: {self.chat_type_allow.value}"
@@ -75,59 +75,59 @@ class PlusCommand(ABC):
 
     def _parse_command(self) -> None:
         """解析命令和参数"""
-        if not hasattr(self.message, 'plain_text') or not self.message.plain_text:
+        if not hasattr(self.message, "plain_text") or not self.message.plain_text:
             self.args = CommandArgs("")
             return
-            
+
         plain_text = self.message.plain_text.strip()
-        
+
         # 获取配置的命令前缀
         prefixes = global_config.command.command_prefixes
-        
+
         # 检查是否以任何前缀开头
         matched_prefix = None
         for prefix in prefixes:
             if plain_text.startswith(prefix):
                 matched_prefix = prefix
                 break
-        
+
         if not matched_prefix:
             self.args = CommandArgs("")
             return
-        
+
         # 移除前缀
-        command_part = plain_text[len(matched_prefix):].strip()
-        
+        command_part = plain_text[len(matched_prefix) :].strip()
+
         # 分离命令名和参数
         parts = command_part.split(None, 1)
         if not parts:
             self.args = CommandArgs("")
             return
-            
+
         command_word = parts[0].lower()
         args_text = parts[1] if len(parts) > 1 else ""
-        
+
         # 检查命令名是否匹配
         all_commands = [self.command_name.lower()] + [alias.lower() for alias in self.command_aliases]
         if command_word not in all_commands:
             self.args = CommandArgs("")
             return
-            
+
         # 创建参数对象
         self.args = CommandArgs(args_text)
 
     def _validate_chat_type(self) -> bool:
         """验证当前聊天类型是否允许执行此命令
-        
+
         Returns:
             bool: 如果允许执行返回True，否则返回False
         """
         if self.chat_type_allow == ChatType.ALL:
             return True
-        
+
         # 检查是否为群聊消息
-        is_group = hasattr(self.message, 'is_group_message') and self.message.is_group_message
-        
+        is_group = hasattr(self.message, "is_group_message") and self.message.is_group_message
+
         if self.chat_type_allow == ChatType.GROUP and is_group:
             return True
         elif self.chat_type_allow == ChatType.PRIVATE and not is_group:
@@ -137,7 +137,7 @@ class PlusCommand(ABC):
 
     def is_chat_type_allowed(self) -> bool:
         """检查当前聊天类型是否允许执行此命令
-        
+
         Returns:
             bool: 如果允许执行返回True，否则返回False
         """
@@ -145,30 +145,30 @@ class PlusCommand(ABC):
 
     def is_command_match(self) -> bool:
         """检查当前消息是否匹配此命令
-        
+
         Returns:
             bool: 如果匹配返回True
         """
         return not self.args.is_empty() or self._is_exact_command_call()
-    
+
     def _is_exact_command_call(self) -> bool:
         """检查是否是精确的命令调用（无参数）"""
-        if not hasattr(self.message, 'plain_text') or not self.message.plain_text:
+        if not hasattr(self.message, "plain_text") or not self.message.plain_text:
             return False
-            
+
         plain_text = self.message.plain_text.strip()
-        
+
         # 获取配置的命令前缀
         prefixes = global_config.command.command_prefixes
-        
+
         # 检查每个前缀
         for prefix in prefixes:
             if plain_text.startswith(prefix):
-                command_part = plain_text[len(prefix):].strip()
+                command_part = plain_text[len(prefix) :].strip()
                 all_commands = [self.command_name.lower()] + [alias.lower() for alias in self.command_aliases]
                 if command_part.lower() in all_commands:
                     return True
-        
+
         return False
 
     @abstractmethod
@@ -298,10 +298,10 @@ class PlusCommand(ABC):
         if "." in cls.command_name:
             logger.error(f"命令名称 '{cls.command_name}' 包含非法字符 '.'，请使用下划线替代")
             raise ValueError(f"命令名称 '{cls.command_name}' 包含非法字符 '.'，请使用下划线替代")
-        
+
         # 生成正则表达式模式来匹配命令
         command_pattern = cls._generate_command_pattern()
-        
+
         return CommandInfo(
             name=cls.command_name,
             component_type=ComponentType.COMMAND,
@@ -320,7 +320,7 @@ class PlusCommand(ABC):
         if "." in cls.command_name:
             logger.error(f"命令名称 '{cls.command_name}' 包含非法字符 '.'，请使用下划线替代")
             raise ValueError(f"命令名称 '{cls.command_name}' 包含非法字符 '.'，请使用下划线替代")
-        
+
         return PlusCommandInfo(
             name=cls.command_name,
             component_type=ComponentType.PLUS_COMMAND,
@@ -334,38 +334,38 @@ class PlusCommand(ABC):
     @classmethod
     def _generate_command_pattern(cls) -> str:
         """生成命令匹配的正则表达式
-        
+
         Returns:
             str: 正则表达式字符串
         """
         # 获取所有可能的命令名（主命令名 + 别名）
-        all_commands = [cls.command_name] + getattr(cls, 'command_aliases', [])
-        
+        all_commands = [cls.command_name] + getattr(cls, "command_aliases", [])
+
         # 转义特殊字符并创建选择组
         escaped_commands = [re.escape(cmd) for cmd in all_commands]
         commands_pattern = "|".join(escaped_commands)
-        
+
         # 获取默认前缀列表（这里先用硬编码，后续可以优化为动态获取）
         default_prefixes = ["/", "!", ".", "#"]
         escaped_prefixes = [re.escape(prefix) for prefix in default_prefixes]
         prefixes_pattern = "|".join(escaped_prefixes)
-        
+
         # 生成完整的正则表达式
         # 匹配: [前缀][命令名][可选空白][任意参数]
         pattern = f"^(?P<prefix>{prefixes_pattern})(?P<command>{commands_pattern})(?P<args>\\s.*)?$"
-        
+
         return pattern
 
 
 class PlusCommandAdapter(BaseCommand):
     """PlusCommand适配器
-    
+
     将PlusCommand适配到现有的插件系统，继承BaseCommand
     """
-    
+
     def __init__(self, plus_command_class, message: MessageRecv, plugin_config: Optional[dict] = None):
         """初始化适配器
-        
+
         Args:
             plus_command_class: PlusCommand子类
             message: 消息对象
@@ -378,27 +378,27 @@ class PlusCommandAdapter(BaseCommand):
         self.chat_type_allow = getattr(plus_command_class, "chat_type_allow", ChatType.ALL)
         self.priority = getattr(plus_command_class, "priority", 0)
         self.intercept_message = getattr(plus_command_class, "intercept_message", False)
-        
+
         # 调用父类初始化
         super().__init__(message, plugin_config)
-        
+
         # 创建PlusCommand实例
         self.plus_command = plus_command_class(message, plugin_config)
-    
+
     async def execute(self) -> Tuple[bool, Optional[str], bool]:
         """执行命令
-        
+
         Returns:
             Tuple[bool, Optional[str], bool]: 执行结果
         """
         # 检查命令是否匹配
         if not self.plus_command.is_command_match():
             return False, "命令不匹配", False
-            
+
         # 检查聊天类型权限
         if not self.plus_command.is_chat_type_allowed():
             return False, "不支持当前聊天类型", self.intercept_message
-        
+
         # 执行命令
         try:
             return await self.plus_command.execute(self.plus_command.args)
@@ -409,49 +409,50 @@ class PlusCommandAdapter(BaseCommand):
 
 def create_plus_command_adapter(plus_command_class):
     """创建PlusCommand适配器的工厂函数
-    
+
     Args:
         plus_command_class: PlusCommand子类
-        
+
     Returns:
         适配器类
     """
+
     class AdapterClass(BaseCommand):
         command_name = plus_command_class.command_name
         command_description = plus_command_class.command_description
         command_pattern = plus_command_class._generate_command_pattern()
         chat_type_allow = getattr(plus_command_class, "chat_type_allow", ChatType.ALL)
-        
+
         def __init__(self, message: MessageRecv, plugin_config: Optional[dict] = None):
             super().__init__(message, plugin_config)
             self.plus_command = plus_command_class(message, plugin_config)
             self.priority = getattr(plus_command_class, "priority", 0)
             self.intercept_message = getattr(plus_command_class, "intercept_message", False)
-        
+
         async def execute(self) -> Tuple[bool, Optional[str], bool]:
             """执行命令"""
             # 从BaseCommand的正则匹配结果中提取参数
             args_text = ""
-            if hasattr(self, 'matched_groups') and self.matched_groups:
+            if hasattr(self, "matched_groups") and self.matched_groups:
                 # 从正则匹配组中获取参数部分
-                args_match = self.matched_groups.get('args', '')
+                args_match = self.matched_groups.get("args", "")
                 if args_match:
                     args_text = args_match.strip()
-            
+
             # 创建CommandArgs对象
             command_args = CommandArgs(args_text)
-            
+
             # 检查聊天类型权限
             if not self.plus_command.is_chat_type_allowed():
                 return False, "不支持当前聊天类型", self.intercept_message
-            
+
             # 执行命令，传递正确解析的参数
             try:
                 return await self.plus_command.execute(command_args)
             except Exception as e:
                 logger.error(f"执行命令时出错: {e}", exc_info=True)
                 return False, f"命令执行出错: {str(e)}", self.intercept_message
-    
+
     return AdapterClass
 
 

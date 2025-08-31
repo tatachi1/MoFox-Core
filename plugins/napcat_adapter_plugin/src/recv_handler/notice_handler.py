@@ -5,6 +5,7 @@ import websockets as Server
 from typing import Tuple, Optional
 
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 
 from ..config import global_config
@@ -121,7 +122,8 @@ class NoticeHandler:
                     case NoticeType.Notify.input_status:
                         from src.plugin_system.core.event_manager import event_manager
                         from ...event_types import NapcatEvent
-                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.FRIEND_INPUT,plugin_name=PLUGIN_NAME)
+
+                        await event_manager.trigger_event(NapcatEvent.ON_RECEIVED.FRIEND_INPUT, plugin_name=PLUGIN_NAME)
                     case _:
                         logger.warning(f"不支持的notify类型: {notice_type}.{sub_type}")
             case NoticeType.group_ban:
@@ -200,7 +202,7 @@ class NoticeHandler:
 
         self_id = raw_message.get("self_id")
         target_id = raw_message.get("target_id")
-        
+
         # 防抖检查：如果是针对机器人的戳一戳，检查防抖时间
         if self_id == target_id:
             current_time = time.time()
@@ -211,10 +213,10 @@ class NoticeHandler:
                 if time_diff < debounce_seconds:
                     logger.info(f"戳一戳防抖：用户 {user_id} 的戳一戳被忽略（距离上次戳一戳 {time_diff:.2f} 秒）")
                     return None, None
-            
+
             # 记录这次戳一戳的时间
             self.last_poke_time = current_time
-        
+
         target_name: str = None
         raw_info: list = raw_message.get("raw_info")
 
@@ -244,7 +246,7 @@ class NoticeHandler:
             if features_manager.is_non_self_poke_ignored():
                 logger.info("忽略不是针对自己的戳一戳消息")
                 return None, None
-                
+
             # 老实说这一步判定没啥意义，毕竟私聊是没有其他人之间的戳一戳，但是感觉可以有这个判定来强限制群聊环境
             if group_id:
                 fetched_member_info: dict = await get_member_info(self.get_server_connection(), group_id, target_id)
@@ -549,8 +551,6 @@ class NoticeHandler:
                 logger.error(f"发送通知消息失败: {str(e)}")
                 await unsuccessful_notice_queue.put(to_be_send)
             await asyncio.sleep(1)
-
-
 
 
 notice_handler = NoticeHandler()

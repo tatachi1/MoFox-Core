@@ -129,17 +129,17 @@ class ToolExecutor:
         if not tool_calls:
             logger.debug(f"{self.log_prefix}无需执行工具")
             return [], []
-        
+
         # 提取tool_calls中的函数名称
         func_names = []
         for call in tool_calls:
             try:
-                if hasattr(call, 'func_name'):
+                if hasattr(call, "func_name"):
                     func_names.append(call.func_name)
             except Exception as e:
                 logger.error(f"{self.log_prefix}获取工具名称失败: {e}")
                 continue
-        
+
         if func_names:
             logger.info(f"{self.log_prefix}开始执行工具调用: {func_names}")
         else:
@@ -185,9 +185,11 @@ class ToolExecutor:
 
         return tool_results, used_tools
 
-    async def execute_tool_call(self, tool_call: ToolCall, tool_instance: Optional[BaseTool] = None) -> Optional[Dict[str, Any]]:
+    async def execute_tool_call(
+        self, tool_call: ToolCall, tool_instance: Optional[BaseTool] = None
+    ) -> Optional[Dict[str, Any]]:
         """执行单个工具调用，并处理缓存"""
-        
+
         function_args = tool_call.args or {}
         tool_instance = tool_instance or get_tool_instance(tool_call.func_name)
 
@@ -206,7 +208,7 @@ class ToolExecutor:
                 tool_name=tool_call.func_name,
                 function_args=function_args,
                 tool_file_path=tool_file_path,
-                semantic_query=semantic_query
+                semantic_query=semantic_query,
             )
             if cached_result:
                 logger.info(f"{self.log_prefix}使用缓存结果，跳过工具 {tool_call.func_name} 执行")
@@ -223,14 +225,14 @@ class ToolExecutor:
             semantic_query = None
             if tool_instance.semantic_cache_query_key:
                 semantic_query = function_args.get(tool_instance.semantic_cache_query_key)
-            
+
             await tool_cache.set(
                 tool_name=tool_call.func_name,
                 function_args=function_args,
                 tool_file_path=tool_file_path,
                 data=result,
                 ttl=tool_instance.cache_ttl,
-                semantic_query=semantic_query
+                semantic_query=semantic_query,
             )
         except Exception as e:
             logger.error(f"{self.log_prefix}设置工具缓存时出错: {e}")
@@ -238,12 +240,16 @@ class ToolExecutor:
 
         return result
 
-    async def _original_execute_tool_call(self, tool_call: ToolCall, tool_instance: Optional[BaseTool] = None) -> Optional[Dict[str, Any]]:
+    async def _original_execute_tool_call(
+        self, tool_call: ToolCall, tool_instance: Optional[BaseTool] = None
+    ) -> Optional[Dict[str, Any]]:
         """执行单个工具调用的原始逻辑"""
         try:
             function_name = tool_call.func_name
             function_args = tool_call.args or {}
-            logger.info(f"{self.log_prefix} 正在执行工具: [bold green]{function_name}[/bold green] | 参数: {function_args}")
+            logger.info(
+                f"{self.log_prefix} 正在执行工具: [bold green]{function_name}[/bold green] | 参数: {function_args}"
+            )
             function_args["llm_called"] = True  # 标记为LLM调用
             # 获取对应工具实例
             tool_instance = tool_instance or get_tool_instance(function_name)
@@ -261,7 +267,7 @@ class ToolExecutor:
                     "role": "tool",
                     "name": function_name,
                     "type": "function",
-                    "content": result.get("content", "")
+                    "content": result.get("content", ""),
                 }
             logger.warning(f"{self.log_prefix}工具 {function_name} 返回空结果")
             return None
@@ -306,7 +312,6 @@ class ToolExecutor:
             logger.error(f"{self.log_prefix}直接工具执行失败 {tool_name}: {e}")
 
         return None
-
 
 
 """

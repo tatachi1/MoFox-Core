@@ -34,7 +34,9 @@ class ComponentRegistry:
         """组件注册表 命名空间式组件名 -> 组件信息"""
         self._components_by_type: Dict[ComponentType, Dict[str, ComponentInfo]] = {types: {} for types in ComponentType}
         """类型 -> 组件原名称 -> 组件信息"""
-        self._components_classes: Dict[str, Type[Union[BaseCommand, BaseAction, BaseTool, BaseEventHandler, PlusCommand]]] = {}
+        self._components_classes: Dict[
+            str, Type[Union[BaseCommand, BaseAction, BaseTool, BaseEventHandler, PlusCommand]]
+        ] = {}
         """命名空间式组件名 -> 组件类"""
 
         # 插件注册表
@@ -166,7 +168,7 @@ class ComponentRegistry:
         if not isinstance(action_info, ActionInfo) or not issubclass(action_class, BaseAction):
             logger.error(f"注册失败: {action_name} 不是有效的Action")
             return False
-        
+
         action_class.plugin_name = action_info.plugin_name
         self._action_registry[action_name] = action_class
 
@@ -200,7 +202,9 @@ class ComponentRegistry:
 
         return True
 
-    def _register_plus_command_component(self, plus_command_info: PlusCommandInfo, plus_command_class: Type[PlusCommand]) -> bool:
+    def _register_plus_command_component(
+        self, plus_command_info: PlusCommandInfo, plus_command_class: Type[PlusCommand]
+    ) -> bool:
         """注册PlusCommand组件到特定注册表"""
         plus_command_name = plus_command_info.name
 
@@ -212,7 +216,7 @@ class ComponentRegistry:
             return False
 
         # 创建专门的PlusCommand注册表（如果还没有）
-        if not hasattr(self, '_plus_command_registry'):
+        if not hasattr(self, "_plus_command_registry"):
             self._plus_command_registry: Dict[str, Type[PlusCommand]] = {}
 
         plus_command_class.plugin_name = plus_command_info.plugin_name
@@ -249,10 +253,11 @@ class ComponentRegistry:
         if not handler_info.enabled:
             logger.warning(f"EventHandler组件 {handler_name} 未启用")
             return True  # 未启用，但是也是注册成功
-        
+
         handler_class.plugin_name = handler_info.plugin_name
         # 使用EventManager进行事件处理器注册
         from src.plugin_system.core.event_manager import event_manager
+
         return event_manager.register_event_handler(handler_class)
 
     # === 组件移除相关 ===
@@ -281,7 +286,7 @@ class ComponentRegistry:
 
                 case ComponentType.PLUS_COMMAND:
                     # 移除PlusCommand注册
-                    if hasattr(self, '_plus_command_registry'):
+                    if hasattr(self, "_plus_command_registry"):
                         self._plus_command_registry.pop(component_name, None)
                     logger.debug(f"已移除PlusCommand组件: {component_name}")
 
@@ -371,6 +376,7 @@ class ComponentRegistry:
                 assert issubclass(target_component_class, BaseEventHandler)
                 self._enabled_event_handlers[component_name] = target_component_class
                 from .event_manager import event_manager  # 延迟导入防止循环导入问题
+
                 event_manager.register_event_handler(component_name)
 
         namespaced_name = f"{component_type}.{component_name}"
@@ -572,7 +578,7 @@ class ComponentRegistry:
                 candidates[0].match(text).groupdict(),  # type: ignore
                 command_info,
             )
-            
+
         return None
 
     # === Tool 特定查询方法 ===
@@ -599,7 +605,7 @@ class ComponentRegistry:
     # === PlusCommand 特定查询方法 ===
     def get_plus_command_registry(self) -> Dict[str, Type[PlusCommand]]:
         """获取PlusCommand注册表"""
-        if not hasattr(self, '_plus_command_registry'):
+        if not hasattr(self, "_plus_command_registry"):
             self._plus_command_registry: Dict[str, Type[PlusCommand]] = {}
         return self._plus_command_registry.copy()
 

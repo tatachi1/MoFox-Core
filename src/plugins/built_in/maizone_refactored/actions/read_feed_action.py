@@ -2,6 +2,7 @@
 """
 阅读说说动作组件
 """
+
 from typing import Tuple
 
 from src.common.logger import get_logger
@@ -17,6 +18,7 @@ class ReadFeedAction(BaseAction):
     """
     当检测到用户想要阅读好友动态时，此动作被激活。
     """
+
     action_name: str = "read_feed"
     action_description: str = "读取好友的最新动态并进行评论点赞"
     activation_type: ActionActivationType = ActionActivationType.KEYWORD
@@ -35,7 +37,7 @@ class ReadFeedAction(BaseAction):
         """检查当前用户是否有权限执行此动作"""
         platform = self.chat_stream.platform
         user_id = self.chat_stream.user_info.user_id
-        
+
         # 使用权限API检查用户是否有阅读说说的权限
         return permission_api.check_permission(platform, user_id, "plugin.maizone.read_feed")
 
@@ -46,7 +48,7 @@ class ReadFeedAction(BaseAction):
         if not await self._check_permission():
             _, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,
-                action_data={"extra_info_block": "无权命令你阅读说说，请用符合你人格特点的方式拒绝请求"}
+                action_data={"extra_info_block": "无权命令你阅读说说，请用符合你人格特点的方式拒绝请求"},
             )
             if reply_set and isinstance(reply_set, list):
                 for reply_type, reply_content in reply_set:
@@ -69,7 +71,9 @@ class ReadFeedAction(BaseAction):
             if result.get("success"):
                 _, reply_set, _ = await generator_api.generate_reply(
                     chat_stream=self.chat_stream,
-                    action_data={"extra_info_block": f"你刚刚看完了'{target_name}'的空间，并进行了互动。{result.get('message', '')}"}
+                    action_data={
+                        "extra_info_block": f"你刚刚看完了'{target_name}'的空间，并进行了互动。{result.get('message', '')}"
+                    },
                 )
                 if reply_set and isinstance(reply_set, list):
                     for reply_type, reply_content in reply_set:
@@ -78,8 +82,8 @@ class ReadFeedAction(BaseAction):
                 return True, "阅读成功"
             else:
                 await self.send_text(f"看'{target_name}'的空间时好像失败了：{result.get('message', '未知错误')}")
-                return False, result.get('message', '未知错误')
-        
+                return False, result.get("message", "未知错误")
+
         except Exception as e:
             logger.error(f"执行阅读说说动作时发生未知异常: {e}", exc_info=True)
             await self.send_text("糟糕，在看说说的过程中网络好像出问题了...")

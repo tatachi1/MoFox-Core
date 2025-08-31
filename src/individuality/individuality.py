@@ -95,7 +95,7 @@ class Individuality:
             "personality_side": personality_side,
             "compress_personality": global_config.personality.compress_personality,
         }
-        personality_str = orjson.dumps(personality_config, option=orjson.OPT_SORT_KEYS).decode('utf-8')
+        personality_str = orjson.dumps(personality_config, option=orjson.OPT_SORT_KEYS).decode("utf-8")
         personality_hash = hashlib.md5(personality_str.encode("utf-8")).hexdigest()
 
         # 身份配置哈希
@@ -103,7 +103,7 @@ class Individuality:
             "identity": identity,
             "compress_identity": global_config.personality.compress_identity,
         }
-        identity_str = orjson.dumps(identity_config,option=orjson.OPT_SORT_KEYS).decode('utf-8')
+        identity_str = orjson.dumps(identity_config, option=orjson.OPT_SORT_KEYS).decode("utf-8")
         identity_hash = hashlib.md5(identity_str.encode("utf-8")).hexdigest()
 
         return personality_hash, identity_hash
@@ -158,9 +158,7 @@ class Individuality:
         try:
             os.makedirs(os.path.dirname(self.meta_info_file_path), exist_ok=True)
             with open(self.meta_info_file_path, "w", encoding="utf-8") as f:
-                f.write(orjson.dumps(
-                    meta_info, option=orjson.OPT_INDENT_2).decode('utf-8')
-                )
+                f.write(orjson.dumps(meta_info, option=orjson.OPT_INDENT_2).decode("utf-8"))
         except IOError as e:
             logger.error(f"保存meta_info文件失败: {e}")
 
@@ -180,9 +178,7 @@ class Individuality:
         try:
             os.makedirs(os.path.dirname(self.personality_data_file_path), exist_ok=True)
             with open(self.personality_data_file_path, "w", encoding="utf-8") as f:
-                f.write(orjson.dumps(
-                    personality_data, option=orjson.OPT_INDENT_2).decode('utf-8')
-                )
+                f.write(orjson.dumps(personality_data, option=orjson.OPT_INDENT_2).decode("utf-8"))
             logger.debug(f"已保存personality数据到文件: {self.personality_data_file_path}")
         except IOError as e:
             logger.error(f"保存personality_data文件失败: {e}")

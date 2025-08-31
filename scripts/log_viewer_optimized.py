@@ -199,7 +199,7 @@ class LogFormatter:
             parts.append(event)
         elif isinstance(event, dict):
             try:
-                parts.append(orjson.dumps(event).decode('utf-8'))
+                parts.append(orjson.dumps(event).decode("utf-8"))
             except (TypeError, ValueError):
                 parts.append(str(event))
         else:
@@ -212,7 +212,7 @@ class LogFormatter:
             if key not in ("timestamp", "level", "logger_name", "event"):
                 if isinstance(value, (dict, list)):
                     try:
-                        value_str = orjson.dumps(value).decode('utf-8')
+                        value_str = orjson.dumps(value).decode("utf-8")
                     except (TypeError, ValueError):
                         value_str = str(value)
                 else:
@@ -829,7 +829,7 @@ class LogViewer:
                             parts, tags = self.formatter.format_log_entry(log_entry)
                             line_text = " ".join(parts)
                             log_lines.append(line_text)
-                    
+
                     with open(filename, "w", encoding="utf-8") as f:
                         f.write("\n".join(log_lines))
                     messagebox.showinfo("导出成功", f"日志已导出到: {filename}")
@@ -855,10 +855,7 @@ class LogViewer:
         mapping_file.parent.mkdir(exist_ok=True)
         try:
             with open(mapping_file, "w", encoding="utf-8") as f:
-                f.write(orjson.dumps(
-                    self.module_name_mapping,
-                    option=orjson.OPT_INDENT_2
-                ).decode('utf-8'))
+                f.write(orjson.dumps(self.module_name_mapping, option=orjson.OPT_INDENT_2).decode("utf-8"))
         except Exception as e:
             print(f"保存模块映射失败: {e}")
 
@@ -1192,15 +1189,16 @@ class LogViewer:
                         line_count += 1
                     except orjson.JSONDecodeError:
                         continue
-        
+
         # 如果发现了新模块，在主线程中更新模块集合
         if new_modules:
+
             def update_modules():
                 self.modules.update(new_modules)
                 self.update_module_list()
-            
+
             self.root.after(0, update_modules)
-        
+
         return new_entries
 
     def append_new_logs(self, new_entries):
@@ -1428,4 +1426,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

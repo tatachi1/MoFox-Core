@@ -17,6 +17,7 @@ from . import CommandType
 from .config import global_config
 from .response_pool import get_response
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 from .utils import get_image_format, convert_image_to_gif
 from .recv_handler.message_sending import message_send_instance
@@ -68,9 +69,7 @@ class SendHandler:
         processed_message: list = []
         try:
             if user_info:
-                processed_message = await self.handle_seg_recursive(
-                    message_segment, user_info
-                )
+                processed_message = await self.handle_seg_recursive(message_segment, user_info)
         except Exception as e:
             logger.error(f"处理消息时发生错误: {e}")
             return
@@ -115,11 +114,7 @@ class SendHandler:
         message_info: BaseMessageInfo = raw_message_base.message_info
         message_segment: Seg = raw_message_base.message_segment
         group_info: Optional[GroupInfo] = message_info.group_info
-        seg_data: Dict[str, Any] = (
-            message_segment.data
-            if isinstance(message_segment.data, dict)
-            else {}
-        )
+        seg_data: Dict[str, Any] = message_segment.data if isinstance(message_segment.data, dict) else {}
         command_name: Optional[str] = seg_data.get("name")
         try:
             args = seg_data.get("args", {})
@@ -130,9 +125,7 @@ class SendHandler:
                 case CommandType.GROUP_BAN.name:
                     command, args_dict = self.handle_ban_command(args, group_info)
                 case CommandType.GROUP_WHOLE_BAN.name:
-                    command, args_dict = self.handle_whole_ban_command(
-                        args, group_info
-                    )
+                    command, args_dict = self.handle_whole_ban_command(args, group_info)
                 case CommandType.GROUP_KICK.name:
                     command, args_dict = self.handle_kick_command(args, group_info)
                 case CommandType.SEND_POKE.name:
@@ -140,15 +133,11 @@ class SendHandler:
                 case CommandType.DELETE_MSG.name:
                     command, args_dict = self.delete_msg_command(args)
                 case CommandType.AI_VOICE_SEND.name:
-                    command, args_dict = self.handle_ai_voice_send_command(
-                        args, group_info
-                    )
+                    command, args_dict = self.handle_ai_voice_send_command(args, group_info)
                 case CommandType.SET_EMOJI_LIKE.name:
                     command, args_dict = self.handle_set_emoji_like_command(args)
                 case CommandType.SEND_AT_MESSAGE.name:
-                    command, args_dict = self.handle_at_message_command(
-                        args, group_info
-                    )
+                    command, args_dict = self.handle_at_message_command(args, group_info)
                 case CommandType.SEND_LIKE.name:
                     command, args_dict = self.handle_send_like_command(args)
                 case _:
@@ -175,48 +164,38 @@ class SendHandler:
         logger.info("处理适配器命令中")
         message_info: BaseMessageInfo = raw_message_base.message_info
         message_segment: Seg = raw_message_base.message_segment
-        seg_data: Dict[str, Any] = (
-            message_segment.data
-            if isinstance(message_segment.data, dict)
-            else {}
-        )
-        
+        seg_data: Dict[str, Any] = message_segment.data if isinstance(message_segment.data, dict) else {}
+
         try:
             action = seg_data.get("action")
             params = seg_data.get("params", {})
             request_id = seg_data.get("request_id")
-            
+
             if not action:
                 logger.error("适配器命令缺少action参数")
                 await self.send_adapter_command_response(
-                    raw_message_base, 
-                    {"status": "error", "message": "缺少action参数"}, 
-                    request_id
+                    raw_message_base, {"status": "error", "message": "缺少action参数"}, request_id
                 )
                 return
 
             logger.info(f"执行适配器命令: {action}")
-            
+
             # 直接向Napcat发送命令并获取响应
             response_task = asyncio.create_task(self.send_message_to_napcat(action, params))
             response = await response_task
 
             # 发送响应回MaiBot
             await self.send_adapter_command_response(raw_message_base, response, request_id)
-            
+
             if response.get("status") == "ok":
                 logger.info(f"适配器命令 {action} 执行成功")
             else:
                 logger.warning(f"适配器命令 {action} 执行失败，napcat返回：{str(response)}")
-                
+
         except Exception as e:
             logger.error(f"处理适配器命令时发生错误: {e}")
             error_response = {"status": "error", "message": str(e)}
-            await self.send_adapter_command_response(
-                raw_message_base, 
-                error_response, 
-                seg_data.get("request_id")
-            )
+            await self.send_adapter_command_response(raw_message_base, error_response, seg_data.get("request_id"))
 
     def get_level(self, seg_data: Seg) -> int:
         if seg_data.type == "seglist":
@@ -236,9 +215,7 @@ class SendHandler:
             payload = await self.process_message_by_type(seg_data, payload, user_info)
         return payload
 
-    async def process_message_by_type(
-        self, seg: Seg, payload: list, user_info: UserInfo
-    ) -> list:
+    async def process_message_by_type(self, seg: Seg, payload: list, user_info: UserInfo) -> list:
         # sourcery skip: reintroduce-else, swap-if-else-branches, use-named-expression
         new_payload = payload
         if seg.type == "reply":
@@ -247,9 +224,7 @@ class SendHandler:
                 return payload
             new_payload = self.build_payload(
                 payload,
-                await self.handle_reply_message(
-                    target_id if isinstance(target_id, str) else "", user_info
-                ),
+                await self.handle_reply_message(target_id if isinstance(target_id, str) else "", user_info),
                 True,
             )
         elif seg.type == "text":
@@ -286,9 +261,7 @@ class SendHandler:
             new_payload = self.build_payload(payload, self.handle_file_message(file_path), False)
         return new_payload
 
-    def build_payload(
-        self, payload: list, addon: dict | list, is_reply: bool = False
-    ) -> list:
+    def build_payload(self, payload: list, addon: dict | list, is_reply: bool = False) -> list:
         # sourcery skip: for-append-to-extend, merge-list-append, simplify-generator
         """构建发送的消息体"""
         if is_reply:
@@ -324,13 +297,13 @@ class SendHandler:
         try:
             # 尝试通过 message_id 获取消息详情
             msg_info_response = await self.send_message_to_napcat("get_msg", {"message_id": int(id)})
-            
+
             replied_user_id = None
             if msg_info_response and msg_info_response.get("status") == "ok":
                 sender_info = msg_info_response.get("data", {}).get("sender")
                 if sender_info:
                     replied_user_id = sender_info.get("user_id")
-            
+
             # 如果没有获取到被回复者的ID，则直接返回，不进行@
             if not replied_user_id:
                 logger.warning(f"无法获取消息 {id} 的发送者信息，跳过 @")
@@ -342,7 +315,7 @@ class SendHandler:
                 # 在艾特后面添加一个空格
                 text_seg = {"type": "text", "data": {"text": " "}}
                 return [reply_seg, at_seg, text_seg]
-                
+
         except Exception as e:
             logger.error(f"处理引用回复并尝试@时出错: {e}")
             # 出现异常时，只发送普通的回复，避免程序崩溃
@@ -404,6 +377,7 @@ class SendHandler:
             "type": "music",
             "data": {"type": "163", "id": song_id},
         }
+
     def handle_videourl_message(self, video_url: str) -> dict:
         """处理视频链接消息"""
         return {
@@ -422,9 +396,7 @@ class SendHandler:
         """处理删除消息命令"""
         return "delete_msg", {"message_id": args["message_id"]}
 
-    def handle_ban_command(
-        self, args: Dict[str, Any], group_info: GroupInfo
-    ) -> Tuple[str, Dict[str, Any]]:
+    def handle_ban_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
         """处理封禁命令
 
         Args:
@@ -546,11 +518,7 @@ class SendHandler:
 
         return (
             CommandType.SET_EMOJI_LIKE.value,
-            {
-                "message_id": message_id,
-                "emoji_id": emoji_id,
-                "set": set_like
-            },
+            {"message_id": message_id, "emoji_id": emoji_id, "set": set_like},
         )
 
     def handle_send_like_command(self, args: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
@@ -571,10 +539,7 @@ class SendHandler:
 
         return (
             CommandType.SEND_LIKE.value,
-            {
-                "user_id": user_id,
-                "times": times
-            },
+            {"user_id": user_id, "times": times},
         )
 
     def handle_ai_voice_send_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
@@ -606,13 +571,13 @@ class SendHandler:
     async def send_message_to_napcat(self, action: str, params: dict) -> dict:
         request_uuid = str(uuid.uuid4())
         payload = json.dumps({"action": action, "params": params, "echo": request_uuid})
-        
+
         # 获取当前连接
         connection = self.get_server_connection()
         if not connection:
             logger.error("没有可用的 Napcat 连接")
             return {"status": "error", "message": "no connection"}
-        
+
         try:
             await connection.send(payload)
             response = await get_response(request_uuid)
@@ -647,7 +612,7 @@ class SendHandler:
     ) -> None:
         """
         发送适配器命令响应回MaiBot
-        
+
         Args:
             original_message: 原始消息
             response_data: 响应数据
@@ -662,17 +627,13 @@ class SendHandler:
 
             # 修改 message_segment 为 adapter_response 类型
             original_message.message_segment = Seg(
-                type="adapter_response", 
-                data={
-                    "request_id": request_id,
-                    "response": response_data,
-                    "timestamp": int(time.time() * 1000)
-                }
+                type="adapter_response",
+                data={"request_id": request_id, "response": response_data, "timestamp": int(time.time() * 1000)},
             )
-            
+
             await message_send_instance.message_send(original_message)
             logger.debug(f"已发送适配器命令响应，request_id: {request_id}")
-            
+
         except Exception as e:
             logger.error(f"发送适配器命令响应时出错: {e}")
 
@@ -707,5 +668,6 @@ class SendHandler:
                 "message": message_payload,
             },
         )
+
 
 send_handler = SendHandler()

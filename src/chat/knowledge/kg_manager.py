@@ -74,7 +74,7 @@ class KGManager:
         # 保存段落hash到文件
         with open(self.pg_hash_file_path, "w", encoding="utf-8") as f:
             data = {"stored_paragraph_hashes": list(self.stored_paragraph_hashes)}
-            f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2).decode('utf-8'))
+            f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2).decode("utf-8"))
 
     def load_from_file(self):
         """从文件加载KG数据"""
@@ -426,9 +426,7 @@ class KGManager:
         # 获取最终结果
         # 从搜索结果中提取文段节点的结果
         passage_node_res = [
-            (node_key, score)
-            for node_key, score in ppr_res.items()
-            if node_key.startswith("paragraph")
+            (node_key, score) for node_key, score in ppr_res.items() if node_key.startswith("paragraph")
         ]
         del ppr_res
 

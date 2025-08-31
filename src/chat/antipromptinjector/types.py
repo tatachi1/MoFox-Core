@@ -17,17 +17,18 @@ from enum import Enum
 
 class ProcessResult(Enum):
     """处理结果枚举"""
-    ALLOWED = "allowed"           # 允许通过
+
+    ALLOWED = "allowed"  # 允许通过
     BLOCKED_INJECTION = "blocked_injection"  # 被阻止-注入攻击
-    BLOCKED_BAN = "blocked_ban"   # 被阻止-用户封禁
-    SHIELDED = "shielded"         # 已加盾处理
+    BLOCKED_BAN = "blocked_ban"  # 被阻止-用户封禁
+    SHIELDED = "shielded"  # 已加盾处理
     COUNTER_ATTACK = "counter_attack"  # 反击模式-使用LLM反击并丢弃消息
 
 
 @dataclass
 class DetectionResult:
     """检测结果类"""
-    
+
     is_injection: bool = False
     confidence: float = 0.0
     matched_patterns: List[str] = field(default_factory=list)
@@ -35,7 +36,7 @@ class DetectionResult:
     processing_time: float = 0.0
     detection_method: str = "unknown"
     reason: str = ""
-    
+
     def __post_init__(self):
         """结果后处理"""
         self.timestamp = time.time()

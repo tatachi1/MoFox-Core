@@ -3,6 +3,7 @@
 历史记录工具模块
 提供用于获取QQ空间发送历史的功能。
 """
+
 import orjson
 import os
 from pathlib import Path
@@ -29,7 +30,7 @@ class _CookieManager:
         cookie_file = _CookieManager.get_cookie_file_path(qq_account)
         if os.path.exists(cookie_file):
             try:
-                with open(cookie_file, 'r', encoding='utf-8') as f:
+                with open(cookie_file, "r", encoding="utf-8") as f:
                     return orjson.loads(f.read())
             except Exception as e:
                 logger.error(f"加载Cookie文件失败: {e}")
@@ -38,12 +39,13 @@ class _CookieManager:
 
 class _SimpleQZoneAPI:
     """极简的QZone API客户端，仅用于获取说说列表"""
+
     LIST_URL = "https://user.qzone.qq.com/proxy/domain/taotao.qq.com/cgi-bin/emotion_cgi_msglist_v6"
 
     def __init__(self, cookies_dict: Optional[Dict[str, str]] = None):
         self.cookies = cookies_dict or {}
-        self.gtk2 = ''
-        p_skey = self.cookies.get('p_skey') or self.cookies.get('p_skey'.upper())
+        self.gtk2 = ""
+        p_skey = self.cookies.get("p_skey") or self.cookies.get("p_skey".upper())
         if p_skey:
             self.gtk2 = self._generate_gtk(p_skey)
 
@@ -56,9 +58,17 @@ class _SimpleQZoneAPI:
     def get_feed_list(self, target_qq: str, num: int) -> List[Dict[str, Any]]:
         try:
             params = {
-                'g_tk': self.gtk2, "uin": target_qq, "ftype": 0, "sort": 0,
-                "pos": 0, "num": num, "replynum": 100, "callback": "_preloadCallback",
-                "code_version": 1, "format": "jsonp", "need_comment": 1
+                "g_tk": self.gtk2,
+                "uin": target_qq,
+                "ftype": 0,
+                "sort": 0,
+                "pos": 0,
+                "num": num,
+                "replynum": 100,
+                "callback": "_preloadCallback",
+                "code_version": 1,
+                "format": "jsonp",
+                "need_comment": 1,
             }
             res = requests.get(self.LIST_URL, params=params, cookies=self.cookies, timeout=10)
 
@@ -66,7 +76,7 @@ class _SimpleQZoneAPI:
                 return []
 
             data = res.text
-            json_str = data[len('_preloadCallback('):-2] if data.startswith('_preloadCallback(') else data
+            json_str = data[len("_preloadCallback(") : -2] if data.startswith("_preloadCallback(") else data
             json_data = orjson.loads(json_str)
 
             return json_data.get("msglist", [])

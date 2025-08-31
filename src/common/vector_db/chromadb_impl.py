@@ -9,11 +9,13 @@ from src.common.logger import get_logger
 
 logger = get_logger("chromadb_impl")
 
+
 class ChromaDBImpl(VectorDBBase):
     """
     ChromaDB 的具体实现，遵循 VectorDBBase 接口。
     采用单例模式，确保全局只有一个 ChromaDB 客户端实例。
     """
+
     _instance = None
     _lock = threading.Lock()
 
@@ -29,13 +31,12 @@ class ChromaDBImpl(VectorDBBase):
         初始化 ChromaDB 客户端。
         由于是单例，这个初始化只会执行一次。
         """
-        if not hasattr(self, '_initialized'):
+        if not hasattr(self, "_initialized"):
             with self._lock:
-                if not hasattr(self, '_initialized'):
+                if not hasattr(self, "_initialized"):
                     try:
                         self.client = chromadb.PersistentClient(
-                            path=path,
-                            settings=Settings(anonymized_telemetry=False)
+                            path=path, settings=Settings(anonymized_telemetry=False)
                         )
                         self._collections: Dict[str, Any] = {}
                         self._initialized = True
@@ -48,10 +49,10 @@ class ChromaDBImpl(VectorDBBase):
     def get_or_create_collection(self, name: str, **kwargs: Any) -> Any:
         if not self.client:
             raise ConnectionError("ChromaDB 客户端未初始化")
-            
+
         if name in self._collections:
             return self._collections[name]
-        
+
         try:
             collection = self.client.get_or_create_collection(name=name, **kwargs)
             self._collections[name] = collection
@@ -151,11 +152,11 @@ class ChromaDBImpl(VectorDBBase):
             except Exception as e:
                 logger.error(f"获取集合 '{collection_name}' 计数失败: {e}")
         return 0
-        
+
     def delete_collection(self, name: str) -> None:
         if not self.client:
             raise ConnectionError("ChromaDB 客户端未初始化")
-        
+
         try:
             self.client.delete_collection(name=name)
             if name in self._collections:

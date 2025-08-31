@@ -51,11 +51,11 @@ class BaseEventHandler(ABC):
             event_name (str): 要订阅的事件名称
         """
         from src.plugin_system.core.event_manager import event_manager
-        
+
         if not event_manager.subscribe_handler_to_event(self.handler_name, event_name):
             logger.error(f"事件处理器 {self.handler_name} 订阅事件 {event_name} 失败")
             return
-            
+
         logger.debug(f"{self.log_prefix} 订阅事件 {event_name}")
         self.subscribed_events.append(event_name)
 
@@ -66,7 +66,7 @@ class BaseEventHandler(ABC):
             event_name (str): 要取消订阅的事件名称
         """
         from src.plugin_system.core.event_manager import event_manager
-        
+
         if event_manager.unsubscribe_handler_from_event(self.handler_name, event_name):
             logger.debug(f"{self.log_prefix} 取消订阅事件 {event_name}")
             if event_name in self.subscribed_events:

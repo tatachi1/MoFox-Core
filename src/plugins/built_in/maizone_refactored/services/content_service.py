@@ -3,6 +3,7 @@
 内容服务模块
 负责生成所有与QQ空间相关的文本内容，例如说说、评论等。
 """
+
 from typing import Callable, Optional
 import datetime
 
@@ -91,7 +92,7 @@ class ContentService:
                 model_config=model_config,
                 request_type="story.generate",
                 temperature=0.3,
-                max_tokens=1000
+                max_tokens=1000,
             )
 
             if success:
@@ -109,23 +110,16 @@ class ContentService:
         """
         针对一条具体的说说内容生成评论。
         """
-        for i in range(3): # 重试3次
+        for i in range(3):  # 重试3次
             try:
                 chat_manager = get_chat_manager()
-                bot_platform = config_api.get_global_config('bot.platform')
-                bot_qq = str(config_api.get_global_config('bot.qq_account'))
-                bot_nickname = config_api.get_global_config('bot.nickname')
-                
-                bot_user_info = UserInfo(
-                    platform=bot_platform,
-                    user_id=bot_qq,
-                    user_nickname=bot_nickname
-                )
+                bot_platform = config_api.get_global_config("bot.platform")
+                bot_qq = str(config_api.get_global_config("bot.qq_account"))
+                bot_nickname = config_api.get_global_config("bot.nickname")
 
-                chat_stream = await chat_manager.get_or_create_stream(
-                    platform=bot_platform,
-                    user_info=bot_user_info
-                )
+                bot_user_info = UserInfo(platform=bot_platform, user_id=bot_qq, user_nickname=bot_nickname)
+
+                chat_stream = await chat_manager.get_or_create_stream(platform=bot_platform, user_info=bot_user_info)
 
                 if not chat_stream:
                     logger.error(f"无法为QQ号 {bot_qq} 创建聊天流")
@@ -137,7 +131,7 @@ class ContentService:
                         description = await self._describe_image(image_url)
                         if description:
                             image_descriptions.append(description)
-                
+
                 extra_info = "正在评论QQ空间的好友说说。"
                 if image_descriptions:
                     extra_info += "说说中包含的图片内容如下：\n" + "\n".join(image_descriptions)
@@ -147,20 +141,17 @@ class ContentService:
                     reply_to += f"\n[转发内容]: {rt_con}"
 
                 success, reply_set, _ = await generator_api.generate_reply(
-                    chat_stream=chat_stream,
-                    reply_to=reply_to,
-                    extra_info=extra_info,
-                    request_type="maizone.comment"
+                    chat_stream=chat_stream, reply_to=reply_to, extra_info=extra_info, request_type="maizone.comment"
                 )
 
                 if success and reply_set:
-                    comment = "".join([content for type, content in reply_set if type == 'text'])
+                    comment = "".join([content for type, content in reply_set if type == "text"])
                     logger.info(f"成功生成评论内容：'{comment}'")
                     return comment
                 else:
                     # 如果生成失败，则进行重试
                     if i < 2:
-                        logger.warning(f"生成评论失败，将在5秒后重试 (尝试 {i+1}/3)")
+                        logger.warning(f"生成评论失败，将在5秒后重试 (尝试 {i + 1}/3)")
                         await asyncio.sleep(5)
                         continue
                     else:
@@ -168,7 +159,7 @@ class ContentService:
                         return ""
             except Exception as e:
                 if i < 2:
-                    logger.warning(f"生成评论时发生异常，将在5秒后重试 (尝试 {i+1}/3): {e}")
+                    logger.warning(f"生成评论时发生异常，将在5秒后重试 (尝试 {i + 1}/3): {e}")
                     await asyncio.sleep(5)
                     continue
                 else:
@@ -180,23 +171,16 @@ class ContentService:
         """
         针对自己说说的评论，生成回复。
         """
-        for i in range(3): # 重试3次
+        for i in range(3):  # 重试3次
             try:
                 chat_manager = get_chat_manager()
-                bot_platform = config_api.get_global_config('bot.platform')
-                bot_qq = str(config_api.get_global_config('bot.qq_account'))
-                bot_nickname = config_api.get_global_config('bot.nickname')
+                bot_platform = config_api.get_global_config("bot.platform")
+                bot_qq = str(config_api.get_global_config("bot.qq_account"))
+                bot_nickname = config_api.get_global_config("bot.nickname")
 
-                bot_user_info = UserInfo(
-                    platform=bot_platform,
-                    user_id=bot_qq,
-                    user_nickname=bot_nickname
-                )
+                bot_user_info = UserInfo(platform=bot_platform, user_id=bot_qq, user_nickname=bot_nickname)
 
-                chat_stream = await chat_manager.get_or_create_stream(
-                    platform=bot_platform,
-                    user_info=bot_user_info
-                )
+                chat_stream = await chat_manager.get_or_create_stream(platform=bot_platform, user_info=bot_user_info)
 
                 if not chat_stream:
                     logger.error(f"无法为QQ号 {bot_qq} 创建聊天流")
@@ -209,16 +193,16 @@ class ContentService:
                     chat_stream=chat_stream,
                     reply_to=reply_to,
                     extra_info=extra_info,
-                    request_type="maizone.comment_reply"
+                    request_type="maizone.comment_reply",
                 )
 
                 if success and reply_set:
-                    reply = "".join([content for type, content in reply_set if type == 'text'])
+                    reply = "".join([content for type, content in reply_set if type == "text"])
                     logger.info(f"成功为'{commenter_name}'的评论生成回复: '{reply}'")
                     return reply
                 else:
                     if i < 2:
-                        logger.warning(f"生成评论回复失败，将在5秒后重试 (尝试 {i+1}/3)")
+                        logger.warning(f"生成评论回复失败，将在5秒后重试 (尝试 {i + 1}/3)")
                         await asyncio.sleep(5)
                         continue
                     else:
@@ -226,7 +210,7 @@ class ContentService:
                         return ""
             except Exception as e:
                 if i < 2:
-                    logger.warning(f"生成评论回复时发生异常，将在5秒后重试 (尝试 {i+1}/3): {e}")
+                    logger.warning(f"生成评论回复时发生异常，将在5秒后重试 (尝试 {i + 1}/3): {e}")
                     await asyncio.sleep(5)
                     continue
                 else:
@@ -238,7 +222,7 @@ class ContentService:
         """
         使用LLM识别图片内容。
         """
-        for i in range(3): # 重试3次
+        for i in range(3):  # 重试3次
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=30) as resp:
@@ -260,14 +244,10 @@ class ContentService:
                     logger.error("未在插件配置中指定视觉模型")
                     return None
 
-                vision_model_config = TaskConfig(
-                    model_list=[vision_model_name],
-                    temperature=0.3,
-                    max_tokens=1500
-                )
-                
+                vision_model_config = TaskConfig(model_list=[vision_model_name], temperature=0.3, max_tokens=1500)
+
                 llm_request = LLMRequest(model_set=vision_model_config, request_type="maizone.image_describe")
-                
+
                 prompt = config_api.get_global_config("custom_prompt.image_prompt", "请描述这张图片")
 
                 description, _ = await llm_request.generate_response_for_image(
@@ -277,7 +257,7 @@ class ContentService:
                 )
                 return description
             except Exception as e:
-                logger.error(f"识别图片时发生异常 (尝试 {i+1}/3): {e}")
+                logger.error(f"识别图片时发生异常 (尝试 {i + 1}/3): {e}")
                 await asyncio.sleep(2)
         return None
 
@@ -338,7 +318,7 @@ class ContentService:
                 model_config=model_config,
                 request_type="story.generate.activity",
                 temperature=0.7,  # 稍微提高创造性
-                max_tokens=1000
+                max_tokens=1000,
             )
 
             if success:
@@ -347,7 +327,7 @@ class ContentService:
             else:
                 logger.error("生成基于活动的说说内容失败")
                 return ""
-                
+
         except Exception as e:
             logger.error(f"生成基于活动的说说内容异常: {e}")
             return ""

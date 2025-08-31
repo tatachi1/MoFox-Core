@@ -17,14 +17,15 @@ from src.chat.utils.prompt_builder import Prompt
 logger = get_logger("hfc")
 anti_injector_logger = get_logger("anti_injector")
 
+
 class ResponseHandler:
     def __init__(self, context: HfcContext):
         """
         初始化响应处理器
-        
+
         Args:
             context: HFC聊天上下文对象
-            
+
         功能说明:
         - 负责生成和发送机器人的回复
         - 处理回复的格式化和发送逻辑
@@ -44,7 +45,7 @@ class ResponseHandler:
     ) -> Tuple[Dict[str, Any], str, Dict[str, float]]:
         """
         生成并发送回复的主方法
-        
+
         Args:
             response_set: 生成的回复内容集合
             reply_to_str: 回复目标字符串
@@ -53,10 +54,10 @@ class ResponseHandler:
             cycle_timers: 循环计时器
             thinking_id: 思考ID
             plan_result: 规划结果
-            
+
         Returns:
             tuple: (循环信息, 回复文本, 计时器信息)
-            
+
         功能说明:
         - 发送生成的回复内容
         - 存储动作信息到数据库
@@ -66,11 +67,13 @@ class ResponseHandler:
         reply_text = await self._send_response(response_set, reply_to_str, loop_start_time, action_message)
 
         person_info_manager = get_person_info_manager()
-        
+
         platform = "default"
         if self.context.chat_stream:
             platform = (
-                action_message.get("chat_info_platform") or action_message.get("user_platform") or self.context.chat_stream.platform
+                action_message.get("chat_info_platform")
+                or action_message.get("user_platform")
+                or self.context.chat_stream.platform
             )
 
         user_id = action_message.get("user_id", "")
@@ -105,16 +108,16 @@ class ResponseHandler:
     async def _send_response(self, reply_set, reply_to, thinking_start_time, message_data) -> str:
         """
         发送回复内容的具体实现
-        
+
         Args:
             reply_set: 回复内容集合，包含多个回复段
             reply_to: 回复目标
             thinking_start_time: 思考开始时间
             message_data: 消息数据
-            
+
         Returns:
             str: 完整的回复文本
-            
+
         功能说明:
         - 检查是否有新消息需要回复
         - 处理主动思考的"沉默"决定
@@ -139,14 +142,14 @@ class ResponseHandler:
         for reply_seg in reply_set:
             # 调试日志：验证reply_seg的格式
             logger.debug(f"Processing reply_seg type: {type(reply_seg)}, content: {reply_seg}")
-            
+
             # 修正：正确处理元组格式 (格式为: (type, content))
             if isinstance(reply_seg, tuple) and len(reply_seg) >= 2:
                 _, data = reply_seg
             else:
                 # 向下兼容：如果已经是字符串，则直接使用
                 data = str(reply_seg)
-            
+
             reply_text += data
 
             if is_proactive_thinking and data.strip() == "沉默":
@@ -189,16 +192,16 @@ class ResponseHandler:
     ) -> Optional[list]:
         """
         生成回复内容
-        
+
         Args:
             message_data: 消息数据
             available_actions: 可用动作列表
             reply_to: 回复目标
             request_type: 请求类型，默认为普通回复
-            
+
         Returns:
             list: 生成的回复内容列表，失败时返回None
-            
+
         功能说明:
         - 在生成回复前进行反注入检测（提高效率）
         - 调用生成器API生成回复
@@ -213,12 +216,10 @@ class ResponseHandler:
             result, modified_content, reason = await anti_injector.process_message(
                 message_data, self.context.chat_stream
             )
-            
+
             # 根据反注入结果处理消息数据
-            await anti_injector.handle_message_storage(
-                result, modified_content, reason, message_data
-            )
-            
+            await anti_injector.handle_message_storage(result, modified_content, reason, message_data)
+
             if result == ProcessResult.BLOCKED_BAN:
                 # 用户被封禁 - 直接阻止回复生成
                 anti_injector_logger.warning(f"用户被反注入系统封禁，阻止回复生成: {reason}")
@@ -236,7 +237,7 @@ class ResponseHandler:
                 else:
                     # 没有反击内容时阻止回复生成
                     return None
-            
+
             # 检查是否需要加盾处理
             safety_prompt = None
             if result == ProcessResult.SHIELDED:
@@ -245,7 +246,7 @@ class ResponseHandler:
                 safety_prompt = shield.get_safety_system_prompt()
                 await Prompt.create_async(safety_prompt, "anti_injection_safety_prompt")
                 anti_injector_logger.info(f"消息已被反注入系统加盾处理，已注入安全提示词: {reason}")
-            
+
             # 处理被修改的消息内容（用于生成回复）
             modified_reply_to = reply_to
             if modified_content:
@@ -258,7 +259,7 @@ class ResponseHandler:
                 else:
                     # 如果格式不标准，直接使用修改后的内容
                     modified_reply_to = modified_content
-            
+
             # === 正常的回复生成流程 ===
             success, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.context.chat_stream,

@@ -2,6 +2,7 @@
 """
 发送说说动作组件
 """
+
 from typing import Tuple
 
 from src.common.logger import get_logger
@@ -17,6 +18,7 @@ class SendFeedAction(BaseAction):
     """
     当检测到用户意图是发送说说时，此动作被激活。
     """
+
     action_name: str = "send_feed"
     action_description: str = "发送一条关于特定主题的说说"
     activation_type: ActionActivationType = ActionActivationType.KEYWORD
@@ -35,7 +37,7 @@ class SendFeedAction(BaseAction):
         """检查当前用户是否有权限执行此动作"""
         platform = self.chat_stream.platform
         user_id = self.chat_stream.user_info.user_id
-        
+
         # 使用权限API检查用户是否有发送说说的权限
         return permission_api.check_permission(platform, user_id, "plugin.maizone.send_feed")
 
@@ -46,7 +48,7 @@ class SendFeedAction(BaseAction):
         if not await self._check_permission():
             _, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,
-                action_data={"extra_info_block": "无权命令你发送说说，请用符合你人格特点的方式拒绝请求"}
+                action_data={"extra_info_block": "无权命令你发送说说，请用符合你人格特点的方式拒绝请求"},
             )
             if reply_set and isinstance(reply_set, list):
                 for reply_type, reply_content in reply_set:
@@ -64,7 +66,9 @@ class SendFeedAction(BaseAction):
             if result.get("success"):
                 _, reply_set, _ = await generator_api.generate_reply(
                     chat_stream=self.chat_stream,
-                    action_data={"extra_info_block": f"你刚刚成功发送了一条关于“{topic or '随机'}”的说说，内容是：{result.get('message', '')}"}
+                    action_data={
+                        "extra_info_block": f"你刚刚成功发送了一条关于“{topic or '随机'}”的说说，内容是：{result.get('message', '')}"
+                    },
                 )
                 if reply_set and isinstance(reply_set, list):
                     for reply_type, reply_content in reply_set:
@@ -75,7 +79,7 @@ class SendFeedAction(BaseAction):
                 return True, "发送成功"
             else:
                 await self.send_text(f"发送失败了呢，原因好像是：{result.get('message', '未知错误')}")
-                return False, result.get('message', '未知错误')
+                return False, result.get("message", "未知错误")
 
         except Exception as e:
             logger.error(f"执行发送说说动作时发生未知异常: {e}", exc_info=True)

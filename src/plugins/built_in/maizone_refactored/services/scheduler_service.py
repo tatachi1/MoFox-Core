@@ -3,6 +3,7 @@
 定时任务服务
 根据日程表定时发送说说。
 """
+
 import asyncio
 import datetime
 import random
@@ -16,14 +17,14 @@ from src.common.database.sqlalchemy_models import MaiZoneScheduleStatus
 
 from .qzone_service import QZoneService
 
-logger = get_logger('MaiZone.SchedulerService')
+logger = get_logger("MaiZone.SchedulerService")
 
 
 class SchedulerService:
     """
     定时任务管理器，负责根据全局日程表定时触发说说发送任务。
     """
-    
+
     def __init__(self, get_config: Callable, qzone_service: QZoneService):
         """
         初始化定时任务服务。
@@ -80,7 +81,7 @@ class SchedulerService:
                     now = datetime.datetime.now()
                     forbidden_start = self.get_config("schedule.forbidden_hours_start", 2)
                     forbidden_end = self.get_config("schedule.forbidden_hours_end", 6)
-                    
+
                     is_forbidden_time = False
                     if forbidden_start < forbidden_end:
                         # 例如，2点到6点
@@ -90,26 +91,25 @@ class SchedulerService:
                         is_forbidden_time = now.hour >= forbidden_start or now.hour < forbidden_end
 
                     if is_forbidden_time:
-                        logger.info(f"当前时间 {now.hour}点 处于禁止发送时段 ({forbidden_start}-{forbidden_end})，本次跳过。")
+                        logger.info(
+                            f"当前时间 {now.hour}点 处于禁止发送时段 ({forbidden_start}-{forbidden_end})，本次跳过。"
+                        )
                         self.last_processed_activity = current_activity
-                    
+
                     # 4. 检查活动是否是新的活动
                     elif current_activity != self.last_processed_activity:
                         logger.info(f"检测到新的日程活动: '{current_activity}'，准备发送说说。")
-                        
+
                         # 5. 调用QZoneService执行完整的发送流程
                         result = await self.qzone_service.send_feed_from_activity(current_activity)
-                        
+
                         # 6. 将处理结果记录到数据库
                         now = datetime.datetime.now()
                         hour_str = now.strftime("%Y-%m-%d %H")
                         await self._mark_as_processed(
-                            hour_str,
-                            current_activity,
-                            result.get("success", False),
-                            result.get("message", "")
+                            hour_str, current_activity, result.get("success", False), result.get("message", "")
                         )
-                        
+
                         # 7. 更新上一个处理的活动
                         self.last_processed_activity = current_activity
                     else:
@@ -121,7 +121,7 @@ class SchedulerService:
                 wait_seconds = random.randint(min_minutes * 60, max_minutes * 60)
                 logger.info(f"下一次检查将在 {wait_seconds / 60:.2f} 分钟后进行。")
                 await asyncio.sleep(wait_seconds)
-                
+
             except asyncio.CancelledError:
                 logger.info("定时任务循环被取消。")
                 break
@@ -139,10 +139,14 @@ class SchedulerService:
         """
         try:
             with get_db_session() as session:
-                record = session.query(MaiZoneScheduleStatus).filter(
-                    MaiZoneScheduleStatus.datetime_hour == hour_str,
-                    MaiZoneScheduleStatus.is_processed == True  # noqa: E712
-                ).first()
+                record = (
+                    session.query(MaiZoneScheduleStatus)
+                    .filter(
+                        MaiZoneScheduleStatus.datetime_hour == hour_str,
+                        MaiZoneScheduleStatus.is_processed == True,  # noqa: E712
+                    )
+                    .first()
+                )
                 return record is not None
         except Exception as e:
             logger.error(f"检查日程处理状态时发生数据库错误: {e}")
@@ -160,16 +164,16 @@ class SchedulerService:
         try:
             with get_db_session() as session:
                 # 查找是否已存在该记录
-                record = session.query(MaiZoneScheduleStatus).filter(
-                    MaiZoneScheduleStatus.datetime_hour == hour_str
-                ).first()
-                
+                record = (
+                    session.query(MaiZoneScheduleStatus).filter(MaiZoneScheduleStatus.datetime_hour == hour_str).first()
+                )
+
                 if record:
                     # 如果存在，则更新状态
-                    record.is_processed = True # type: ignore
-                    record.processed_at = datetime.datetime.now()# type: ignore
-                    record.send_success = success# type: ignore
-                    record.story_content = content# type: ignore
+                    record.is_processed = True  # type: ignore
+                    record.processed_at = datetime.datetime.now()  # type: ignore
+                    record.send_success = success  # type: ignore
+                    record.story_content = content  # type: ignore
                 else:
                     # 如果不存在，则创建新记录
                     new_record = MaiZoneScheduleStatus(
@@ -178,7 +182,7 @@ class SchedulerService:
                         is_processed=True,
                         processed_at=datetime.datetime.now(),
                         story_content=content,
-                        send_success=success
+                        send_success=success,
                     )
                     session.add(new_record)
                 session.commit()

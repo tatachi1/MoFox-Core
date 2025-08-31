@@ -401,11 +401,11 @@ class PersonInfoManager:
 
         #     # 初始化时读取所有person_name
         try:
-                # 在这里获取会话
+            # 在这里获取会话
             with get_db_session() as session:
-                for record in session.execute(select(PersonInfo.person_id, PersonInfo.person_name).where(
-                        PersonInfo.person_name.is_not(None)
-                    )).fetchall():
+                for record in session.execute(
+                    select(PersonInfo.person_id, PersonInfo.person_name).where(PersonInfo.person_name.is_not(None))
+                ).fetchall():
                     if record.person_name:
                         self.person_name_list[record.person_id] = record.person_name
                 logger.debug(f"已加载 {len(self.person_name_list)} 个用户名称 (SQLAlchemy)")
@@ -418,7 +418,7 @@ class PersonInfoManager:
         # 检查platform是否为None或空
         if platform is None:
             platform = "unknown"
-        
+
         if "-" in platform:
             platform = platform.split("-")[1]
 
@@ -431,7 +431,7 @@ class PersonInfoManager:
         person_id = self.get_person_id(platform, user_id)
 
         def _db_check_known_sync(p_id: str):
-              # 在需要时获取会话
+            # 在需要时获取会话
             with get_db_session() as session:
                 return session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar() is not None
 
@@ -444,7 +444,7 @@ class PersonInfoManager:
     def get_person_id_by_person_name(self, person_name: str) -> str:
         """根据用户名获取用户ID"""
         try:
-              # 在需要时获取会话
+            # 在需要时获取会话
             with get_db_session() as session:
                 record = session.execute(select(PersonInfo).where(PersonInfo.person_name == person_name)).scalar()
             return record.person_id if record else ""
@@ -483,9 +483,9 @@ class PersonInfoManager:
         for key in JSON_SERIALIZED_FIELDS:
             if key in final_data:
                 if isinstance(final_data[key], (list, dict)):
-                    final_data[key] = orjson.dumps(final_data[key]).decode('utf-8')
+                    final_data[key] = orjson.dumps(final_data[key]).decode("utf-8")
                 elif final_data[key] is None:  # Default for lists is [], store as "[]"
-                    final_data[key] = orjson.dumps([]).decode('utf-8')
+                    final_data[key] = orjson.dumps([]).decode("utf-8")
                 # If it's already a string, assume it's valid JSON or a non-JSON string field
 
         def _db_create_sync(p_data: dict):
@@ -494,7 +494,7 @@ class PersonInfoManager:
                     new_person = PersonInfo(**p_data)
                     session.add(new_person)
                     session.commit()
-                    
+
                     return True
                 except Exception as e:
                     logger.error(f"创建 PersonInfo 记录 {p_data.get('person_id')} 失败 (SQLAlchemy): {e}")
@@ -532,14 +532,16 @@ class PersonInfoManager:
         for key in JSON_SERIALIZED_FIELDS:
             if key in final_data:
                 if isinstance(final_data[key], (list, dict)):
-                    final_data[key] = orjson.dumps(final_data[key]).decode('utf-8')
+                    final_data[key] = orjson.dumps(final_data[key]).decode("utf-8")
                 elif final_data[key] is None:  # Default for lists is [], store as "[]"
-                    final_data[key] = orjson.dumps([]).decode('utf-8') 
+                    final_data[key] = orjson.dumps([]).decode("utf-8")
 
         def _db_safe_create_sync(p_data: dict):
             with get_db_session() as session:
                 try:
-                    existing = session.execute(select(PersonInfo).where(PersonInfo.person_id == p_data["person_id"])).scalar()
+                    existing = session.execute(
+                        select(PersonInfo).where(PersonInfo.person_id == p_data["person_id"])
+                    ).scalar()
                     if existing:
                         logger.debug(f"用户 {p_data['person_id']} 已存在，跳过创建")
                         return True
@@ -548,7 +550,7 @@ class PersonInfoManager:
                     new_person = PersonInfo(**p_data)
                     session.add(new_person)
                     session.commit()
-                    
+
                     return True
                 except Exception as e:
                     if "UNIQUE constraint failed" in str(e):
@@ -571,12 +573,11 @@ class PersonInfoManager:
         processed_value = value
         if field_name in JSON_SERIALIZED_FIELDS:
             if isinstance(value, (list, dict)):
-                processed_value = orjson.dumps(value).decode('utf-8')
+                processed_value = orjson.dumps(value).decode("utf-8")
             elif value is None:  # Store None as "[]" for JSON list fields
-                processed_value = orjson.dumps([]).decode('utf-8')
+                processed_value = orjson.dumps([]).decode("utf-8")
 
         def _db_update_sync(p_id: str, f_name: str, val_to_set):
-
             start_time = time.time()
             with get_db_session() as session:
                 try:
@@ -585,7 +586,7 @@ class PersonInfoManager:
 
                     if record:
                         setattr(record, f_name, val_to_set)
-                        
+
                         save_time = time.time()
 
                         total_time = save_time - start_time
@@ -749,12 +750,14 @@ class PersonInfoManager:
 
                 def _db_check_name_exists_sync(name_to_check):
                     with get_db_session() as session:
-                        return session.execute(select(PersonInfo).where(PersonInfo.person_name == name_to_check)).scalar() is not None
+                        return (
+                            session.execute(select(PersonInfo).where(PersonInfo.person_name == name_to_check)).scalar()
+                            is not None
+                        )
 
                 if await asyncio.to_thread(_db_check_name_exists_sync, generated_nickname):
                     is_duplicate = True
                     current_name_set.add(generated_nickname)
-
 
             if not is_duplicate:
                 person.person_name = generated_nickname
@@ -939,7 +942,9 @@ class PersonInfoManager:
                         if way(value):
                             found_results[record.person_id] = value
             except Exception as e_query:
-                logger.error(f"数据库查询失败 (SQLAlchemy specific_value_list for {f_name}): {str(e_query)}", exc_info=True)
+                logger.error(
+                    f"数据库查询失败 (SQLAlchemy specific_value_list for {f_name}): {str(e_query)}", exc_info=True
+                )
             return found_results
 
         try:
@@ -971,8 +976,10 @@ class PersonInfoManager:
                 new_person = PersonInfo(**init_data)
                 session.add(new_person)
                 session.commit()
-                
-                return session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar(), True  # 创建成功
+
+                return session.execute(
+                    select(PersonInfo).where(PersonInfo.person_id == p_id)
+                ).scalar(), True  # 创建成功
             except Exception as e:
                 # 如果创建失败（可能是因为竞态条件），再次尝试获取
                 if "UNIQUE constraint failed" in str(e):
@@ -1003,9 +1010,9 @@ class PersonInfoManager:
         for key in JSON_SERIALIZED_FIELDS:
             if key in initial_data:
                 if isinstance(initial_data[key], (list, dict)):
-                    initial_data[key] = orjson.dumps(initial_data[key]).decode('utf-8')
+                    initial_data[key] = orjson.dumps(initial_data[key]).decode("utf-8")
                 elif initial_data[key] is None:
-                    initial_data[key] = orjson.dumps([]).decode('utf-8')
+                    initial_data[key] = orjson.dumps([]).decode("utf-8")
 
         # 获取 SQLAlchemy 模odel的所有字段名
         model_fields = [column.name for column in PersonInfo.__table__.columns]
@@ -1064,11 +1071,7 @@ class PersonInfoManager:
             ]
             # 获取 SQLAlchemy 模型的所有字段名
             model_fields = [column.name for column in PersonInfo.__table__.columns]
-            valid_fields_to_get = [
-                f
-                for f in required_fields
-                if f in model_fields or f in person_info_default
-            ]
+            valid_fields_to_get = [f for f in required_fields if f in model_fields or f in person_info_default]
 
             person_data = await self.get_values(found_person_id, valid_fields_to_get)
 

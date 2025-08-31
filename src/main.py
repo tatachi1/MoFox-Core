@@ -48,7 +48,6 @@ class MainSystem:
         else:
             self.hippocampus_manager = None
 
-
         self.individuality: Individuality = get_individuality()
 
         # 使用消息API替代直接的FastAPI实例
@@ -60,6 +59,7 @@ class MainSystem:
 
     def _setup_signal_handlers(self):
         """设置信号处理器"""
+
         def signal_handler(signum, frame):
             logger.info("收到退出信号，正在优雅关闭系统...")
             self._cleanup()
@@ -74,6 +74,7 @@ class MainSystem:
             # 停止消息重组器
             from src.utils.message_chunker import reassembler
             import asyncio
+
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 asyncio.create_task(reassembler.stop_cleanup_task())
@@ -82,19 +83,20 @@ class MainSystem:
             logger.info("🛑 消息重组器已停止")
         except Exception as e:
             logger.error(f"停止消息重组器时出错: {e}")
-        
+
         try:
             # 停止插件热重载系统
             hot_reload_manager.stop()
             logger.info("🛑 插件热重载系统已停止")
         except Exception as e:
             logger.error(f"停止热重载系统时出错: {e}")
-        
+
         try:
             # 停止异步记忆管理器
             if global_config.memory.enable_memory:
                 from src.chat.memory_system.async_memory_optimizer import async_memory_manager
                 import asyncio
+
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.create_task(async_memory_manager.shutdown())
@@ -114,10 +116,10 @@ class MainSystem:
         await asyncio.gather(self._init_components())
         phrases = [
             ("我们的代码里真的没有bug，只有‘特性’.", 10),
-            ("你知道吗？阿范喜欢被切成臊子😡",10), #你加的提示出语法问题来了😡😡😡😡😡😡😡
+            ("你知道吗？阿范喜欢被切成臊子😡", 10),  # 你加的提示出语法问题来了😡😡😡😡😡😡😡
             ("你知道吗,雅诺狐的耳朵其实很好摸", 5),
             ("你群最高技术力————言柒姐姐！", 20),
-            ("初墨小姐宇宙第一(不是)", 10), #15
+            ("初墨小姐宇宙第一(不是)", 10),  # 15
             ("world.execute(me);", 10),
             ("正在尝试连接到MaiBot的服务器...连接失败...，正在转接到maimaiDX", 10),
             ("你的bug就像星星一样多，而我的代码像太阳一样，一出来就看不见了。", 10),
@@ -125,13 +127,13 @@ class MainSystem:
             ("世界上只有10种人：懂二进制的和不懂的。", 10),
             ("喵喵~你的麦麦被猫娘入侵了喵~", 15),
             ("恭喜你触发了稀有彩蛋喵：诺狐嗷呜~ ~", 1),
-            ("恭喜你！！！你的开发者模式已成功开启，快来加入我们吧！(๑•̀ㅂ•́)و✧   (小声bb:其实是当黑奴)", 10)
+            ("恭喜你！！！你的开发者模式已成功开启，快来加入我们吧！(๑•̀ㅂ•́)و✧   (小声bb:其实是当黑奴)", 10),
         ]
         from random import choices
-        
+
         # 分离彩蛋和权重
         egg_texts, weights = zip(*phrases, strict=True)
-        
+
         # 使用choices进行带权重的随机选择
         selected_egg = choices(egg_texts, weights=weights, k=1)
         eggs = selected_egg[0]
@@ -165,6 +167,7 @@ MoFox_Bot(第三方修改版)
         # 初始化权限管理器
         from src.plugin_system.core.permission_manager import PermissionManager
         from src.plugin_system.apis.permission_api import permission_api
+
         permission_manager = PermissionManager()
         permission_api.set_permission_manager(permission_manager)
         logger.info("权限管理器初始化成功")
@@ -202,10 +205,11 @@ MoFox_Bot(第三方修改版)
             if self.hippocampus_manager:
                 self.hippocampus_manager.initialize()
                 logger.info("记忆系统初始化成功")
-                
+
                 # 初始化异步记忆管理器
                 try:
                     from src.chat.memory_system.async_memory_optimizer import async_memory_manager
+
                     await async_memory_manager.initialize()
                     logger.info("记忆管理器初始化成功")
                 except ImportError:
@@ -222,12 +226,13 @@ MoFox_Bot(第三方修改版)
 
         # 启动消息重组器的清理任务
         from src.utils.message_chunker import reassembler
+
         await reassembler.start_cleanup_task()
         logger.info("消息重组器已启动")
 
         # 初始化个体特征
         await self.individuality.initialize()
-        
+
         # 初始化月度计划管理器
         if global_config.monthly_plan_system.enable:
             logger.info("正在初始化月度计划管理器...")
@@ -244,9 +249,8 @@ MoFox_Bot(第三方修改版)
             await schedule_manager.start_daily_schedule_generation()
             logger.info("日程表管理器初始化成功。")
 
-
         try:
-            await event_manager.trigger_event(EventType.ON_START,plugin_name="SYSTEM")
+            await event_manager.trigger_event(EventType.ON_START, plugin_name="SYSTEM")
             init_time = int(1000 * (time.time() - init_start_time))
             logger.info(f"初始化完成，神经元放电{init_time}次")
         except Exception as e:
@@ -277,28 +281,28 @@ MoFox_Bot(第三方修改版)
         """记忆构建任务"""
         while True:
             await asyncio.sleep(global_config.memory.memory_build_interval)
-            
+
             try:
                 # 使用异步记忆管理器进行非阻塞记忆构建
                 from src.chat.memory_system.async_memory_optimizer import build_memory_nonblocking
-                
+
                 logger.info("正在启动记忆构建")
-                
+
                 # 定义构建完成的回调函数
                 def build_completed(result):
                     if result:
                         logger.info("记忆构建完成")
                     else:
                         logger.warning("记忆构建失败")
-                
+
                 # 启动异步构建，不等待完成
                 task_id = await build_memory_nonblocking()
                 logger.info(f"记忆构建任务已提交：{task_id}")
-                
+
             except ImportError:
                 # 如果异步优化器不可用，使用原有的同步方式（但在单独的线程中运行）
                 logger.warning("记忆优化器不可用，使用线性运行执行记忆构建")
-                
+
                 def sync_build_memory():
                     """在线程池中执行同步记忆构建"""
                     if not self.hippocampus_manager:
@@ -316,10 +320,10 @@ MoFox_Bot(第三方修改版)
                         return None
                     finally:
                         loop.close()
-                
+
                 # 在线程池中执行记忆构建
                 asyncio.get_event_loop().run_in_executor(None, sync_build_memory)
-                
+
             except Exception as e:
                 logger.error(f"记忆构建任务启动失败: {e}")
                 # fallback到原有的同步方式

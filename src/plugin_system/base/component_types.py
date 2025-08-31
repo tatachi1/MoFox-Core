@@ -6,6 +6,7 @@ from maim_message import Seg
 from src.llm_models.payload_content.tool_option import ToolParamType as ToolParamType
 from src.llm_models.payload_content.tool_option import ToolCall as ToolCall
 
+
 # 组件类型枚举
 class ComponentType(Enum):
     """组件类型枚举"""
@@ -185,7 +186,9 @@ class PlusCommandInfo(ComponentInfo):
 class ToolInfo(ComponentInfo):
     """工具组件信息"""
 
-    tool_parameters: List[Tuple[str, ToolParamType, str, bool, List[str] | None]] = field(default_factory=list)  # 工具参数定义
+    tool_parameters: List[Tuple[str, ToolParamType, str, bool, List[str] | None]] = field(
+        default_factory=list
+    )  # 工具参数定义
     tool_description: str = ""  # 工具描述
 
     def __post_init__(self):
@@ -205,6 +208,7 @@ class EventHandlerInfo(ComponentInfo):
         super().__post_init__()
         self.component_type = ComponentType.EVENT_HANDLER
 
+
 @dataclass
 class EventInfo(ComponentInfo):
     """事件组件信息"""
@@ -212,6 +216,7 @@ class EventInfo(ComponentInfo):
     def __post_init__(self):
         super().__post_init__()
         self.component_type = ComponentType.EVENT
+
 
 # 事件类型枚举
 class EventType(Enum):
@@ -231,6 +236,7 @@ class EventType(Enum):
 
     def __str__(self) -> str:
         return self.value
+
 
 @dataclass
 class PluginInfo:
@@ -320,16 +326,16 @@ class MaiMessages:
 
     llm_response_content: Optional[str] = None
     """LLM响应内容"""
-    
+
     llm_response_reasoning: Optional[str] = None
     """LLM响应推理内容"""
-    
+
     llm_response_model: Optional[str] = None
     """LLM响应模型名称"""
-    
+
     llm_response_tool_call: Optional[List[ToolCall]] = None
     """LLM使用的工具调用"""
-    
+
     action_usage: Optional[List[str]] = None
     """使用的Action"""
 

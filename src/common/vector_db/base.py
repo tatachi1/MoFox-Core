@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
+
 class VectorDBBase(ABC):
     """
     向量数据库的抽象基类 (ABC)，定义了所有向量数据库实现必须遵循的接口。
@@ -133,7 +134,7 @@ class VectorDBBase(ABC):
             int: 条目总数。
         """
         pass
-        
+
     @abstractmethod
     def delete_collection(self, name: str) -> None:
         """

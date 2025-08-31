@@ -14,7 +14,9 @@ from src.common.database.sqlalchemy_database_api import get_db_session
 from src.config.config import model_config
 
 from sqlalchemy import select
+
 logger = get_logger(__name__)
+
 
 class MemoryItem:
     def __init__(self, memory_id: str, chat_id: str, memory_text: str, keywords: list[str]):
@@ -24,6 +26,8 @@ class MemoryItem:
         self.keywords: list[str] = keywords
         self.create_time: float = time.time()
         self.last_view_time: float = time.time()
+
+
 class InstantMemory:
     def __init__(self, chat_id):
         self.chat_id = chat_id
@@ -105,13 +109,13 @@ class InstantMemory:
     async def store_memory(self, memory_item: MemoryItem):
         with get_db_session() as session:
             memory = Memory(
-            memory_id=memory_item.memory_id,
-            chat_id=memory_item.chat_id,
-            memory_text=memory_item.memory_text,
-            keywords=orjson.dumps(memory_item.keywords).decode('utf-8'),
-            create_time=memory_item.create_time,
-            last_view_time=memory_item.last_view_time,
-        )
+                memory_id=memory_item.memory_id,
+                chat_id=memory_item.chat_id,
+                memory_text=memory_item.memory_text,
+                keywords=orjson.dumps(memory_item.keywords).decode("utf-8"),
+                create_time=memory_item.create_time,
+                last_view_time=memory_item.last_view_time,
+            )
             session.add(memory)
             session.commit()
 
@@ -160,12 +164,14 @@ class InstantMemory:
                     if start_time and end_time:
                         start_ts = start_time.timestamp()
                         end_ts = end_time.timestamp()
-                        
-                        query = session.execute(select(Memory).where(
-                            (Memory.chat_id == self.chat_id)
-                            & (Memory.create_time >= start_ts)
-                            & (Memory.create_time < end_ts)
-                        )).scalars()
+
+                        query = session.execute(
+                            select(Memory).where(
+                                (Memory.chat_id == self.chat_id)
+                                & (Memory.create_time >= start_ts)
+                                & (Memory.create_time < end_ts)
+                            )
+                        ).scalars()
                     else:
                         query = session.execute(select(Memory).where(Memory.chat_id == self.chat_id)).scalars()
                 for mem in query:
@@ -209,12 +215,14 @@ class InstantMemory:
         try:
             dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
             return dt, dt + timedelta(hours=1)
-        except Exception: ...
+        except Exception:
+            ...
         # 具体日期
         try:
             dt = datetime.strptime(time_str, "%Y-%m-%d")
             return dt, dt + timedelta(days=1)
-        except Exception: ...
+        except Exception:
+            ...
         # 相对时间
         if time_str == "今天":
             start = now.replace(hour=0, minute=0, second=0, microsecond=0)

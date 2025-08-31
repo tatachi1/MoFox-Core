@@ -221,7 +221,7 @@ class MoodManager:
         self.mood_list: list[ChatMood] = []
         """当前情绪状态"""
         self.task_started: bool = False
-        self.insomnia_chats: set[str] = set() # 正在失眠的聊天ID列表
+        self.insomnia_chats: set[str] = set()  # 正在失眠的聊天ID列表
 
     async def start(self):
         """启动情绪回归后台任务"""

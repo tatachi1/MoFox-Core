@@ -6,12 +6,14 @@ from src.plugin_system import (
     register_plugin,
     BaseAction,
     ActionInfo,
-    ActionActivationType
+    ActionActivationType,
 )
 from src.person_info.person_info import get_person_info_manager
 from src.common.logger import get_logger
 from src.plugin_system.base.component_types import ChatType
+
 logger = get_logger(__name__)
+
 
 class AtAction(BaseAction):
     """发送艾特消息"""
@@ -24,11 +26,12 @@ class AtAction(BaseAction):
     chat_type_allow = ChatType.GROUP
 
     # === 功能描述（必须填写）===
-    action_parameters = {
-        "user_name": "需要艾特用户的名字",
-        "at_message": "艾特用户时要发送的消,注意消息里不要有@"
-    }
-    action_require = ["当需要艾特某个用户时使用","当你需要提醒特定用户查看消息时使用","在回复中需要明确指向某个用户时使用"]
+    action_parameters = {"user_name": "需要艾特用户的名字", "at_message": "艾特用户时要发送的消,注意消息里不要有@"}
+    action_require = [
+        "当需要艾特某个用户时使用",
+        "当你需要提醒特定用户查看消息时使用",
+        "在回复中需要明确指向某个用户时使用",
+    ]
     llm_judge_prompt = """
     判定是否需要使用艾特用户动作的条件：
     1. 你在对话中提到了某个具体的人，并且需要提醒他/她。
@@ -48,10 +51,9 @@ class AtAction(BaseAction):
             await self.store_action_info(
                 action_build_into_prompt=True,
                 action_prompt_display=f"执行了艾特用户动作：艾特用户 {user_name} 并发送消息: {at_message},失败了,因为没有提供必要参数",
-                action_done=False
+                action_done=False,
             )
             return False, "缺少必要参数"
-
 
         user_info = await get_person_info_manager().get_person_info_by_name(user_name)
         if not user_info or not user_info.get("user_id"):
@@ -60,16 +62,17 @@ class AtAction(BaseAction):
         await self.send_command(
             "SEND_AT_MESSAGE",
             args={"qq_id": user_info.get("user_id"), "text": at_message},
-            display_message=f"艾特用户 {user_name} 并发送消息: {at_message}"
+            display_message=f"艾特用户 {user_name} 并发送消息: {at_message}",
         )
         await self.store_action_info(
-                action_build_into_prompt=True,
-                action_prompt_display=f"执行了艾特用户动作：艾特用户 {user_name} 并发送消息: {at_message}",
-                action_done=True
-            )
+            action_build_into_prompt=True,
+            action_prompt_display=f"执行了艾特用户动作：艾特用户 {user_name} 并发送消息: {at_message}",
+            action_done=True,
+        )
 
         logger.info("艾特用户的动作已触发，但具体实现待完成。")
         return True, "艾特用户的动作已触发，但具体实现待完成。"
+
 
 class AtCommand(BaseCommand):
     command_name: str = "at_user"
@@ -92,14 +95,15 @@ class AtCommand(BaseCommand):
             return False, "用户不存在", True
 
         user_id = user_info.get("user_id")
-        
+
         await self.send_command(
             "SEND_AT_MESSAGE",
             args={"qq_id": user_id, "text": text},
-            display_message=f"艾特用户 {name} 并发送消息: {text}"
+            display_message=f"艾特用户 {name} 并发送消息: {text}",
         )
-        
+
         return True, "艾特消息已发送", True
+
 
 @register_plugin
 class AtUserPlugin(BasePlugin):
@@ -109,7 +113,7 @@ class AtUserPlugin(BasePlugin):
     python_dependencies: list[str] = []
     config_file_name: str = "config.toml"
     config_schema: dict = {}
-    
+
     def get_plugin_components(self) -> List[Tuple[CommandInfo | ActionInfo, Type[BaseCommand] | Type[BaseAction]]]:
         return [
             (AtAction.get_action_info(), AtAction),

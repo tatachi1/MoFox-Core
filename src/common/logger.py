@@ -373,7 +373,7 @@ MODULE_COLORS = {
     "base_command": "\033[38;5;208m",  # 橙色
     "component_registry": "\033[38;5;214m",  # 橙黄色
     "stream_api": "\033[38;5;220m",  # 黄色
-    "plugin_hot_reload": "\033[38;5;226m", #品红色
+    "plugin_hot_reload": "\033[38;5;226m",  # 品红色
     "config_api": "\033[38;5;226m",  # 亮黄色
     "heartflow_api": "\033[38;5;154m",  # 黄绿色
     "action_apis": "\033[38;5;118m",  # 绿色
@@ -416,14 +416,12 @@ MODULE_COLORS = {
     "model_utils": "\033[38;5;164m",  # 紫红色
     "relationship_fetcher": "\033[38;5;170m",  # 浅紫色
     "relationship_builder": "\033[38;5;93m",  # 浅蓝色
-    "sqlalchemy_init": "\033[38;5;105m", #
+    "sqlalchemy_init": "\033[38;5;105m",  #
     "sqlalchemy_models": "\033[38;5;105m",
     "sqlalchemy_database_api": "\033[38;5;105m",
-
-    #s4u
+    # s4u
     "context_web_api": "\033[38;5;240m",  # 深灰色
     "S4U_chat": "\033[92m",  # 亮绿色
-    
     # API相关扩展
     "chat_api": "\033[38;5;34m",  # 深绿色
     "emoji_api": "\033[38;5;40m",  # 亮绿色
@@ -432,20 +430,17 @@ MODULE_COLORS = {
     "tool_api": "\033[38;5;76m",  # 绿色
     "OpenAI客户端": "\033[38;5;81m",
     "Gemini客户端": "\033[38;5;81m",
-
     # 插件系统扩展
     "plugin_base": "\033[38;5;196m",  # 红色
     "base_event_handler": "\033[38;5;203m",  # 粉红色
     "events_manager": "\033[38;5;209m",  # 橙红色
     "global_announcement_manager": "\033[38;5;215m",  # 浅橙色
-    
     # 工具和依赖管理
     "dependency_config": "\033[38;5;24m",  # 深蓝色
     "dependency_manager": "\033[38;5;30m",  # 深青色
     "manifest_utils": "\033[38;5;39m",  # 蓝色
     "schedule_manager": "\033[38;5;27m",  # 深蓝色
     "monthly_plan_manager": "\033[38;5;171m",
-    
     # 聊天和多媒体扩展
     "chat_voice": "\033[38;5;87m",  # 浅青色
     "typo_gen": "\033[38;5;123m",  # 天蓝色
@@ -454,14 +449,12 @@ MODULE_COLORS = {
     "relationship_builder_manager": "\033[38;5;176m",  # 浅紫色
     "expression_selector": "\033[38;5;176m",
     "chat_message_builder": "\033[38;5;176m",
-
     # MaiZone QQ空间相关
     "MaiZone": "\033[38;5;98m",  # 紫色
     "MaiZone-Monitor": "\033[38;5;104m",  # 深紫色
     "MaiZone.ConfigLoader": "\033[38;5;110m",  # 蓝紫色
     "MaiZone-Scheduler": "\033[38;5;134m",  # 紫红色
     "MaiZone-Utils": "\033[38;5;140m",  # 浅紫色
-    
     # MaiZone Refactored
     "MaiZone.HistoryUtils": "\033[38;5;140m",
     "MaiZone.SchedulerService": "\033[38;5;134m",
@@ -474,13 +467,11 @@ MODULE_COLORS = {
     "MaiZone.SendFeedCommand": "\033[38;5;134m",
     "MaiZone.SendFeedAction": "\033[38;5;134m",
     "MaiZone.ReadFeedAction": "\033[38;5;134m",
-    
     # 网络工具
     "web_surfing_tool": "\033[38;5;130m",  # 棕色
     "tts": "\033[38;5;136m",  # 浅棕色
     "poke_plugin": "\033[38;5;136m",
     "set_emoji_like_plugin": "\033[38;5;136m",
-
     # mais4u系统扩展
     "s4u_config": "\033[38;5;18m",  # 深蓝色
     "action": "\033[38;5;52m",  # 深红色（mais4u的action）
@@ -491,7 +482,6 @@ MODULE_COLORS = {
     "watching": "\033[38;5;131m",  # 深橙色
     "offline_llm": "\033[38;5;236m",  # 深灰色
     "s4u_stream_generator": "\033[38;5;60m",  # 深紫色
-    
     # 其他工具
     "消息压缩工具": "\033[38;5;244m",  # 灰色
     "lpmm_get_knowledge_tool": "\033[38;5;102m",  # 绿色
@@ -555,42 +545,36 @@ MODULE_ALIASES = {
     "replyer": "言语",
     "config": "配置",
     "main": "主程序",
-    
     # API相关扩展
     "chat_api": "聊天接口",
     "emoji_api": "表情接口",
     "generator_api": "生成接口",
     "person_api": "人物接口",
     "tool_api": "工具接口",
-    
     # 插件系统扩展
     "plugin_base": "插件基类",
     "base_event_handler": "事件处理",
     "events_manager": "事件管理",
     "global_announcement_manager": "全局通知",
     "event_manager"
-    
     # 工具和依赖管理
     "dependency_config": "依赖配置",
     "dependency_manager": "依赖管理",
     "manifest_utils": "清单工具",
     "schedule_manager": "计划管理",
     "monthly_plan_manager": "月度计划",
-    
     # 聊天和多媒体扩展
     "chat_voice": "语音处理",
     "typo_gen": "错字生成",
     "src.chat.utils.utils_video": "视频分析",
     "ReplyerManager": "回复管理",
     "relationship_builder_manager": "关系管理",
-    
     # MaiZone QQ空间相关
     "MaiZone": "Mai空间",
     "MaiZone-Monitor": "Mai空间监控",
     "MaiZone.ConfigLoader": "Mai空间配置",
     "MaiZone-Scheduler": "Mai空间调度",
     "MaiZone-Utils": "Mai空间工具",
-
     # MaiZone Refactored
     "MaiZone.HistoryUtils": "Mai空间历史",
     "MaiZone.SchedulerService": "Mai空间调度",
@@ -603,12 +587,9 @@ MODULE_ALIASES = {
     "MaiZone.SendFeedCommand": "Mai空间发说说",
     "MaiZone.SendFeedAction": "Mai空间发说说",
     "MaiZone.ReadFeedAction": "Mai空间读说说",
-    
     # 网络工具
     "web_surfing_tool": "网络搜索",
     "tts": "语音合成",
-    
-
     # mais4u系统扩展
     "s4u_config": "直播配置",
     "action": "直播动作",
@@ -619,7 +600,6 @@ MODULE_ALIASES = {
     "watching": "观看状态",
     "offline_llm": "离线模型",
     "s4u_stream_generator": "直播生成",
-    
     # 其他工具
     "消息压缩工具": "消息压缩",
     "lpmm_get_knowledge_tool": "知识获取",
@@ -650,7 +630,7 @@ MODULE_ALIASES = {
     "db_migration": "数据库迁移",
     "小彩蛋": "小彩蛋",
     "AioHTTP-Gemini客户端": "AioHTTP-Gemini客户端",
-    "event_manager" : "事件管理器"
+    "event_manager": "事件管理器",
 }
 
 RESET_COLOR = "\033[0m"

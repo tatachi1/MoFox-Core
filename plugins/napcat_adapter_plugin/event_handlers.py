@@ -5,6 +5,7 @@ from .src.send_handler import send_handler
 from .event_types import NapcatEvent
 
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 
 
@@ -15,36 +16,32 @@ class SetProfileHandler(BaseEventHandler):
     intercept_message: bool = False
     init_subscribe = [NapcatEvent.ACCOUNT.SET_PROFILE]
 
-    async def execute(self,params:dict):
-        raw = params.get("raw",{})
-        nickname = params.get("nickname","")
-        personal_note = params.get("personal_note","")
-        sex = params.get("sex","")
+    async def execute(self, params: dict):
+        raw = params.get("raw", {})
+        nickname = params.get("nickname", "")
+        personal_note = params.get("personal_note", "")
+        sex = params.get("sex", "")
 
-        if params.get("raw",""):
-            nickname = raw.get("nickname","")
-            personal_note = raw.get("personal_note","")
-            sex = raw.get("sex","")
-        
+        if params.get("raw", ""):
+            nickname = raw.get("nickname", "")
+            personal_note = raw.get("personal_note", "")
+            sex = raw.get("sex", "")
+
         if not nickname:
             logger.error("事件 napcat_set_qq_profile 缺少必要参数: nickname ")
-            return HandlerResult(False,False,{"status":"error"})
+            return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "nickname": nickname,
-            "personal_note": personal_note,
-            "sex": sex
-            }
-        response = await send_handler.send_message_to_napcat(action="set_qq_profile",params=payload)
-        if response.get("status","") == "ok":
-            if response.get("data","").get("result","") == 0:
-                return HandlerResult(True,True,response)
+        payload = {"nickname": nickname, "personal_note": personal_note, "sex": sex}
+        response = await send_handler.send_message_to_napcat(action="set_qq_profile", params=payload)
+        if response.get("status", "") == "ok":
+            if response.get("data", "").get("result", "") == 0:
+                return HandlerResult(True, True, response)
             else:
-                logger.error(f"事件 napcat_set_qq_profile 请求失败！err={response.get("data","").get("errMsg","")}")
-                return HandlerResult(False,False,response)
+                logger.error(f"事件 napcat_set_qq_profile 请求失败！err={response.get('data', '').get('errMsg', '')}")
+                return HandlerResult(False, False, response)
         else:
             logger.error("事件 napcat_set_qq_profile 请求失败！")
-            return HandlerResult(False,False,{"status":"error"})
+            return HandlerResult(False, False, {"status": "error"})
 
 
 class GetOnlineClientsHandler(BaseEventHandler):
@@ -61,9 +58,7 @@ class GetOnlineClientsHandler(BaseEventHandler):
         if params.get("raw", ""):
             no_cache = raw.get("no_cache", False)
 
-        payload = {
-            "no_cache": no_cache
-        }
+        payload = {"no_cache": no_cache}
         response = await send_handler.send_message_to_napcat(action="get_online_clients", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -94,11 +89,7 @@ class SetOnlineStatusHandler(BaseEventHandler):
             logger.error("事件 napcat_set_online_status 缺少必要参数: status")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "status": status,
-            "ext_status": ext_status,
-            "battery_status": battery_status
-        }
+        payload = {"status": status, "ext_status": ext_status, "battery_status": battery_status}
         response = await send_handler.send_message_to_napcat(action="set_online_status", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -142,9 +133,7 @@ class SetAvatarHandler(BaseEventHandler):
             logger.error("事件 napcat_set_qq_avatar 缺少必要参数: file")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "file": file
-        }
+        payload = {"file": file}
         response = await send_handler.send_message_to_napcat(action="set_qq_avatar", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -173,10 +162,7 @@ class SendLikeHandler(BaseEventHandler):
             logger.error("事件 napcat_send_like 缺少必要参数: user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "user_id": str(user_id),
-            "times": times
-        }
+        payload = {"user_id": str(user_id), "times": times}
         response = await send_handler.send_message_to_napcat(action="send_like", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -207,11 +193,7 @@ class SetFriendAddRequestHandler(BaseEventHandler):
             logger.error("事件 napcat_set_friend_add_request 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "flag": flag,
-            "approve": approve,
-            "remark": remark
-        }
+        payload = {"flag": flag, "approve": approve, "remark": remark}
         response = await send_handler.send_message_to_napcat(action="set_friend_add_request", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -238,15 +220,15 @@ class SetSelfLongnickHandler(BaseEventHandler):
             logger.error("事件 napcat_set_self_longnick 缺少必要参数: longNick")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "longNick": longNick
-        }
+        payload = {"longNick": longNick}
         response = await send_handler.send_message_to_napcat(action="set_self_longnick", params=payload)
         if response.get("status", "") == "ok":
             if response.get("data", {}).get("result", "") == 0:
                 return HandlerResult(True, True, response)
             else:
-                logger.error(f"事件 napcat_set_self_longnick 请求失败！err={response.get('data', {}).get('errMsg', '')}")
+                logger.error(
+                    f"事件 napcat_set_self_longnick 请求失败！err={response.get('data', {}).get('errMsg', '')}"
+                )
                 return HandlerResult(False, False, response)
         else:
             logger.error("事件 napcat_set_self_longnick 请求失败！")
@@ -284,9 +266,7 @@ class GetRecentContactHandler(BaseEventHandler):
         if params.get("raw", ""):
             count = raw.get("count", 20)
 
-        payload = {
-            "count": count
-        }
+        payload = {"count": count}
         response = await send_handler.send_message_to_napcat(action="get_recent_contact", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -313,9 +293,7 @@ class GetStrangerInfoHandler(BaseEventHandler):
             logger.error("事件 napcat_get_stranger_info 缺少必要参数: user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "user_id": str(user_id)
-        }
+        payload = {"user_id": str(user_id)}
         response = await send_handler.send_message_to_napcat(action="get_stranger_info", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -338,9 +316,7 @@ class GetFriendListHandler(BaseEventHandler):
         if params.get("raw", ""):
             no_cache = raw.get("no_cache", False)
 
-        payload = {
-            "no_cache": no_cache
-        }
+        payload = {"no_cache": no_cache}
         response = await send_handler.send_message_to_napcat(action="get_friend_list", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -367,10 +343,7 @@ class GetProfileLikeHandler(BaseEventHandler):
             start = raw.get("start", 0)
             count = raw.get("count", 10)
 
-        payload = {
-            "start": start,
-            "count": count
-        }
+        payload = {"start": start, "count": count}
         if user_id:
             payload["user_id"] = str(user_id)
 
@@ -404,11 +377,7 @@ class DeleteFriendHandler(BaseEventHandler):
             logger.error("事件 napcat_delete_friend 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "user_id": str(user_id),
-            "temp_block": temp_block,
-            "temp_both_del": temp_both_del
-        }
+        payload = {"user_id": str(user_id), "temp_block": temp_block, "temp_both_del": temp_both_del}
         response = await send_handler.send_message_to_napcat(action="delete_friend", params=payload)
         if response.get("status", "") == "ok":
             if response.get("data", {}).get("result", "") == 0:
@@ -439,9 +408,7 @@ class GetUserStatusHandler(BaseEventHandler):
             logger.error("事件 napcat_get_user_status 缺少必要参数: user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "user_id": str(user_id)
-        }
+        payload = {"user_id": str(user_id)}
         response = await send_handler.send_message_to_napcat(action="get_user_status", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -504,7 +471,7 @@ class GetMiniAppArkHandler(BaseEventHandler):
             "picUrl": picUrl,
             "jumpUrl": jumpUrl,
             "webUrl": webUrl,
-            "rawArkData": rawArkData
+            "rawArkData": rawArkData,
         }
         response = await send_handler.send_message_to_napcat(action="get_mini_app_ark", params=payload)
         if response.get("status", "") == "ok":
@@ -536,11 +503,7 @@ class SetDiyOnlineStatusHandler(BaseEventHandler):
             logger.error("事件 napcat_set_diy_online_status 缺少必要参数: face_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "face_id": str(face_id),
-            "face_type": str(face_type),
-            "wording": wording
-        }
+        payload = {"face_id": str(face_id), "face_type": str(face_type), "wording": wording}
         response = await send_handler.send_message_to_napcat(action="set_diy_online_status", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -570,10 +533,7 @@ class SendPrivateMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_send_private_msg 缺少必要参数: user_id 或 message")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "user_id": str(user_id),
-            "message": message
-        }
+        payload = {"user_id": str(user_id), "message": message}
         response = await send_handler.send_message_to_napcat(action="send_private_msg", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -602,9 +562,7 @@ class SendPokeHandler(BaseEventHandler):
             logger.error("事件 napcat_send_poke 缺少必要参数: user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "user_id": str(user_id)
-        }
+        payload = {"user_id": str(user_id)}
         if group_id is not None:
             payload["group_id"] = str(group_id)
 
@@ -634,9 +592,7 @@ class DeleteMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_delete_msg 缺少必要参数: message_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "message_id": str(message_id)
-        }
+        payload = {"message_id": str(message_id)}
         response = await send_handler.send_message_to_napcat(action="delete_msg", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -673,7 +629,7 @@ class GetGroupMsgHistoryHandler(BaseEventHandler):
             "group_id": str(group_id),
             "message_seq": int(message_seq),
             "count": int(count),
-            "reverseOrder": bool(reverseOrder)
+            "reverseOrder": bool(reverseOrder),
         }
         response = await send_handler.send_message_to_napcat(action="get_group_msg_history", params=payload)
         if response.get("status", "") == "ok":
@@ -701,9 +657,7 @@ class GetMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_get_msg 缺少必要参数: message_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "message_id": str(message_id)
-        }
+        payload = {"message_id": str(message_id)}
         response = await send_handler.send_message_to_napcat(action="get_msg", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -730,9 +684,7 @@ class GetForwardMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_get_forward_msg 缺少必要参数: message_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "message_id": str(message_id)
-        }
+        payload = {"message_id": str(message_id)}
         response = await send_handler.send_message_to_napcat(action="get_forward_msg", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -763,11 +715,7 @@ class SetMsgEmojiLikeHandler(BaseEventHandler):
             logger.error("事件 napcat_set_msg_emoji_like 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "message_id": str(message_id),
-            "emoji_id": int(emoji_id),
-            "set": bool(set_flag)
-        }
+        payload = {"message_id": str(message_id), "emoji_id": int(emoji_id), "set": bool(set_flag)}
         response = await send_handler.send_message_to_napcat(action="set_msg_emoji_like", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
@@ -804,7 +752,7 @@ class GetFriendMsgHistoryHandler(BaseEventHandler):
             "user_id": str(user_id),
             "message_seq": int(message_seq),
             "count": int(count),
-            "reverseOrder": bool(reverseOrder)
+            "reverseOrder": bool(reverseOrder),
         }
         response = await send_handler.send_message_to_napcat(action="get_friend_msg_history", params=payload)
         if response.get("status", "") == "ok":
@@ -842,7 +790,7 @@ class FetchEmojiLikeHandler(BaseEventHandler):
             "message_id": str(message_id),
             "emojiId": str(emoji_id),
             "emojiType": str(emoji_type),
-            "count": int(count)
+            "count": int(count),
         }
         response = await send_handler.send_message_to_napcat(action="fetch_emoji_like", params=payload)
         if response.get("status", "") == "ok":
@@ -882,13 +830,7 @@ class SendForwardMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_send_forward_msg 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "messages": messages,
-            "news": news,
-            "prompt": prompt,
-            "summary": summary,
-            "source": source
-        }
+        payload = {"messages": messages, "news": news, "prompt": prompt, "summary": summary, "source": source}
         if group_id is not None:
             payload["group_id"] = str(group_id)
         if user_id is not None:
@@ -924,17 +866,14 @@ class SendGroupAiRecordHandler(BaseEventHandler):
             logger.error("事件 napcat_send_group_ai_record 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "character": character,
-            "text": text
-        }
+        payload = {"group_id": str(group_id), "character": character, "text": text}
         response = await send_handler.send_message_to_napcat(action="send_group_ai_record", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_send_group_ai_record 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 # ===GROUP===
 class GetGroupInfoHandler(BaseEventHandler):
@@ -955,15 +894,14 @@ class GetGroupInfoHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_info 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="get_group_info", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_info 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupAddOptionHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_add_option_handler"
@@ -989,10 +927,7 @@ class SetGroupAddOptionHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_add_option 缺少必要参数: group_id 或 add_type")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "add_type": str(add_type)
-        }
+        payload = {"group_id": str(group_id), "add_type": str(add_type)}
         if group_question:
             payload["group_question"] = group_question
         if group_answer:
@@ -1004,6 +939,7 @@ class SetGroupAddOptionHandler(BaseEventHandler):
         else:
             logger.error("事件 napcat_set_group_add_option 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupKickMembersHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_kick_members_handler"
@@ -1027,17 +963,14 @@ class SetGroupKickMembersHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_kick_members 缺少必要参数: group_id 或 user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "user_id": user_id,
-            "reject_add_request": bool(reject_add_request)
-        }
+        payload = {"group_id": str(group_id), "user_id": user_id, "reject_add_request": bool(reject_add_request)}
         response = await send_handler.send_message_to_napcat(action="set_group_kick_members", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_kick_members 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupRemarkHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_remark_handler"
@@ -1059,16 +992,14 @@ class SetGroupRemarkHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_remark 缺少必要参数: group_id 或 remark")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "remark": remark
-        }
+        payload = {"group_id": str(group_id), "remark": remark}
         response = await send_handler.send_message_to_napcat(action="set_group_remark", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_remark 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupKickHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_kick_handler"
@@ -1092,17 +1023,14 @@ class SetGroupKickHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_kick 缺少必要参数: group_id 或 user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "user_id": str(user_id),
-            "reject_add_request": bool(reject_add_request)
-        }
+        payload = {"group_id": str(group_id), "user_id": str(user_id), "reject_add_request": bool(reject_add_request)}
         response = await send_handler.send_message_to_napcat(action="set_group_kick", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_kick 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupSystemMsgHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_system_msg_handler"
@@ -1122,15 +1050,14 @@ class GetGroupSystemMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_system_msg 缺少必要参数: count")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "count": int(count)
-        }
+        payload = {"count": int(count)}
         response = await send_handler.send_message_to_napcat(action="get_group_system_msg", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_system_msg 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupBanHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_ban_handler"
@@ -1154,17 +1081,14 @@ class SetGroupBanHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_ban 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "user_id": str(user_id),
-            "duration": int(duration)
-        }
+        payload = {"group_id": str(group_id), "user_id": str(user_id), "duration": int(duration)}
         response = await send_handler.send_message_to_napcat(action="set_group_ban", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_ban 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetEssenceMsgListHandler(BaseEventHandler):
     handler_name: str = "napcat_get_essence_msg_list_handler"
@@ -1184,15 +1108,14 @@ class GetEssenceMsgListHandler(BaseEventHandler):
             logger.error("事件 napcat_get_essence_msg_list 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="get_essence_msg_list", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_essence_msg_list 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupWholeBanHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_whole_ban_handler"
@@ -1214,16 +1137,14 @@ class SetGroupWholeBanHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_whole_ban 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "enable": bool(enable)
-        }
+        payload = {"group_id": str(group_id), "enable": bool(enable)}
         response = await send_handler.send_message_to_napcat(action="set_group_whole_ban", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_whole_ban 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupPortraitHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_portrait_handler"
@@ -1245,16 +1166,14 @@ class SetGroupPortraitHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_portrait 缺少必要参数: group_id 或 file")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "file": file_path
-        }
+        payload = {"group_id": str(group_id), "file": file_path}
         response = await send_handler.send_message_to_napcat(action="set_group_portrait", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_portrait 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupAdminHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_admin_handler"
@@ -1278,17 +1197,14 @@ class SetGroupAdminHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_admin 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "user_id": str(user_id),
-            "enable": bool(enable)
-        }
+        payload = {"group_id": str(group_id), "user_id": str(user_id), "enable": bool(enable)}
         response = await send_handler.send_message_to_napcat(action="set_group_admin", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_admin 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupCardHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_card_handler"
@@ -1312,10 +1228,7 @@ class SetGroupCardHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_card 缺少必要参数: group_id 或 user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "user_id": str(user_id)
-        }
+        payload = {"group_id": str(group_id), "user_id": str(user_id)}
         if card:
             payload["card"] = card
 
@@ -1325,6 +1238,7 @@ class SetGroupCardHandler(BaseEventHandler):
         else:
             logger.error("事件 napcat_set_group_card 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetEssenceMsgHandler(BaseEventHandler):
     handler_name: str = "napcat_set_essence_msg_handler"
@@ -1344,15 +1258,14 @@ class SetEssenceMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_set_essence_msg 缺少必要参数: message_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "message_id": str(message_id)
-        }
+        payload = {"message_id": str(message_id)}
         response = await send_handler.send_message_to_napcat(action="set_essence_msg", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_essence_msg 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupNameHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_name_handler"
@@ -1374,16 +1287,14 @@ class SetGroupNameHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_name 缺少必要参数: group_id 或 group_name")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "group_name": group_name
-        }
+        payload = {"group_id": str(group_id), "group_name": group_name}
         response = await send_handler.send_message_to_napcat(action="set_group_name", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_name 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class DeleteEssenceMsgHandler(BaseEventHandler):
     handler_name: str = "napcat_delete_essence_msg_handler"
@@ -1403,15 +1314,14 @@ class DeleteEssenceMsgHandler(BaseEventHandler):
             logger.error("事件 napcat_delete_essence_msg 缺少必要参数: message_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "message_id": str(message_id)
-        }
+        payload = {"message_id": str(message_id)}
         response = await send_handler.send_message_to_napcat(action="delete_essence_msg", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_delete_essence_msg 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupLeaveHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_leave_handler"
@@ -1431,15 +1341,14 @@ class SetGroupLeaveHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_leave 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="set_group_leave", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_set_group_leave 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SendGroupNoticeHandler(BaseEventHandler):
     handler_name: str = "napcat_send_group_notice_handler"
@@ -1463,10 +1372,7 @@ class SendGroupNoticeHandler(BaseEventHandler):
             logger.error("事件 napcat_send_group_notice 缺少必要参数: group_id 或 content")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "content": content
-        }
+        payload = {"group_id": str(group_id), "content": content}
         if image:
             payload["image"] = image
 
@@ -1476,6 +1382,7 @@ class SendGroupNoticeHandler(BaseEventHandler):
         else:
             logger.error("事件 napcat_send_group_notice 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupSpecialTitleHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_special_title_handler"
@@ -1499,10 +1406,7 @@ class SetGroupSpecialTitleHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_special_title 缺少必要参数: group_id 或 user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "user_id": str(user_id)
-        }
+        payload = {"group_id": str(group_id), "user_id": str(user_id)}
         if special_title:
             payload["special_title"] = special_title
 
@@ -1512,6 +1416,7 @@ class SetGroupSpecialTitleHandler(BaseEventHandler):
         else:
             logger.error("事件 napcat_set_group_special_title 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupNoticeHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_notice_handler"
@@ -1531,15 +1436,14 @@ class GetGroupNoticeHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_notice 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="_get_group_notice", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_notice 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupAddRequestHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_add_request_handler"
@@ -1563,10 +1467,7 @@ class SetGroupAddRequestHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_add_request 缺少必要参数")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "flag": flag,
-            "approve": bool(approve)
-        }
+        payload = {"flag": flag, "approve": bool(approve)}
         if reason:
             payload["reason"] = reason
 
@@ -1576,6 +1477,7 @@ class SetGroupAddRequestHandler(BaseEventHandler):
         else:
             logger.error("事件 napcat_set_group_add_request 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupListHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_list_handler"
@@ -1591,15 +1493,14 @@ class GetGroupListHandler(BaseEventHandler):
         if params.get("raw", ""):
             no_cache = raw.get("no_cache", False)
 
-        payload = {
-            "no_cache": bool(no_cache)
-        }
+        payload = {"no_cache": bool(no_cache)}
         response = await send_handler.send_message_to_napcat(action="get_group_list", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_list 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class DeleteGroupNoticeHandler(BaseEventHandler):
     handler_name: str = "napcat_del_group_notice_handler"
@@ -1621,16 +1522,14 @@ class DeleteGroupNoticeHandler(BaseEventHandler):
             logger.error("事件 napcat_del_group_notice 缺少必要参数: group_id 或 notice_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "notice_id": notice_id
-        }
+        payload = {"group_id": str(group_id), "notice_id": notice_id}
         response = await send_handler.send_message_to_napcat(action="_del_group_notice", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_del_group_notice 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupMemberInfoHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_member_info_handler"
@@ -1654,17 +1553,14 @@ class GetGroupMemberInfoHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_member_info 缺少必要参数: group_id 或 user_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "user_id": str(user_id),
-            "no_cache": bool(no_cache)
-        }
+        payload = {"group_id": str(group_id), "user_id": str(user_id), "no_cache": bool(no_cache)}
         response = await send_handler.send_message_to_napcat(action="get_group_member_info", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_member_info 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupMemberListHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_member_list_handler"
@@ -1686,16 +1582,14 @@ class GetGroupMemberListHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_member_list 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id),
-            "no_cache": bool(no_cache)
-        }
+        payload = {"group_id": str(group_id), "no_cache": bool(no_cache)}
         response = await send_handler.send_message_to_napcat(action="get_group_member_list", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_member_list 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupHonorInfoHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_honor_info_handler"
@@ -1717,9 +1611,7 @@ class GetGroupHonorInfoHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_honor_info 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         if type:
             payload["type"] = type
 
@@ -1729,6 +1621,7 @@ class GetGroupHonorInfoHandler(BaseEventHandler):
         else:
             logger.error("事件 napcat_get_group_honor_info 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupInfoExHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_info_ex_handler"
@@ -1748,15 +1641,14 @@ class GetGroupInfoExHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_info_ex 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="get_group_info_ex", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_info_ex 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupAtAllRemainHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_at_all_remain_handler"
@@ -1776,15 +1668,14 @@ class GetGroupAtAllRemainHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_at_all_remain 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="get_group_at_all_remain", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_at_all_remain 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupShutListHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_shut_list_handler"
@@ -1804,15 +1695,14 @@ class GetGroupShutListHandler(BaseEventHandler):
             logger.error("事件 napcat_get_group_shut_list 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="get_group_shut_list", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)
         else:
             logger.error("事件 napcat_get_group_shut_list 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class GetGroupIgnoredNotifiesHandler(BaseEventHandler):
     handler_name: str = "napcat_get_group_ignored_notifies_handler"
@@ -1829,6 +1719,7 @@ class GetGroupIgnoredNotifiesHandler(BaseEventHandler):
         else:
             logger.error("事件 napcat_get_group_ignored_notifies 请求失败！")
             return HandlerResult(False, False, {"status": "error"})
+
 
 class SetGroupSignHandler(BaseEventHandler):
     handler_name: str = "napcat_set_group_sign_handler"
@@ -1848,9 +1739,7 @@ class SetGroupSignHandler(BaseEventHandler):
             logger.error("事件 napcat_set_group_sign 缺少必要参数: group_id")
             return HandlerResult(False, False, {"status": "error"})
 
-        payload = {
-            "group_id": str(group_id)
-        }
+        payload = {"group_id": str(group_id)}
         response = await send_handler.send_message_to_napcat(action="set_group_sign", params=payload)
         if response.get("status", "") == "ok":
             return HandlerResult(True, True, response)

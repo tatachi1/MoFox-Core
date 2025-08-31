@@ -13,15 +13,16 @@ if TYPE_CHECKING:
 
 logger = get_logger("hfc")
 
+
 class ProactiveThinker:
     def __init__(self, context: HfcContext, cycle_processor: "CycleProcessor"):
         """
         初始化主动思考器
-        
+
         Args:
             context: HFC聊天上下文对象
             cycle_processor: 循环处理器，用于执行主动思考的结果
-            
+
         功能说明:
         - 管理机器人的主动发言功能
         - 根据沉默时间和配置触发主动思考
@@ -31,7 +32,7 @@ class ProactiveThinker:
         self.context = context
         self.cycle_processor = cycle_processor
         self._proactive_thinking_task: Optional[asyncio.Task] = None
-        
+
         self.proactive_thinking_prompts = {
             "private": """现在你和你朋友的私聊里面已经隔了{time}没有发送消息了，请你结合上下文以及你和你朋友之前聊过的话题和你的人设来决定要不要主动发送消息，你可以选择：
 
@@ -50,7 +51,7 @@ class ProactiveThinker:
     async def start(self):
         """
         启动主动思考器
-        
+
         功能说明:
         - 检查运行状态和配置，避免重复启动
         - 只有在启用主动思考功能时才启动
@@ -66,7 +67,7 @@ class ProactiveThinker:
     async def stop(self):
         """
         停止主动思考器
-        
+
         功能说明:
         - 取消正在运行的主动思考任务
         - 等待任务完全停止
@@ -80,10 +81,10 @@ class ProactiveThinker:
     def _handle_proactive_thinking_completion(self, task: asyncio.Task):
         """
         处理主动思考任务完成
-        
+
         Args:
             task: 完成的异步任务对象
-            
+
         功能说明:
         - 处理任务正常完成或异常情况
         - 记录相应的日志信息
@@ -100,7 +101,7 @@ class ProactiveThinker:
     async def _proactive_thinking_loop(self):
         """
         主动思考的主循环
-        
+
         功能说明:
         - 每15秒检查一次是否需要主动思考
         - 只在FOCUS模式下进行主动思考
@@ -114,7 +115,7 @@ class ProactiveThinker:
 
             if self.context.loop_mode != ChatMode.FOCUS:
                 continue
-            
+
             if not self._should_enable_proactive_thinking():
                 continue
 
@@ -122,7 +123,7 @@ class ProactiveThinker:
             silence_duration = current_time - self.context.last_message_time
 
             target_interval = self._get_dynamic_thinking_interval()
-            
+
             if silence_duration >= target_interval:
                 try:
                     await self._execute_proactive_thinking(silence_duration)
@@ -130,14 +131,14 @@ class ProactiveThinker:
                 except Exception as e:
                     logger.error(f"{self.context.log_prefix} 主动思考执行出错: {e}")
                     logger.error(traceback.format_exc())
-    
+
     def _should_enable_proactive_thinking(self) -> bool:
         """
         检查是否应该启用主动思考
-        
+
         Returns:
             bool: 如果应该启用主动思考则返回True
-            
+
         功能说明:
         - 检查聊天流是否存在
         - 检查当前聊天是否在启用列表中（按平台和类型分别检查）
@@ -149,15 +150,15 @@ class ProactiveThinker:
             return False
 
         is_group_chat = self.context.chat_stream.group_info is not None
-        
+
         # 检查基础开关
         if is_group_chat and not global_config.chat.proactive_thinking_in_group:
             return False
         if not is_group_chat and not global_config.chat.proactive_thinking_in_private:
             return False
-        
+
         # 获取当前聊天的完整标识 (platform:chat_id)
-        stream_parts = self.context.stream_id.split(':')
+        stream_parts = self.context.stream_id.split(":")
         if len(stream_parts) >= 2:
             platform = stream_parts[0]
             chat_id = stream_parts[1]
@@ -165,28 +166,28 @@ class ProactiveThinker:
         else:
             # 如果无法解析，则使用原始stream_id
             current_chat_identifier = self.context.stream_id
-        
+
         # 检查是否在启用列表中
         if is_group_chat:
             # 群聊检查
-            enable_list = getattr(global_config.chat, 'proactive_thinking_enable_in_groups', [])
+            enable_list = getattr(global_config.chat, "proactive_thinking_enable_in_groups", [])
             if enable_list and current_chat_identifier not in enable_list:
                 return False
         else:
-            # 私聊检查  
-            enable_list = getattr(global_config.chat, 'proactive_thinking_enable_in_private', [])
+            # 私聊检查
+            enable_list = getattr(global_config.chat, "proactive_thinking_enable_in_private", [])
             if enable_list and current_chat_identifier not in enable_list:
                 return False
-            
+
         return True
-    
+
     def _get_dynamic_thinking_interval(self) -> float:
         """
         获取动态思考间隔
-        
+
         Returns:
             float: 计算得出的思考间隔时间（秒）
-            
+
         功能说明:
         - 使用3-sigma规则计算正态分布的思考间隔
         - 基于base_interval和delta_sigma配置计算
@@ -196,15 +197,15 @@ class ProactiveThinker:
         """
         try:
             from src.utils.timing_utils import get_normal_distributed_interval
-            
+
             base_interval = global_config.chat.proactive_thinking_interval
-            delta_sigma = getattr(global_config.chat, 'delta_sigma', 120)
-            
+            delta_sigma = getattr(global_config.chat, "delta_sigma", 120)
+
             if base_interval < 0:
                 base_interval = abs(base_interval)
             if delta_sigma < 0:
                 delta_sigma = abs(delta_sigma)
-            
+
             if base_interval == 0 and delta_sigma == 0:
                 return 300
             elif base_interval == 0:
@@ -212,27 +213,27 @@ class ProactiveThinker:
                 return get_normal_distributed_interval(0, sigma_percentage, 1, 86400, use_3sigma_rule=True)
             elif delta_sigma == 0:
                 return base_interval
-            
+
             sigma_percentage = delta_sigma / base_interval
             return get_normal_distributed_interval(base_interval, sigma_percentage, 1, 86400, use_3sigma_rule=True)
-            
+
         except ImportError:
             logger.warning(f"{self.context.log_prefix} timing_utils不可用，使用固定间隔")
             return max(300, abs(global_config.chat.proactive_thinking_interval))
         except Exception as e:
             logger.error(f"{self.context.log_prefix} 动态间隔计算出错: {e}，使用固定间隔")
             return max(300, abs(global_config.chat.proactive_thinking_interval))
-    
+
     def _format_duration(self, seconds: float) -> str:
         """
         格式化持续时间为中文描述
-        
+
         Args:
             seconds: 持续时间（秒）
-            
+
         Returns:
             str: 格式化后的时间字符串，如"1小时30分45秒"
-            
+
         功能说明:
         - 将秒数转换为小时、分钟、秒的组合
         - 只显示非零的时间单位
@@ -256,7 +257,7 @@ class ProactiveThinker:
     async def _execute_proactive_thinking(self, silence_duration: float):
         """
         执行主动思考
-        
+
         Args:
             silence_duration: 沉默持续时间（秒）
         """
@@ -265,12 +266,16 @@ class ProactiveThinker:
 
         try:
             # 直接调用 planner 的 PROACTIVE 模式
-            action_result_tuple, target_message = await self.cycle_processor.action_planner.plan(mode=ChatMode.PROACTIVE)
+            action_result_tuple, target_message = await self.cycle_processor.action_planner.plan(
+                mode=ChatMode.PROACTIVE
+            )
             action_result = action_result_tuple.get("action_result")
 
             # 如果决策不是 do_nothing，则执行
             if action_result and action_result.get("action_type") != "do_nothing":
-                logger.info(f"{self.context.log_prefix} 主动思考决策: {action_result.get('action_type')}, 原因: {action_result.get('reasoning')}")
+                logger.info(
+                    f"{self.context.log_prefix} 主动思考决策: {action_result.get('action_type')}, 原因: {action_result.get('reasoning')}"
+                )
                 # 将决策结果交给 cycle_processor 的后续流程处理
                 await self.cycle_processor.execute_plan(action_result, target_message)
             else:
@@ -283,21 +288,22 @@ class ProactiveThinker:
     async def trigger_insomnia_thinking(self, reason: str):
         """
         由外部事件（如失眠）触发的一次性主动思考
-        
+
         Args:
             reason: 触发的原因 (e.g., "low_pressure", "random")
         """
         logger.info(f"{self.context.log_prefix} 因“{reason}”触发失眠，开始深夜思考...")
-        
+
         # 1. 根据原因修改情绪
         try:
             from src.mood.mood_manager import mood_manager
+
             mood_obj = mood_manager.get_mood_by_chat_id(self.context.stream_id)
             if reason == "low_pressure":
                 mood_obj.mood_state = "精力过剩，毫无睡意"
             elif reason == "random":
                 mood_obj.mood_state = "深夜emo，胡思乱想"
-            mood_obj.last_change_time = time.time() # 更新时间戳以允许后续的情绪回归
+            mood_obj.last_change_time = time.time()  # 更新时间戳以允许后续的情绪回归
             logger.info(f"{self.context.log_prefix} 因失眠，情绪状态被强制更新为: {mood_obj.mood_state}")
         except Exception as e:
             logger.error(f"{self.context.log_prefix} 设置失眠情绪时出错: {e}")
@@ -315,10 +321,11 @@ class ProactiveThinker:
         在失眠状态结束后，触发一次准备睡觉的主动思考
         """
         logger.info(f"{self.context.log_prefix} 失眠状态结束，准备睡觉，触发告别思考...")
-        
+
         # 1. 设置一个准备睡觉的特定情绪
         try:
             from src.mood.mood_manager import mood_manager
+
             mood_obj = mood_manager.get_mood_by_chat_id(self.context.stream_id)
             mood_obj.mood_state = "有点困了，准备睡觉了"
             mood_obj.last_change_time = time.time()

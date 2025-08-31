@@ -59,7 +59,9 @@ class CoreActionsPlugin(BasePlugin):
             "enable_no_reply": ConfigField(type=bool, default=True, description="是否启用不回复动作"),
             "enable_reply": ConfigField(type=bool, default=True, description="是否启用基本回复动作"),
             "enable_emoji": ConfigField(type=bool, default=True, description="是否启用发送表情/图片动作"),
-            "enable_anti_injector_manager": ConfigField(type=bool, default=True, description="是否启用反注入系统管理命令"),
+            "enable_anti_injector_manager": ConfigField(
+                type=bool, default=True, description="是否启用反注入系统管理命令"
+            ),
         },
     }
 
@@ -76,6 +78,5 @@ class CoreActionsPlugin(BasePlugin):
             components.append((EmojiAction.get_action_info(), EmojiAction))
         if self.get_config("components.enable_anti_injector_manager", True):
             components.append((AntiInjectorStatusCommand.get_command_info(), AntiInjectorStatusCommand))
-
 
         return components

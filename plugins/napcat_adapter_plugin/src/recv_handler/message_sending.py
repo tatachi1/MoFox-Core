@@ -1,4 +1,5 @@
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 from maim_message import MessageBase, Router
 

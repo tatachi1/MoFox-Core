@@ -83,34 +83,20 @@ class HelloWorldPlugin(BasePlugin):
     python_dependencies = []
     config_file_name = "config.toml"
     enable_plugin = False
-    
+
     config_schema = {
         "meta": {
-            "config_version": ConfigField(
-                type=int,
-                default=1,
-                description="配置文件版本，请勿手动修改。"
-            ),
+            "config_version": ConfigField(type=int, default=1, description="配置文件版本，请勿手动修改。"),
         },
         "greeting": {
             "message": ConfigField(
-                type=str, 
-                default="这是来自配置文件的问候！👋", 
-                description="HelloCommand 使用的问候语。"
+                type=str, default="这是来自配置文件的问候！👋", description="HelloCommand 使用的问候语。"
             ),
         },
         "components": {
-            "hello_command_enabled": ConfigField(
-                type=bool,
-                default=True,
-                description="是否启用 /hello 命令。"
-            ),
-            "random_emoji_action_enabled": ConfigField(
-                type=bool,
-                default=True,
-                description="是否启用随机表情动作。"
-            ),
-        }
+            "hello_command_enabled": ConfigField(type=bool, default=True, description="是否启用 /hello 命令。"),
+            "random_emoji_action_enabled": ConfigField(type=bool, default=True, description="是否启用随机表情动作。"),
+        },
     }
 
     def get_plugin_components(self) -> List[Tuple[ComponentInfo, Type]]:
@@ -122,7 +108,7 @@ class HelloWorldPlugin(BasePlugin):
 
         if self.get_config("components.hello_command_enabled", True):
             components.append((HelloCommand.get_command_info(), HelloCommand))
-        
+
         if self.get_config("components.random_emoji_action_enabled", True):
             components.append((RandomEmojiAction.get_action_info(), RandomEmojiAction))
 

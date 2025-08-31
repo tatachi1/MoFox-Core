@@ -31,7 +31,7 @@ class SetTypingStatusHandler(BaseEventHandler):
             return HandlerResult(success=False, continue_process=True, message="无法获取用户ID")
 
         try:
-            params =  {"user_id": user_id,"event_type": 1}
+            params = {"user_id": user_id, "event_type": 1}
             await send_api.adapter_command_to_stream(
                 action="set_input_status",
                 params=params,
@@ -53,12 +53,12 @@ class SetTypingStatusPlugin(BasePlugin):
     dependencies = []
     python_dependencies = []
     config_file_name = ""
-    
+
     config_schema = {}
 
     def get_plugin_components(self) -> List[Tuple[ComponentInfo, Type]]:
         """注册插件的功能组件。"""
         return [(SetTypingStatusHandler.get_handler_info(), SetTypingStatusHandler)]
-    
+
     def register_plugin(self) -> bool:
         return True

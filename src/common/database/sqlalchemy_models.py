@@ -19,6 +19,7 @@ logger = get_logger("sqlalchemy_models")
 # 创建基类
 Base = declarative_base()
 
+
 # MySQL兼容的字段类型辅助函数
 def get_string_field(max_length=255, **kwargs):
     """
@@ -26,6 +27,7 @@ def get_string_field(max_length=255, **kwargs):
     MySQL需要指定长度的VARCHAR用于索引，SQLite可以使用Text
     """
     from src.config.config import global_config
+
     if global_config.database.database_type == "mysql":
         return String(max_length, **kwargs)
     else:
@@ -34,7 +36,8 @@ def get_string_field(max_length=255, **kwargs):
 
 class ChatStreams(Base):
     """聊天流模型"""
-    __tablename__ = 'chat_streams'
+
+    __tablename__ = "chat_streams"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     stream_id = Column(get_string_field(64), nullable=False, unique=True, index=True)
@@ -50,15 +53,16 @@ class ChatStreams(Base):
     user_cardname = Column(Text, nullable=True)
 
     __table_args__ = (
-        Index('idx_chatstreams_stream_id', 'stream_id'),
-        Index('idx_chatstreams_user_id', 'user_id'),
-        Index('idx_chatstreams_group_id', 'group_id'),
+        Index("idx_chatstreams_stream_id", "stream_id"),
+        Index("idx_chatstreams_user_id", "user_id"),
+        Index("idx_chatstreams_group_id", "group_id"),
     )
 
 
 class LLMUsage(Base):
     """LLM使用记录模型"""
-    __tablename__ = 'llm_usage'
+
+    __tablename__ = "llm_usage"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     model_name = Column(get_string_field(100), nullable=False, index=True)
@@ -76,19 +80,20 @@ class LLMUsage(Base):
     timestamp = Column(DateTime, nullable=False, index=True, default=datetime.datetime.now)
 
     __table_args__ = (
-        Index('idx_llmusage_model_name', 'model_name'),
-        Index('idx_llmusage_model_assign_name', 'model_assign_name'),
-        Index('idx_llmusage_model_api_provider', 'model_api_provider'),
-        Index('idx_llmusage_time_cost', 'time_cost'),
-        Index('idx_llmusage_user_id', 'user_id'),
-        Index('idx_llmusage_request_type', 'request_type'),
-        Index('idx_llmusage_timestamp', 'timestamp'),
+        Index("idx_llmusage_model_name", "model_name"),
+        Index("idx_llmusage_model_assign_name", "model_assign_name"),
+        Index("idx_llmusage_model_api_provider", "model_api_provider"),
+        Index("idx_llmusage_time_cost", "time_cost"),
+        Index("idx_llmusage_user_id", "user_id"),
+        Index("idx_llmusage_request_type", "request_type"),
+        Index("idx_llmusage_timestamp", "timestamp"),
     )
 
 
 class Emoji(Base):
     """表情包模型"""
-    __tablename__ = 'emoji'
+
+    __tablename__ = "emoji"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     full_path = Column(get_string_field(500), nullable=False, unique=True, index=True)
@@ -105,14 +110,15 @@ class Emoji(Base):
     last_used_time = Column(Float, nullable=True)
 
     __table_args__ = (
-        Index('idx_emoji_full_path', 'full_path'),
-        Index('idx_emoji_hash', 'emoji_hash'),
+        Index("idx_emoji_full_path", "full_path"),
+        Index("idx_emoji_hash", "emoji_hash"),
     )
 
 
 class Messages(Base):
     """消息模型"""
-    __tablename__ = 'messages'
+
+    __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_id = Column(get_string_field(100), nullable=False, index=True)
@@ -153,16 +159,17 @@ class Messages(Base):
     is_notify = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
-        Index('idx_messages_message_id', 'message_id'),
-        Index('idx_messages_chat_id', 'chat_id'),
-        Index('idx_messages_time', 'time'),
-        Index('idx_messages_user_id', 'user_id'),
+        Index("idx_messages_message_id", "message_id"),
+        Index("idx_messages_chat_id", "chat_id"),
+        Index("idx_messages_time", "time"),
+        Index("idx_messages_user_id", "user_id"),
     )
 
 
 class ActionRecords(Base):
     """动作记录模型"""
-    __tablename__ = 'action_records'
+
+    __tablename__ = "action_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     action_id = Column(get_string_field(100), nullable=False, index=True)
@@ -177,15 +184,16 @@ class ActionRecords(Base):
     chat_info_platform = Column(Text, nullable=False)
 
     __table_args__ = (
-        Index('idx_actionrecords_action_id', 'action_id'),
-        Index('idx_actionrecords_chat_id', 'chat_id'),
-        Index('idx_actionrecords_time', 'time'),
+        Index("idx_actionrecords_action_id", "action_id"),
+        Index("idx_actionrecords_chat_id", "chat_id"),
+        Index("idx_actionrecords_time", "time"),
     )
 
 
 class Images(Base):
     """图像信息模型"""
-    __tablename__ = 'images'
+
+    __tablename__ = "images"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     image_id = Column(Text, nullable=False, default="")
@@ -198,14 +206,15 @@ class Images(Base):
     vlm_processed = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
-        Index('idx_images_emoji_hash', 'emoji_hash'),
-        Index('idx_images_path', 'path'),
+        Index("idx_images_emoji_hash", "emoji_hash"),
+        Index("idx_images_path", "path"),
     )
 
 
 class ImageDescriptions(Base):
     """图像描述信息模型"""
-    __tablename__ = 'image_descriptions'
+
+    __tablename__ = "image_descriptions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(Text, nullable=False)
@@ -213,14 +222,13 @@ class ImageDescriptions(Base):
     description = Column(Text, nullable=False)
     timestamp = Column(Float, nullable=False)
 
-    __table_args__ = (
-        Index('idx_imagedesc_hash', 'image_description_hash'),
-    )
+    __table_args__ = (Index("idx_imagedesc_hash", "image_description_hash"),)
 
 
 class Videos(Base):
     """视频信息模型"""
-    __tablename__ = 'videos'
+
+    __tablename__ = "videos"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     video_id = Column(Text, nullable=False, default="")
@@ -229,7 +237,7 @@ class Videos(Base):
     count = Column(Integer, nullable=False, default=1)
     timestamp = Column(Float, nullable=False)
     vlm_processed = Column(Boolean, nullable=False, default=False)
-    
+
     # 视频特有属性
     duration = Column(Float, nullable=True)  # 视频时长（秒）
     frame_count = Column(Integer, nullable=True)  # 总帧数
@@ -238,14 +246,15 @@ class Videos(Base):
     file_size = Column(Integer, nullable=True)  # 文件大小（字节）
 
     __table_args__ = (
-        Index('idx_videos_video_hash', 'video_hash'),
-        Index('idx_videos_timestamp', 'timestamp'),
+        Index("idx_videos_video_hash", "video_hash"),
+        Index("idx_videos_timestamp", "timestamp"),
     )
 
 
 class OnlineTime(Base):
     """在线时长记录模型"""
-    __tablename__ = 'online_time'
+
+    __tablename__ = "online_time"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(Text, nullable=False, default=str(datetime.datetime.now))
@@ -253,14 +262,13 @@ class OnlineTime(Base):
     start_timestamp = Column(DateTime, nullable=False, default=datetime.datetime.now)
     end_timestamp = Column(DateTime, nullable=False, index=True)
 
-    __table_args__ = (
-        Index('idx_onlinetime_end_timestamp', 'end_timestamp'),
-    )
+    __table_args__ = (Index("idx_onlinetime_end_timestamp", "end_timestamp"),)
 
 
 class PersonInfo(Base):
     """人物信息模型"""
-    __tablename__ = 'person_info'
+
+    __tablename__ = "person_info"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     person_id = Column(get_string_field(100), nullable=False, unique=True, index=True)
@@ -280,14 +288,15 @@ class PersonInfo(Base):
     attitude = Column(Integer, nullable=True, default=50)
 
     __table_args__ = (
-        Index('idx_personinfo_person_id', 'person_id'),
-        Index('idx_personinfo_user_id', 'user_id'),
+        Index("idx_personinfo_person_id", "person_id"),
+        Index("idx_personinfo_user_id", "user_id"),
     )
 
 
 class Memory(Base):
     """记忆模型"""
-    __tablename__ = 'memory'
+
+    __tablename__ = "memory"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     memory_id = Column(get_string_field(64), nullable=False, index=True)
@@ -297,14 +306,13 @@ class Memory(Base):
     create_time = Column(Float, nullable=True)
     last_view_time = Column(Float, nullable=True)
 
-    __table_args__ = (
-        Index('idx_memory_memory_id', 'memory_id'),
-    )
+    __table_args__ = (Index("idx_memory_memory_id", "memory_id"),)
 
 
 class Expression(Base):
     """表达风格模型"""
-    __tablename__ = 'expression'
+
+    __tablename__ = "expression"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     situation: Mapped[str] = mapped_column(Text, nullable=False)
@@ -315,14 +323,13 @@ class Expression(Base):
     type: Mapped[str] = mapped_column(Text, nullable=False)
     create_date: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    __table_args__ = (
-        Index('idx_expression_chat_id', 'chat_id'),
-    )
+    __table_args__ = (Index("idx_expression_chat_id", "chat_id"),)
 
 
 class ThinkingLog(Base):
     """思考日志模型"""
-    __tablename__ = 'thinking_logs'
+
+    __tablename__ = "thinking_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     chat_id = Column(get_string_field(64), nullable=False, index=True)
@@ -338,14 +345,13 @@ class ThinkingLog(Base):
     reasoning_data_json = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
 
-    __table_args__ = (
-        Index('idx_thinkinglog_chat_id', 'chat_id'),
-    )
+    __table_args__ = (Index("idx_thinkinglog_chat_id", "chat_id"),)
 
 
 class GraphNodes(Base):
     """记忆图节点模型"""
-    __tablename__ = 'graph_nodes'
+
+    __tablename__ = "graph_nodes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     concept = Column(get_string_field(255), nullable=False, unique=True, index=True)
@@ -354,14 +360,13 @@ class GraphNodes(Base):
     created_time = Column(Float, nullable=False)
     last_modified = Column(Float, nullable=False)
 
-    __table_args__ = (
-        Index('idx_graphnodes_concept', 'concept'),
-    )
+    __table_args__ = (Index("idx_graphnodes_concept", "concept"),)
 
 
 class GraphEdges(Base):
     """记忆图边模型"""
-    __tablename__ = 'graph_edges'
+
+    __tablename__ = "graph_edges"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     source = Column(get_string_field(255), nullable=False, index=True)
@@ -372,14 +377,15 @@ class GraphEdges(Base):
     last_modified = Column(Float, nullable=False)
 
     __table_args__ = (
-        Index('idx_graphedges_source', 'source'),
-        Index('idx_graphedges_target', 'target'),
+        Index("idx_graphedges_source", "source"),
+        Index("idx_graphedges_target", "target"),
     )
 
 
 class Schedule(Base):
     """日程模型"""
-    __tablename__ = 'schedule'
+
+    __tablename__ = "schedule"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     date = Column(get_string_field(10), nullable=False, unique=True, index=True)  # YYYY-MM-DD格式
@@ -387,17 +393,18 @@ class Schedule(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
     updated_at = Column(DateTime, nullable=False, default=datetime.datetime.now, onupdate=datetime.datetime.now)
 
-    __table_args__ = (
-        Index('idx_schedule_date', 'date'),
-    )
+    __table_args__ = (Index("idx_schedule_date", "date"),)
 
 
-class  MaiZoneScheduleStatus(Base):
+class MaiZoneScheduleStatus(Base):
     """麦麦空间日程处理状态模型"""
-    __tablename__ = 'maizone_schedule_status'
+
+    __tablename__ = "maizone_schedule_status"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    datetime_hour = Column(get_string_field(13), nullable=False, unique=True, index=True)  # YYYY-MM-DD HH格式，精确到小时
+    datetime_hour = Column(
+        get_string_field(13), nullable=False, unique=True, index=True
+    )  # YYYY-MM-DD HH格式，精确到小时
     activity = Column(Text, nullable=False)  # 该小时的活动内容
     is_processed = Column(Boolean, nullable=False, default=False)  # 是否已处理
     processed_at = Column(DateTime, nullable=True)  # 处理时间
@@ -407,14 +414,15 @@ class  MaiZoneScheduleStatus(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.datetime.now, onupdate=datetime.datetime.now)
 
     __table_args__ = (
-        Index('idx_maizone_datetime_hour', 'datetime_hour'),
-        Index('idx_maizone_is_processed', 'is_processed'),
+        Index("idx_maizone_datetime_hour", "datetime_hour"),
+        Index("idx_maizone_is_processed", "is_processed"),
     )
 
 
 class BanUser(Base):
     """被禁用用户模型"""
-    __tablename__ = 'ban_users'
+
+    __tablename__ = "ban_users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     platform = Column(Text, nullable=False)
@@ -424,112 +432,119 @@ class BanUser(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
 
     __table_args__ = (
-        Index('idx_violation_num', 'violation_num'),
-        Index('idx_banuser_user_id', 'user_id'),
-        Index('idx_banuser_platform', 'platform'),
-        Index('idx_banuser_platform_user_id', 'platform', 'user_id'),
+        Index("idx_violation_num", "violation_num"),
+        Index("idx_banuser_user_id", "user_id"),
+        Index("idx_banuser_platform", "platform"),
+        Index("idx_banuser_platform_user_id", "platform", "user_id"),
     )
 
 
 class AntiInjectionStats(Base):
     """反注入系统统计模型"""
-    __tablename__ = 'anti_injection_stats'
+
+    __tablename__ = "anti_injection_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     total_messages = Column(Integer, nullable=False, default=0)
     """总处理消息数"""
-    
+
     detected_injections = Column(Integer, nullable=False, default=0)
     """检测到的注入攻击数"""
-    
+
     blocked_messages = Column(Integer, nullable=False, default=0)
     """被阻止的消息数"""
-    
+
     shielded_messages = Column(Integer, nullable=False, default=0)
     """被加盾的消息数"""
-    
+
     processing_time_total = Column(Float, nullable=False, default=0.0)
     """总处理时间"""
-    
+
     total_process_time = Column(Float, nullable=False, default=0.0)
     """累计总处理时间"""
-    
+
     last_process_time = Column(Float, nullable=False, default=0.0)
     """最近一次处理时间"""
-    
+
     error_count = Column(Integer, nullable=False, default=0)
     """错误计数"""
-    
+
     start_time = Column(DateTime, nullable=False, default=datetime.datetime.now)
     """统计开始时间"""
-    
+
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
     """记录创建时间"""
-    
+
     updated_at = Column(DateTime, nullable=False, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     """记录更新时间"""
 
     __table_args__ = (
-        Index('idx_anti_injection_stats_created_at', 'created_at'),
-        Index('idx_anti_injection_stats_updated_at', 'updated_at'),
+        Index("idx_anti_injection_stats_created_at", "created_at"),
+        Index("idx_anti_injection_stats_updated_at", "updated_at"),
     )
 
 
 class CacheEntries(Base):
     """工具缓存条目模型"""
-    __tablename__ = 'cache_entries'
+
+    __tablename__ = "cache_entries"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     cache_key = Column(get_string_field(500), nullable=False, unique=True, index=True)
     """缓存键，包含工具名、参数和代码哈希"""
-    
+
     cache_value = Column(Text, nullable=False)
     """缓存的数据，JSON格式"""
-    
+
     expires_at = Column(Float, nullable=False, index=True)
     """过期时间戳"""
-    
+
     tool_name = Column(get_string_field(100), nullable=False, index=True)
     """工具名称"""
-    
+
     created_at = Column(Float, nullable=False, default=lambda: time.time())
     """创建时间戳"""
-    
+
     last_accessed = Column(Float, nullable=False, default=lambda: time.time())
     """最后访问时间戳"""
-    
+
     access_count = Column(Integer, nullable=False, default=0)
     """访问次数"""
 
     __table_args__ = (
-        Index('idx_cache_entries_key', 'cache_key'),
-        Index('idx_cache_entries_expires_at', 'expires_at'),
-        Index('idx_cache_entries_tool_name', 'tool_name'),
-        Index('idx_cache_entries_created_at', 'created_at'),
+        Index("idx_cache_entries_key", "cache_key"),
+        Index("idx_cache_entries_expires_at", "expires_at"),
+        Index("idx_cache_entries_tool_name", "tool_name"),
+        Index("idx_cache_entries_created_at", "created_at"),
     )
+
 
 class MonthlyPlan(Base):
     """月度计划模型"""
-    __tablename__ = 'monthly_plans'
+
+    __tablename__ = "monthly_plans"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     plan_text = Column(Text, nullable=False)
     target_month = Column(String(7), nullable=False, index=True)  # "YYYY-MM"
-    status = Column(get_string_field(20), nullable=False, default='active', index=True)  # 'active', 'completed', 'archived'
+    status = Column(
+        get_string_field(20), nullable=False, default="active", index=True
+    )  # 'active', 'completed', 'archived'
     usage_count = Column(Integer, nullable=False, default=0)
     last_used_date = Column(String(10), nullable=True, index=True)  # "YYYY-MM-DD" format
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
-    
+
     # 保留 is_deleted 字段以兼容现有数据，但标记为已弃用
     is_deleted = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
-        Index('idx_monthlyplan_target_month_status', 'target_month', 'status'),
-        Index('idx_monthlyplan_last_used_date', 'last_used_date'),
-        Index('idx_monthlyplan_usage_count', 'usage_count'),
+        Index("idx_monthlyplan_target_month_status", "target_month", "status"),
+        Index("idx_monthlyplan_last_used_date", "last_used_date"),
+        Index("idx_monthlyplan_usage_count", "usage_count"),
         # 保留旧索引以兼容
-        Index('idx_monthlyplan_target_month_is_deleted', 'target_month', 'is_deleted'),
+        Index("idx_monthlyplan_target_month_is_deleted", "target_month", "is_deleted"),
     )
+
 
 # 数据库引擎和会话管理
 _engine = None
@@ -539,14 +554,16 @@ _SessionLocal = None
 def get_database_url():
     """获取数据库连接URL"""
     from src.config.config import global_config
+
     config = global_config.database
 
     if config.database_type == "mysql":
         # 对用户名和密码进行URL编码，处理特殊字符
         from urllib.parse import quote_plus
+
         encoded_user = quote_plus(config.mysql_user)
         encoded_password = quote_plus(config.mysql_password)
-        
+
         # 检查是否配置了Unix socket连接
         if config.mysql_unix_socket:
             # 使用Unix socket连接
@@ -586,51 +603,57 @@ def initialize_database():
 
     database_url = get_database_url()
     from src.config.config import global_config
+
     config = global_config.database
 
     # 配置引擎参数
     engine_kwargs: Dict[str, Any] = {
-        'echo': False,  # 生产环境关闭SQL日志
-        'future': True,
+        "echo": False,  # 生产环境关闭SQL日志
+        "future": True,
     }
 
     if config.database_type == "mysql":
         # MySQL连接池配置
-        engine_kwargs.update({
-            'poolclass': QueuePool,
-            'pool_size': config.connection_pool_size,
-            'max_overflow': config.connection_pool_size * 2,
-            'pool_timeout': config.connection_timeout,
-            'pool_recycle': 3600,  # 1小时回收连接
-            'pool_pre_ping': True,  # 连接前ping检查
-            'connect_args': {
-                'autocommit': config.mysql_autocommit,
-                'charset': config.mysql_charset,
-                'connect_timeout': config.connection_timeout,
-                'read_timeout': 30,
-                'write_timeout': 30,
+        engine_kwargs.update(
+            {
+                "poolclass": QueuePool,
+                "pool_size": config.connection_pool_size,
+                "max_overflow": config.connection_pool_size * 2,
+                "pool_timeout": config.connection_timeout,
+                "pool_recycle": 3600,  # 1小时回收连接
+                "pool_pre_ping": True,  # 连接前ping检查
+                "connect_args": {
+                    "autocommit": config.mysql_autocommit,
+                    "charset": config.mysql_charset,
+                    "connect_timeout": config.connection_timeout,
+                    "read_timeout": 30,
+                    "write_timeout": 30,
+                },
             }
-        })
+        )
     else:
         # SQLite配置 - 添加连接池设置以避免连接耗尽
-        engine_kwargs.update({
-            'poolclass': QueuePool,
-            'pool_size': 20,  # 增加池大小
-            'max_overflow': 30,  # 增加溢出连接数
-            'pool_timeout': 60,  # 增加超时时间
-            'pool_recycle': 3600,  # 1小时回收连接
-            'pool_pre_ping': True,  # 连接前ping检查
-            'connect_args': {
-                'check_same_thread': False,
-                'timeout': 30,
+        engine_kwargs.update(
+            {
+                "poolclass": QueuePool,
+                "pool_size": 20,  # 增加池大小
+                "max_overflow": 30,  # 增加溢出连接数
+                "pool_timeout": 60,  # 增加超时时间
+                "pool_recycle": 3600,  # 1小时回收连接
+                "pool_pre_ping": True,  # 连接前ping检查
+                "connect_args": {
+                    "check_same_thread": False,
+                    "timeout": 30,
+                },
             }
-        })
+        )
 
     _engine = create_engine(database_url, **engine_kwargs)
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 
     # 调用新的迁移函数，它会处理表的创建和列的添加
     from src.common.database.db_migration import check_and_migrate_database
+
     check_and_migrate_database()
 
     logger.info(f"SQLAlchemy数据库初始化成功: {config.database_type}")
@@ -647,7 +670,7 @@ def get_db_session() -> Iterator[Session]:
             raise RuntimeError("Database session not initialized")
         session = SessionLocal()
         yield session
-        #session.commit()
+        # session.commit()
     except Exception:
         if session:
             session.rollback()
@@ -655,7 +678,6 @@ def get_db_session() -> Iterator[Session]:
     finally:
         if session:
             session.close()
-            
 
 
 def get_engine():
@@ -666,7 +688,8 @@ def get_engine():
 
 class PermissionNodes(Base):
     """权限节点模型"""
-    __tablename__ = 'permission_nodes'
+
+    __tablename__ = "permission_nodes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     node_name = Column(get_string_field(255), nullable=False, unique=True, index=True)  # 权限节点名称
@@ -674,16 +697,17 @@ class PermissionNodes(Base):
     plugin_name = Column(get_string_field(100), nullable=False, index=True)  # 所属插件
     default_granted = Column(Boolean, default=False, nullable=False)  # 默认是否授权
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)  # 创建时间
-    
+
     __table_args__ = (
-        Index('idx_permission_plugin', 'plugin_name'),
-        Index('idx_permission_node', 'node_name'),
+        Index("idx_permission_plugin", "plugin_name"),
+        Index("idx_permission_node", "node_name"),
     )
 
 
 class UserPermissions(Base):
     """用户权限模型"""
-    __tablename__ = 'user_permissions'
+
+    __tablename__ = "user_permissions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     platform = Column(get_string_field(50), nullable=False, index=True)  # 平台类型
@@ -692,9 +716,9 @@ class UserPermissions(Base):
     granted = Column(Boolean, default=True, nullable=False)  # 是否授权
     granted_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)  # 授权时间
     granted_by = Column(get_string_field(100), nullable=True)  # 授权者信息
-    
+
     __table_args__ = (
-        Index('idx_user_platform_id', 'platform', 'user_id'),
-        Index('idx_user_permission', 'platform', 'user_id', 'permission_node'),
-        Index('idx_permission_granted', 'permission_node', 'granted'),
+        Index("idx_user_platform_id", "platform", "user_id"),
+        Index("idx_user_permission", "platform", "user_id", "permission_node"),
+        Index("idx_permission_granted", "permission_node", "granted"),
     )

@@ -90,10 +90,10 @@ class PluginBase(ABC):
 
         # 标准化Python依赖为PythonDependency对象
         normalized_python_deps = self._normalize_python_dependencies(self.python_dependencies)
-        
+
         # 检查Python依赖
         self._check_python_dependencies(normalized_python_deps)
-        
+
         # 创建插件信息对象
         self.plugin_info = PluginInfo(
             name=self.plugin_name,
@@ -560,7 +560,7 @@ class PluginBase(ABC):
     def _normalize_python_dependencies(self, dependencies: Any) -> List[PythonDependency]:
         """将依赖列表标准化为PythonDependency对象"""
         from packaging.requirements import Requirement
-        
+
         normalized = []
         for dep in dependencies:
             if isinstance(dep, str):
@@ -568,23 +568,22 @@ class PluginBase(ABC):
                     # 尝试解析为requirement格式 (如 "package>=1.0.0")
                     req = Requirement(dep)
                     version_spec = str(req.specifier) if req.specifier else ""
-                    
-                    normalized.append(PythonDependency(
-                        package_name=req.name,
-                        version=version_spec,
-                        install_name=dep  # 保持原始的安装名称
-                    ))
+
+                    normalized.append(
+                        PythonDependency(
+                            package_name=req.name,
+                            version=version_spec,
+                            install_name=dep,  # 保持原始的安装名称
+                        )
+                    )
                 except Exception:
                     # 如果解析失败，作为简单包名处理
-                    normalized.append(PythonDependency(
-                        package_name=dep,
-                        install_name=dep
-                    ))
+                    normalized.append(PythonDependency(package_name=dep, install_name=dep))
             elif isinstance(dep, PythonDependency):
                 normalized.append(dep)
             else:
                 logger.warning(f"{self.log_prefix} 未知的依赖格式: {dep}")
-        
+
         return normalized
 
     def _check_python_dependencies(self, dependencies: List[PythonDependency]) -> bool:
@@ -596,10 +595,10 @@ class PluginBase(ABC):
         try:
             # 延迟导入以避免循环依赖
             from src.plugin_system.utils.dependency_manager import get_dependency_manager
-            
+
             dependency_manager = get_dependency_manager()
             success, errors = dependency_manager.check_and_install_dependencies(dependencies, self.plugin_name)
-            
+
             if success:
                 logger.info(f"{self.log_prefix} Python依赖检查通过")
                 return True
@@ -608,7 +607,7 @@ class PluginBase(ABC):
                 for error in errors:
                     logger.error(f"{self.log_prefix}   - {error}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"{self.log_prefix} Python依赖检查时发生异常: {e}", exc_info=True)
             return False

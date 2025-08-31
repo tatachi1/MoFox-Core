@@ -13,6 +13,7 @@ from sqlalchemy import select, update, desc
 
 logger = get_logger("message_storage")
 
+
 class MessageStorage:
     @staticmethod
     def _serialize_keywords(keywords) -> str:
@@ -92,7 +93,7 @@ class MessageStorage:
             user_info_from_chat = chat_info_dict.get("user_info") or {}
 
             # 将priority_info字典序列化为JSON字符串，以便存储到数据库的Text字段
-            priority_info_json = orjson.dumps(priority_info).decode('utf-8') if priority_info else None
+            priority_info_json = orjson.dumps(priority_info).decode("utf-8") if priority_info else None
 
             # 获取数据库会话
 
@@ -134,7 +135,7 @@ class MessageStorage:
             with get_db_session() as session:
                 session.add(new_message)
                 session.commit()
-                
+
         except Exception:
             logger.exception("存储消息失败")
             logger.error(f"消息：{message}")
@@ -146,9 +147,9 @@ class MessageStorage:
         try:
             mmc_message_id = message.message_info.message_id
             qq_message_id = None
-            
+
             logger.debug(f"尝试更新消息ID: {mmc_message_id}, 消息段类型: {message.message_segment.type}")
-            
+
             # 根据消息段类型提取message_id
             if message.message_segment.type == "notify":
                 qq_message_id = message.message_segment.data.get("id")
@@ -167,7 +168,7 @@ class MessageStorage:
             else:
                 logger.debug(f"未知的消息段类型: {message.message_segment.type}，跳过ID更新")
                 return
-                
+
             if not qq_message_id:
                 logger.debug(f"消息段类型 {message.message_segment.type} 中未找到有效的message_id，跳过更新")
                 logger.debug(f"消息段数据: {message.message_segment.data}")
@@ -175,6 +176,7 @@ class MessageStorage:
 
             # 使用上下文管理器确保session正确管理
             from src.common.database.sqlalchemy_models import get_db_session
+
             with get_db_session() as session:
                 matched_message = session.execute(
                     select(Messages).where(Messages.message_id == mmc_message_id).order_by(desc(Messages.time))
@@ -192,8 +194,10 @@ class MessageStorage:
 
         except Exception as e:
             logger.error(f"更新消息ID失败: {e}")
-            logger.error(f"消息信息: message_id={getattr(message.message_info, 'message_id', 'N/A')}, "
-                        f"segment_type={getattr(message.message_segment, 'type', 'N/A')}")
+            logger.error(
+                f"消息信息: message_id={getattr(message.message_info, 'message_id', 'N/A')}, "
+                f"segment_type={getattr(message.message_segment, 'type', 'N/A')}"
+            )
 
     @staticmethod
     def replace_image_descriptions(text: str) -> str:
@@ -210,6 +214,7 @@ class MessageStorage:
             description = match.group(1).strip()
             try:
                 from src.common.database.sqlalchemy_models import get_db_session
+
                 with get_db_session() as session:
                     image_record = session.execute(
                         select(Images).where(Images.description == description).order_by(desc(Images.timestamp))

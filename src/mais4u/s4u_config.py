@@ -10,9 +10,11 @@ from src.common.logger import get_logger
 
 logger = get_logger("s4u_config")
 
+
 # 新增：兼容dict和tomlkit Table
 def is_dict_like(obj):
     return isinstance(obj, (dict, Table))
+
 
 # 新增：递归将Table转为dict
 def table_to_dict(obj):
@@ -24,6 +26,7 @@ def table_to_dict(obj):
         return [table_to_dict(i) for i in obj]
     else:
         return obj
+
 
 # 获取mais4u模块目录
 MAIS4U_ROOT = os.path.dirname(__file__)
@@ -229,19 +232,18 @@ class S4UConfig(S4UConfigBase):
 
     enable_streaming_output: bool = True
     """是否启用流式输出，false时全部生成后一次性发送"""
-    
+
     max_context_message_length: int = 20
     """上下文消息最大长度"""
-    
+
     max_core_message_length: int = 30
-    """核心消息最大长度"""  
+    """核心消息最大长度"""
 
     # 模型配置
     models: S4UModelConfig = field(default_factory=S4UModelConfig)
     """S4U模型配置"""
 
     # 兼容性字段，保持向后兼容
-
 
 
 @dataclass
@@ -256,7 +258,7 @@ def update_s4u_config():
     """更新S4U配置文件"""
     # 创建配置目录（如果不存在）
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    
+
     # 检查模板文件是否存在
     if not os.path.exists(TEMPLATE_PATH):
         logger.error(f"S4U配置模板文件不存在: {TEMPLATE_PATH}")
@@ -363,4 +365,4 @@ update_s4u_config()
 s4u_config_main = load_s4u_config(config_path=CONFIG_PATH)
 logger.info("S4U配置文件加载完成！")
 
-s4u_config: S4UConfig = s4u_config_main.s4u
+    s4u_config: S4UConfig = s4u_config_main.s4u

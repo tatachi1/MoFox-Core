@@ -17,6 +17,7 @@ from src.mais4u.mais4u_chat.screen_manager import screen_manager
 from src.chat.express.expression_selector import expression_selector
 from .s4u_mood_manager import mood_manager
 from src.mais4u.mais4u_chat.internal_manager import internal_manager
+
 logger = get_logger("prompt")
 
 
@@ -58,7 +59,7 @@ def init_prompt():
 """,
         "s4u_prompt",  # New template for private CHAT chat
     )
-    
+
     Prompt(
         """
 你的名字是麦麦, 是千石可乐开发的程序，可以在QQ，微信等平台发言，你现在正在哔哩哔哩作为虚拟主播进行直播
@@ -95,9 +96,8 @@ class PromptBuilder:
     def __init__(self):
         self.prompt_built = ""
         self.activate_messages = ""
-    
-    async def build_expression_habits(self, chat_stream: ChatStream, chat_history, target):
 
+    async def build_expression_habits(self, chat_stream: ChatStream, chat_history, target):
         style_habits = []
 
         # 使用从处理器传来的选中表达方式
@@ -176,7 +176,6 @@ class PromptBuilder:
             limit=300,
         )
 
-
         talk_type = f"{message.message_info.platform}:{str(message.chat_stream.user_info.user_id)}"
 
         core_dialogue_list = []
@@ -193,7 +192,7 @@ class PromptBuilder:
                     elif msg_dict.get("reply_to") and talk_type != msg_dict.get("reply_to"):
                         background_dialogue_list.append(msg_dict)
                     # else:
-                        # background_dialogue_list.append(msg_dict)
+                    # background_dialogue_list.append(msg_dict)
                 elif msg_user_id == target_user_id:
                     core_dialogue_list.append(msg_dict)
                 else:
@@ -203,7 +202,7 @@ class PromptBuilder:
 
         background_dialogue_prompt = ""
         if background_dialogue_list:
-            context_msgs = background_dialogue_list[-s4u_config.max_context_message_length:]
+            context_msgs = background_dialogue_list[-s4u_config.max_context_message_length :]
             background_dialogue_prompt_str = build_readable_messages(
                 context_msgs,
                 timestamp_mode="normal_no_YMD",
@@ -213,7 +212,7 @@ class PromptBuilder:
 
         core_msg_str = ""
         if core_dialogue_list:
-            core_dialogue_list = core_dialogue_list[-s4u_config.max_core_message_length:]
+            core_dialogue_list = core_dialogue_list[-s4u_config.max_core_message_length :]
 
             first_msg = core_dialogue_list[0]
             start_speaking_user_id = first_msg.get("user_id")
@@ -248,7 +247,6 @@ class PromptBuilder:
             for msg in all_msg_seg_list:
                 core_msg_str += msg
 
-
         all_dialogue_prompt = get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_stream.stream_id,
             timestamp=time.time(),
@@ -260,33 +258,33 @@ class PromptBuilder:
             show_pic=False,
         )
 
-
-        return core_msg_str, background_dialogue_prompt,all_dialogue_prompt_str
+        return core_msg_str, background_dialogue_prompt, all_dialogue_prompt_str
 
     def build_gift_info(self, message: MessageRecvS4U):
         if message.is_gift:
-            return f"这是一条礼物信息，{message.gift_name} x{message.gift_count}，请注意这位用户"        
+            return f"这是一条礼物信息，{message.gift_name} x{message.gift_count}，请注意这位用户"
         else:
             if message.is_fake_gift:
                 return f"{message.processed_plain_text}（注意：这是一条普通弹幕信息，对方没有真的发送礼物，不是礼物信息，注意区分，如果对方在发假的礼物骗你，请反击）"
-        
+
         return ""
 
     def build_sc_info(self, message: MessageRecvS4U):
         super_chat_manager = get_super_chat_manager()
         return super_chat_manager.build_superchat_summary_string(message.chat_stream.stream_id)
 
-
     async def build_prompt_normal(
         self,
         message: MessageRecvS4U,
         message_txt: str,
     ) -> str:
-        
         chat_stream = message.chat_stream
-        
-        person = Person(platform=message.chat_stream.user_info.platform, user_id=message.chat_stream.user_info.user_id)
-        person_name = person.person_name
+
+        person_id = PersonInfoManager.get_person_id(
+            message.chat_stream.user_info.platform, message.chat_stream.user_info.user_id
+        )
+        person_info_manager = get_person_info_manager()
+        person_name = await person_info_manager.get_value(person_id, "person_name")
 
         if message.chat_stream.user_info.user_nickname:
             if person_name:
@@ -295,28 +293,31 @@ class PromptBuilder:
                 sender_name = f"[{message.chat_stream.user_info.user_nickname}]"
         else:
             sender_name = f"用户({message.chat_stream.user_info.user_id})"
-        
-        
+
         relation_info_block, memory_block, expression_habits_block = await asyncio.gather(
-            self.build_relation_info(chat_stream), self.build_memory_block(message_txt), self.build_expression_habits(chat_stream, message_txt, sender_name)
+            self.build_relation_info(chat_stream),
+            self.build_memory_block(message_txt),
+            self.build_expression_habits(chat_stream, message_txt, sender_name),
         )
 
-        core_dialogue_prompt, background_dialogue_prompt,all_dialogue_prompt = self.build_chat_history_prompts(chat_stream, message)
-        
+        core_dialogue_prompt, background_dialogue_prompt, all_dialogue_prompt = self.build_chat_history_prompts(
+            chat_stream, message
+        )
+
         gift_info = self.build_gift_info(message)
-        
+
         sc_info = self.build_sc_info(message)
-        
+
         screen_info = screen_manager.get_screen_str()
-        
+
         internal_state = internal_manager.get_internal_state_str()
 
         time_block = f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        
+
         mood = mood_manager.get_mood_by_chat_id(chat_stream.stream_id)
 
         template_name = "s4u_prompt"
-        
+
         if not message.is_internal:
             prompt = await global_prompt_manager.format_prompt(
                 template_name,
@@ -349,7 +350,7 @@ class PromptBuilder:
                 mind=message.processed_plain_text,
                 mood_state=mood.mood_state,
             )
-            
+
         # print(prompt)
 
         return prompt

@@ -24,6 +24,7 @@ from src.plugin_system.core.component_registry import component_registry
 from src.schedule.schedule_manager import schedule_manager
 from src.mood.mood_manager import mood_manager
 from src.chat.memory_system.Hippocampus import hippocampus_manager
+
 logger = get_logger("planner")
 
 install(extra_lines=3)
@@ -31,7 +32,7 @@ install(extra_lines=3)
 
 def init_prompt():
     Prompt(
-"""
+        """
 {schedule_block}
 {mood_block}
 {time_block}
@@ -64,13 +65,13 @@ def init_prompt():
 
 你必须从上面列出的可用action中选择一个，并说明触发action的消息id（不是消息原文）和选择该action的原因。消息id格式:m+数字
 
-请根据动作示例，以严格的 JSON 格式输出，且仅包含 JSON 内容：
+请根据动作示例，以严格的 JSON 格式输出，不要输出markdown格式```json等内容，直接输出且仅包含 JSON 内容：
 """,
         "planner_prompt",
     )
 
     Prompt(
-"""
+        """
 # 主动思考决策
 
 ## 你的内部状态
@@ -144,9 +145,7 @@ class ActionPlanner:
 
             # 2. 调用 hippocampus_manager 检索记忆
             retrieved_memories = await hippocampus_manager.get_memory_from_topic(
-                valid_keywords=keywords,
-                max_memory_num=5,
-                max_memory_length=1
+                valid_keywords=keywords, max_memory_num=5, max_memory_length=1
             )
 
             if not retrieved_memories:
@@ -156,13 +155,15 @@ class ActionPlanner:
             memory_statements = []
             for topic, memory_item in retrieved_memories:
                 memory_statements.append(f"关于'{topic}', 你记得'{memory_item}'。")
-            
+
             return " ".join(memory_statements)
         except Exception as e:
             logger.error(f"获取长期记忆时出错: {e}")
             return "回忆时出现了一些问题。"
 
-    async def _build_action_options(self, current_available_actions: Dict[str, ActionInfo], mode: ChatMode, target_prompt: str = "") -> str:
+    async def _build_action_options(
+        self, current_available_actions: Dict[str, ActionInfo], mode: ChatMode, target_prompt: str = ""
+    ) -> str:
         """
         构建动作选项
         """
@@ -180,11 +181,13 @@ class ActionPlanner:
 """
         for action_name, action_info in current_available_actions.items():
             # TODO: 增加一个字段来判断action是否支持在PROACTIVE模式下使用
-            
+
             param_text = ""
             if action_info.action_parameters:
-                param_text = "\n" + "\n".join(f'    "{p_name}":"{p_desc}"' for p_name, p_desc in action_info.action_parameters.items())
-            
+                param_text = "\n" + "\n".join(
+                    f'    "{p_name}":"{p_desc}"' for p_name, p_desc in action_info.action_parameters.items()
+                )
+
             require_text = "\n".join(f"- {req}" for req in action_info.action_require)
 
             using_action_prompt = await global_prompt_manager.get_prompt_async("action_prompt")
@@ -216,10 +219,10 @@ class ActionPlanner:
     def get_latest_message(self, message_id_list: list) -> Optional[Dict[str, Any]]:
         """
         获取消息列表中的最新消息
-        
+
         Args:
             message_id_list: 消息ID列表，格式为[{'id': str, 'message': dict}, ...]
-            
+
         Returns:
             最新的消息字典，如果列表为空则返回None
         """
@@ -228,9 +231,7 @@ class ActionPlanner:
         # 假设消息列表是按时间顺序排列的，最后一个是最新的
         return message_id_list[-1].get("message")
 
-    async def plan(
-        self, mode: ChatMode = ChatMode.FOCUS
-    ) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+    async def plan(self, mode: ChatMode = ChatMode.FOCUS) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         """
         规划器 (Planner): 使用LLM根据上下文决定做出什么动作。
         """
@@ -304,19 +305,23 @@ class ActionPlanner:
                         if target_message_id := parsed_json.get("target_message_id"):
                             if isinstance(target_message_id, int):
                                 target_message_id = str(target_message_id)
-                            
-                            if isinstance(target_message_id, str) and not target_message_id.startswith('m'):
+
+                            if isinstance(target_message_id, str) and not target_message_id.startswith("m"):
                                 target_message_id = f"m{target_message_id}"
                             # 根据target_message_id查找原始消息
                             target_message = self.find_message_by_id(target_message_id, message_id_list)
                             # 如果获取的target_message为None，输出warning并重新plan
                             if target_message is None:
                                 self.plan_retry_count += 1
-                                logger.warning(f"{self.log_prefix}无法找到target_message_id '{target_message_id}' 对应的消息，重试次数: {self.plan_retry_count}/{self.max_plan_retries}")
-                                
+                                logger.warning(
+                                    f"{self.log_prefix}无法找到target_message_id '{target_message_id}' 对应的消息，重试次数: {self.plan_retry_count}/{self.max_plan_retries}"
+                                )
+
                                 # 如果连续三次plan均为None，输出error并选取最新消息
                                 if self.plan_retry_count >= self.max_plan_retries:
-                                    logger.error(f"{self.log_prefix}连续{self.max_plan_retries}次plan获取target_message失败，选择最新消息作为target_message")
+                                    logger.error(
+                                        f"{self.log_prefix}连续{self.max_plan_retries}次plan获取target_message失败，选择最新消息作为target_message"
+                                    )
                                     target_message = self.get_latest_message(message_id_list)
                                     self.plan_retry_count = 0  # 重置计数器
                                 else:
@@ -340,7 +345,7 @@ class ActionPlanner:
                         )
                         reasoning = f"LLM 返回了当前不可用的动作 '{action}' (可用: {list(current_available_actions.keys())})。原始理由: {reasoning}"
                         action = "no_reply"
-                        
+
                         # 检查no_reply是否可用，如果不可用则使用reply作为终极回退
                         if "no_reply" not in current_available_actions:
                             if "reply" in current_available_actions:
@@ -357,7 +362,7 @@ class ActionPlanner:
                                     # 如果没有任何可用动作，这是一个严重错误
                                     logger.error(f"{self.log_prefix}没有任何可用动作，系统状态异常")
                                     action = "no_reply"  # 仍然尝试no_reply，让上层处理
-                    
+
                     # 对no_reply动作本身也进行可用性检查
                     elif action == "no_reply" and "no_reply" not in current_available_actions:
                         if "reply" in current_available_actions:
@@ -376,7 +381,7 @@ class ActionPlanner:
                     traceback.print_exc()
                     reasoning = f"解析LLM响应JSON失败: {json_e}. 将使用默认动作 'no_reply'."
                     action = "no_reply"
-                    
+
                     # 检查no_reply是否可用
                     if "no_reply" not in current_available_actions:
                         if "reply" in current_available_actions:
@@ -391,7 +396,7 @@ class ActionPlanner:
             traceback.print_exc()
             action = "no_reply"
             reasoning = f"Planner 内部处理错误: {outer_e}"
-            
+
             # 检查no_reply是否可用
             current_available_actions = self.action_manager.get_using_actions()
             if "no_reply" not in current_available_actions:
@@ -421,7 +426,6 @@ class ActionPlanner:
             "is_parallel": is_parallel,
         }
 
-
         return (
             {
                 "action_result": action_result,
@@ -443,10 +447,12 @@ class ActionPlanner:
             # --- 通用信息获取 ---
             time_block = f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             bot_name = global_config.bot.nickname
-            bot_nickname = f",也有人叫你{','.join(global_config.bot.alias_names)}" if global_config.bot.alias_names else ""
+            bot_nickname = (
+                f",也有人叫你{','.join(global_config.bot.alias_names)}" if global_config.bot.alias_names else ""
+            )
             bot_core_personality = global_config.personality.personality_core
             identity_block = f"你的名字是{bot_name}{bot_nickname}，你{bot_core_personality}："
-            
+
             schedule_block = ""
             if global_config.schedule.enable:
                 if current_activity := schedule_manager.get_current_activity():
@@ -461,7 +467,7 @@ class ActionPlanner:
             if mode == ChatMode.PROACTIVE:
                 long_term_memory_block = await self._get_long_term_memory_context()
                 action_options_text = await self._build_action_options(current_available_actions, mode)
-                
+
                 prompt_template = await global_prompt_manager.get_prompt_async("proactive_planner_prompt")
                 prompt = prompt_template.format(
                     time_block=time_block,
@@ -521,13 +527,15 @@ class ActionPlanner:
 
             chat_context_description = "你现在正在一个群聊中"
             if not is_group_chat and chat_target_info:
-                chat_target_name = chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or "对方"
+                chat_target_name = (
+                    chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or "对方"
+                )
                 chat_context_description = f"你正在和 {chat_target_name} 私聊"
 
             action_options_block = await self._build_action_options(current_available_actions, mode, target_prompt)
 
             moderation_prompt_block = "请不要输出违法违规内容，不要输出色情，暴力，政治相关内容，如有敏感内容，请规避。"
-            
+
             custom_prompt_block = ""
             if global_config.custom_prompt.planner_custom_prompt_content:
                 custom_prompt_block = global_config.custom_prompt.planner_custom_prompt_content

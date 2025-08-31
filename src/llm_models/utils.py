@@ -145,37 +145,42 @@ class LLMUsageRecorder:
     LLM使用情况记录器（SQLAlchemy版本）
     """
 
-
     def record_usage_to_database(
-        self, model_info: ModelInfo, model_usage: UsageRecord, user_id: str, request_type: str, endpoint: str, time_cost: float = 0.0
+        self,
+        model_info: ModelInfo,
+        model_usage: UsageRecord,
+        user_id: str,
+        request_type: str,
+        endpoint: str,
+        time_cost: float = 0.0,
     ):
         input_cost = (model_usage.prompt_tokens / 1000000) * model_info.price_in
         output_cost = (model_usage.completion_tokens / 1000000) * model_info.price_out
         total_cost = round(input_cost + output_cost, 6)
-        
+
         session = None
         try:
             # 使用 SQLAlchemy 会话创建记录
             with get_db_session() as session:
                 usage_record = LLMUsage(
-                model_name=model_info.model_identifier,
-                model_assign_name=model_info.name,
-                model_api_provider=model_info.api_provider,
-                user_id=user_id,
-                request_type=request_type,
-                endpoint=endpoint,
-                prompt_tokens=model_usage.prompt_tokens or 0,
-                completion_tokens=model_usage.completion_tokens or 0,
-                total_tokens=model_usage.total_tokens or 0,
-                cost=total_cost or 0.0,
-                time_cost = round(time_cost or 0.0, 3),
-                status="success",
-                timestamp=datetime.now(),  # SQLAlchemy 会处理 DateTime 字段
-            )
-            
+                    model_name=model_info.model_identifier,
+                    model_assign_name=model_info.name,
+                    model_api_provider=model_info.api_provider,
+                    user_id=user_id,
+                    request_type=request_type,
+                    endpoint=endpoint,
+                    prompt_tokens=model_usage.prompt_tokens or 0,
+                    completion_tokens=model_usage.completion_tokens or 0,
+                    total_tokens=model_usage.total_tokens or 0,
+                    cost=total_cost or 0.0,
+                    time_cost=round(time_cost or 0.0, 3),
+                    status="success",
+                    timestamp=datetime.now(),  # SQLAlchemy 会处理 DateTime 字段
+                )
+
                 session.add(usage_record)
                 session.commit()
-            
+
             logger.debug(
                 f"Token使用情况 - 模型: {model_usage.model_name}, "
                 f"用户: {user_id}, 类型: {request_type}, "

@@ -256,89 +256,105 @@ def get_actions_by_timestamp_with_chat(
 ) -> List[Dict[str, Any]]:
     """获取在特定聊天从指定时间戳到指定时间戳的动作记录，按时间升序排序，返回动作记录列表"""
     from src.common.logger import get_logger
-    
+
     logger = get_logger("chat_message_builder")
-    
+
     # 记录函数调用参数
-    logger.debug(f"[get_actions_by_timestamp_with_chat] 调用参数: chat_id={chat_id}, "
-                f"timestamp_start={timestamp_start}, timestamp_end={timestamp_end}, "
-                f"limit={limit}, limit_mode={limit_mode}")
-    
+    logger.debug(
+        f"[get_actions_by_timestamp_with_chat] 调用参数: chat_id={chat_id}, "
+        f"timestamp_start={timestamp_start}, timestamp_end={timestamp_end}, "
+        f"limit={limit}, limit_mode={limit_mode}"
+    )
+
     with get_db_session() as session:
         if limit > 0:
             if limit_mode == "latest":
-                query = session.execute(select(ActionRecords).where(
-                    and_(
-                        ActionRecords.chat_id == chat_id,
-                        ActionRecords.time > timestamp_start,
-                        ActionRecords.time < timestamp_end
+                query = session.execute(
+                    select(ActionRecords)
+                    .where(
+                        and_(
+                            ActionRecords.chat_id == chat_id,
+                            ActionRecords.time > timestamp_start,
+                            ActionRecords.time < timestamp_end,
+                        )
                     )
-                ).order_by(ActionRecords.time.desc()).limit(limit))
+                    .order_by(ActionRecords.time.desc())
+                    .limit(limit)
+                )
                 actions = list(query.scalars())
                 actions_result = []
                 for action in reversed(actions):
                     action_dict = {
-                        'id': action.id,
-                        'action_id': action.action_id,
-                        'time': action.time,
-                        'action_name': action.action_name,
-                        'action_data': action.action_data,
-                        'action_done': action.action_done,
-                        'action_build_into_prompt': action.action_build_into_prompt,
-                        'action_prompt_display': action.action_prompt_display,
-                        'chat_id': action.chat_id,
-                        'chat_info_stream_id': action.chat_info_stream_id,
-                        'chat_info_platform': action.chat_info_platform,
+                        "id": action.id,
+                        "action_id": action.action_id,
+                        "time": action.time,
+                        "action_name": action.action_name,
+                        "action_data": action.action_data,
+                        "action_done": action.action_done,
+                        "action_build_into_prompt": action.action_build_into_prompt,
+                        "action_prompt_display": action.action_prompt_display,
+                        "chat_id": action.chat_id,
+                        "chat_info_stream_id": action.chat_info_stream_id,
+                        "chat_info_platform": action.chat_info_platform,
                     }
                     actions_result.append(action_dict)
             else:  # earliest
-                query = session.execute(select(ActionRecords).where(
-                    and_(
-                        ActionRecords.chat_id == chat_id,
-                        ActionRecords.time > timestamp_start,
-                        ActionRecords.time < timestamp_end
+                query = session.execute(
+                    select(ActionRecords)
+                    .where(
+                        and_(
+                            ActionRecords.chat_id == chat_id,
+                            ActionRecords.time > timestamp_start,
+                            ActionRecords.time < timestamp_end,
+                        )
                     )
-                ).order_by(ActionRecords.time.asc()).limit(limit))
+                    .order_by(ActionRecords.time.asc())
+                    .limit(limit)
+                )
                 actions = list(query.scalars())
                 actions_result = []
                 for action in actions:
                     action_dict = {
-                        'id': action.id,
-                        'action_id': action.action_id,
-                        'time': action.time,
-                        'action_name': action.action_name,
-                        'action_data': action.action_data,
-                        'action_done': action.action_done,
-                        'action_build_into_prompt': action.action_build_into_prompt,
-                        'action_prompt_display': action.action_prompt_display,
-                        'chat_id': action.chat_id,
-                        'chat_info_stream_id': action.chat_info_stream_id,
-                        'chat_info_platform': action.chat_info_platform,
+                        "id": action.id,
+                        "action_id": action.action_id,
+                        "time": action.time,
+                        "action_name": action.action_name,
+                        "action_data": action.action_data,
+                        "action_done": action.action_done,
+                        "action_build_into_prompt": action.action_build_into_prompt,
+                        "action_prompt_display": action.action_prompt_display,
+                        "chat_id": action.chat_id,
+                        "chat_info_stream_id": action.chat_info_stream_id,
+                        "chat_info_platform": action.chat_info_platform,
                     }
                     actions_result.append(action_dict)
         else:
-            query = session.execute(select(ActionRecords).where(
-                and_(
-                    ActionRecords.chat_id == chat_id,
-                    ActionRecords.time > timestamp_start,
-                    ActionRecords.time < timestamp_end
+            query = session.execute(
+                select(ActionRecords)
+                .where(
+                    and_(
+                        ActionRecords.chat_id == chat_id,
+                        ActionRecords.time > timestamp_start,
+                        ActionRecords.time < timestamp_end,
+                    )
                 )
-            ).order_by(ActionRecords.time.asc()))
+                .order_by(ActionRecords.time.asc())
+            )
             actions = list(query.scalars())
             actions_result = []
             for action in actions:
                 action_dict = {
-                    'id': action.id,
-                    'action_id': action.action_id,
-                    'time': action.time,
-                    'action_name': action.action_name,
-                    'action_data': action.action_data,
-                    'action_done': action.action_done,
-                    'action_build_into_prompt': action.action_build_into_prompt,
-                    'action_prompt_display': action.action_prompt_display,
-                    'chat_id': action.chat_id,
-                    'chat_info_stream_id': action.chat_info_stream_id,
-                    'chat_info_platform': action.chat_info_platform,
+                    "id": action.id,
+                    "action_id": action.action_id,
+                    "time": action.time,
+                    "action_name": action.action_name,
+                    "action_data": action.action_data,
+                    "action_done": action.action_done,
+                    "action_build_into_prompt": action.action_build_into_prompt,
+                    "action_prompt_display": action.action_prompt_display,
+                    "chat_id": action.chat_id,
+                    "chat_info_stream_id": action.chat_info_stream_id,
+                    "chat_info_platform": action.chat_info_platform,
                 }
                 actions_result.append(action_dict)
         return actions_result
@@ -351,31 +367,45 @@ def get_actions_by_timestamp_with_chat_inclusive(
     with get_db_session() as session:
         if limit > 0:
             if limit_mode == "latest":
-                query = session.execute(select(ActionRecords).where(
-                    and_(
-                        ActionRecords.chat_id == chat_id,
-                        ActionRecords.time >= timestamp_start,
-                        ActionRecords.time <= timestamp_end
+                query = session.execute(
+                    select(ActionRecords)
+                    .where(
+                        and_(
+                            ActionRecords.chat_id == chat_id,
+                            ActionRecords.time >= timestamp_start,
+                            ActionRecords.time <= timestamp_end,
+                        )
                     )
-                ).order_by(ActionRecords.time.desc()).limit(limit))
+                    .order_by(ActionRecords.time.desc())
+                    .limit(limit)
+                )
                 actions = list(query.scalars())
                 return [action.__dict__ for action in reversed(actions)]
             else:  # earliest
-                query = session.execute(select(ActionRecords).where(
+                query = session.execute(
+                    select(ActionRecords)
+                    .where(
+                        and_(
+                            ActionRecords.chat_id == chat_id,
+                            ActionRecords.time >= timestamp_start,
+                            ActionRecords.time <= timestamp_end,
+                        )
+                    )
+                    .order_by(ActionRecords.time.asc())
+                    .limit(limit)
+                )
+        else:
+            query = session.execute(
+                select(ActionRecords)
+                .where(
                     and_(
                         ActionRecords.chat_id == chat_id,
                         ActionRecords.time >= timestamp_start,
-                        ActionRecords.time <= timestamp_end
+                        ActionRecords.time <= timestamp_end,
                     )
-                ).order_by(ActionRecords.time.asc()).limit(limit))
-        else:
-            query = session.execute(select(ActionRecords).where(
-                and_(
-                    ActionRecords.chat_id == chat_id,
-                    ActionRecords.time >= timestamp_start,
-                    ActionRecords.time <= timestamp_end
                 )
-            ).order_by(ActionRecords.time.asc()))
+                .order_by(ActionRecords.time.asc())
+            )
 
         actions = list(query.scalars())
         return [action.__dict__ for action in actions]
@@ -777,7 +807,6 @@ def build_pic_mapping_info(pic_id_mapping: Dict[str, str]) -> str:
     # 按图片编号排序
     sorted_items = sorted(pic_id_mapping.items(), key=lambda x: int(x[1].replace("图片", "")))
 
-
     for pic_id, display_name in sorted_items:
         # 从数据库中获取图片描述
         description = "内容正在阅读，请稍等"
@@ -786,7 +815,8 @@ def build_pic_mapping_info(pic_id_mapping: Dict[str, str]) -> str:
                 image = session.execute(select(Images).where(Images.image_id == pic_id)).scalar()
                 if image and image.description:
                     description = image.description
-        except Exception: ...
+        except Exception:
+            ...
             # 如果查询失败，保持默认描述
 
         mapping_lines.append(f"[{display_name}] 的内容：{description}")
@@ -806,17 +836,18 @@ def build_readable_actions(actions: List[Dict[str, Any]]) -> str:
         格式化的动作字符串。
     """
     from src.common.logger import get_logger
+
     logger = get_logger("chat_message_builder")
-    
+
     logger.debug(f"[build_readable_actions] 开始处理 {len(actions) if actions else 0} 条动作记录")
-    
+
     if not actions:
         logger.debug("[build_readable_actions] 动作记录为空，返回空字符串")
         return ""
 
     output_lines = []
     current_time = time.time()
-    
+
     logger.debug(f"[build_readable_actions] 当前时间戳: {current_time}")
 
     # The get functions return actions sorted ascending by time. Let's reverse it to show newest first.
@@ -825,12 +856,12 @@ def build_readable_actions(actions: List[Dict[str, Any]]) -> str:
     for i, action in enumerate(actions):
         logger.debug(f"[build_readable_actions] === 处理第 {i} 条动作记录 ===")
         logger.debug(f"[build_readable_actions] 原始动作数据: {action}")
-        
+
         action_time = action.get("time", current_time)
         action_name = action.get("action_name", "未知动作")
-        
+
         logger.debug(f"[build_readable_actions] 动作时间戳: {action_time}, 动作名称: '{action_name}'")
-        
+
         # 检查是否是原始的 action_name 值
         original_action_name = action.get("action_name")
         if original_action_name is None:
@@ -839,7 +870,7 @@ def build_readable_actions(actions: List[Dict[str, Any]]) -> str:
             logger.error(f"[build_readable_actions] 动作 #{i}: action_name 为空字符串!")
         elif original_action_name == "未知动作":
             logger.error(f"[build_readable_actions] 动作 #{i}: action_name 已经是'未知动作'!")
-        
+
         if action_name in ["no_action", "no_reply"]:
             logger.debug(f"[build_readable_actions] 跳过动作 #{i}: {action_name} (在跳过列表中)")
             continue
@@ -858,7 +889,7 @@ def build_readable_actions(actions: List[Dict[str, Any]]) -> str:
 
         logger.debug(f"[build_readable_actions] 时间描述: '{time_ago_str}'")
 
-        line = f"{time_ago_str}，你使用了\"{action_name}\"，具体内容是：\"{action_prompt_display}\""
+        line = f'{time_ago_str}，你使用了"{action_name}"，具体内容是："{action_prompt_display}"'
         logger.debug(f"[build_readable_actions] 生成的行: '{line}'")
         output_lines.append(line)
 
@@ -959,23 +990,26 @@ def build_readable_messages(
         chat_id = copy_messages[0].get("chat_id") if copy_messages else None
 
         from src.common.database.sqlalchemy_database_api import get_db_session
+
         with get_db_session() as session:
             # 获取这个时间范围内的动作记录，并匹配chat_id
-            actions_in_range = session.execute(select(ActionRecords).where(
-                and_(
-                    ActionRecords.time >= min_time,
-                    ActionRecords.time <= max_time,
-                    ActionRecords.chat_id == chat_id
+            actions_in_range = session.execute(
+                select(ActionRecords)
+                .where(
+                    and_(
+                        ActionRecords.time >= min_time, ActionRecords.time <= max_time, ActionRecords.chat_id == chat_id
+                    )
                 )
-            ).order_by(ActionRecords.time)).scalars()
+                .order_by(ActionRecords.time)
+            ).scalars()
 
             # 获取最新消息之后的第一个动作记录
-            action_after_latest = session.execute(select(ActionRecords).where(
-                and_(
-                    ActionRecords.time > max_time,
-                    ActionRecords.chat_id == chat_id
-                )
-            ).order_by(ActionRecords.time).limit(1)).scalars()
+            action_after_latest = session.execute(
+                select(ActionRecords)
+                .where(and_(ActionRecords.time > max_time, ActionRecords.chat_id == chat_id))
+                .order_by(ActionRecords.time)
+                .limit(1)
+            ).scalars()
 
             # 合并两部分动作记录，并转为 dict，避免 DetachedInstanceError
             actions = [

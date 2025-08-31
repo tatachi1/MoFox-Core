@@ -3,6 +3,7 @@
 Cookie服务模块
 负责从多种来源获取、缓存和管理QZone的Cookie。
 """
+
 import orjson
 from pathlib import Path
 from typing import Callable, Optional, Dict
@@ -33,7 +34,7 @@ class CookieService:
         cookie_file_path = self._get_cookie_file_path(qq_account)
         try:
             with open(cookie_file_path, "w", encoding="utf-8") as f:
-                f.write(orjson.dumps(cookies, option=orjson.OPT_INDENT_2).decode('utf-8'))
+                f.write(orjson.dumps(cookies, option=orjson.OPT_INDENT_2).decode("utf-8"))
             logger.info(f"Cookie已成功缓存至: {cookie_file_path}")
         except IOError as e:
             logger.error(f"无法写入Cookie文件 {cookie_file_path}: {e}")
@@ -54,14 +55,20 @@ class CookieService:
         try:
             params = {"domain": "user.qzone.qq.com"}
             if stream_id:
-                response = await send_api.adapter_command_to_stream(action="get_cookies", params=params, platform="qq", stream_id=stream_id, timeout=40.0)
+                response = await send_api.adapter_command_to_stream(
+                    action="get_cookies", params=params, platform="qq", stream_id=stream_id, timeout=40.0
+                )
             else:
-                response = await send_api.adapter_command_to_stream(action="get_cookies", params=params, platform="qq", timeout=40.0)
+                response = await send_api.adapter_command_to_stream(
+                    action="get_cookies", params=params, platform="qq", timeout=40.0
+                )
 
             if response and response.get("status") == "ok":
                 cookie_str = response.get("data", {}).get("cookies", "")
                 if cookie_str:
-                    return {k.strip(): v.strip() for k, v in (p.split('=', 1) for p in cookie_str.split('; ') if '=' in p)}
+                    return {
+                        k.strip(): v.strip() for k, v in (p.split("=", 1) for p in cookie_str.split("; ") if "=" in p)
+                    }
         except Exception as e:
             logger.error(f"通过Adapter获取Cookie时发生异常: {e}")
         return None
@@ -72,11 +79,13 @@ class CookieService:
         port = self.get_config("cookie.http_fallback_port", "9999")
 
         if not host or not port:
-            logger.warning("Cookie HTTP备用配置缺失：请在配置文件中设置 cookie.http_fallback_host 和 cookie.http_fallback_port")
+            logger.warning(
+                "Cookie HTTP备用配置缺失：请在配置文件中设置 cookie.http_fallback_host 和 cookie.http_fallback_port"
+            )
             return None
 
         http_url = f"http://{host}:{port}/get_cookies"
-        
+
         try:
             timeout = aiohttp.ClientTimeout(total=15)
             # 根据更可靠的实现，这里应该使用POST并传递domain
@@ -85,13 +94,16 @@ class CookieService:
                 async with session.post(http_url, json=payload, timeout=timeout) as response:
                     response.raise_for_status()
                     data = await response.json()
-                    
+
                     # 确保返回的数据格式被正确解析，兼容Adapter的返回结构
                     cookie_str = data.get("data", {}).get("cookies")
                     if cookie_str and isinstance(cookie_str, str):
                         logger.info("从HTTP备用地址成功解析Cookie字符串。")
-                        return {k.strip(): v.strip() for k, v in (p.split('=', 1) for p in cookie_str.split('; ') if '=' in p)}
-                    
+                        return {
+                            k.strip(): v.strip()
+                            for k, v in (p.split("=", 1) for p in cookie_str.split("; ") if "=" in p)
+                        }
+
                     logger.warning(f"从HTTP备用地址获取的Cookie格式不正确或为空: {data}")
                     return None
         except Exception as e:

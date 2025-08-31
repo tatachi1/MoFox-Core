@@ -1,4 +1,5 @@
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 from ..config import global_config
 import time

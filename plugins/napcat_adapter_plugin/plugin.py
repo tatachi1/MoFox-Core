@@ -1,9 +1,8 @@
-import sys
 import asyncio
 import json
 import inspect
 import websockets as Server
-from . import event_types,CONSTS,event_handlers
+from . import event_types, CONSTS, event_handlers
 
 from typing import List
 
@@ -29,12 +28,14 @@ logger = get_logger("napcat_adapter")
 
 message_queue = asyncio.Queue()
 
+
 def get_classes_in_module(module):
     classes = []
     for name, member in inspect.getmembers(module):
         if inspect.isclass(member):
             classes.append(member)
     return classes
+
 
 class LauchNapcatAdapterHandler(BaseEventHandler):
     """自动启动Adapter"""
@@ -77,30 +78,31 @@ class LauchNapcatAdapterHandler(BaseEventHandler):
         """启动 Napcat WebSocket 连接（支持正向和反向连接）"""
         mode = global_config.napcat_server.mode
         logger.info(f"正在启动 adapter，连接模式: {mode}")
-        
+
         try:
             await websocket_manager.start_connection(self.message_recv)
         except Exception as e:
             logger.error(f"启动 WebSocket 连接失败: {e}")
             raise
 
-    async def execute(self, kwargs):       
+    async def execute(self, kwargs):
         # 执行功能配置迁移（如果需要）
         logger.info("检查功能配置迁移...")
         auto_migrate_features()
-        
+
         # 初始化功能管理器
         logger.info("正在初始化功能管理器...")
         features_manager.load_config()
         await features_manager.start_file_watcher(check_interval=2.0)
         logger.info("功能管理器初始化完成")
-        logger.info("开始启动Napcat Adapter")        
+        logger.info("开始启动Napcat Adapter")
         message_send_instance.maibot_router = router
         # 创建单独的异步任务，防止阻塞主线程
         asyncio.create_task(self.napcat_server())
         asyncio.create_task(mmc_start_com())
         asyncio.create_task(self.message_process())
         asyncio.create_task(check_timeout_response())
+
 
 class APITestHandler(BaseEventHandler):
     handler_name: str = "napcat_api_test_handler"
@@ -109,10 +111,10 @@ class APITestHandler(BaseEventHandler):
     intercept_message: bool = False
     init_subscribe = [EventType.ON_MESSAGE]
 
-    async def execute(self,_):
+    async def execute(self, _):
         logger.info("5s后开始测试napcat接口...")
         await asyncio.sleep(5)
-        '''
+        """
         # 测试获取登录信息
         logger.info("测试获取登录信息...")
         res = await event_manager.trigger_event(
@@ -196,9 +198,10 @@ class APITestHandler(BaseEventHandler):
         logger.info(f"GET_PROFILE_LIKE: {res.get_message_result()}")
         
         logger.info("所有ACCOUNT接口测试完成！")
-        '''
-        return HandlerResult(True,True,"所有接口测试完成")
-        
+        """
+        return HandlerResult(True, True, "所有接口测试完成")
+
+
 @register_plugin
 class NapcatAdapterPlugin(BasePlugin):
     plugin_name = CONSTS.PLUGIN_NAME
@@ -219,26 +222,25 @@ class NapcatAdapterPlugin(BasePlugin):
         }
     }
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for e in event_types.NapcatEvent.ON_RECEIVED:
-            event_manager.register_event(e ,allowed_triggers=[self.plugin_name])
-        
+            event_manager.register_event(e, allowed_triggers=[self.plugin_name])
+
         for e in event_types.NapcatEvent.ACCOUNT:
-            event_manager.register_event(e,allowed_subscribers=[f"{e.value}_handler"])
+            event_manager.register_event(e, allowed_subscribers=[f"{e.value}_handler"])
 
         for e in event_types.NapcatEvent.GROUP:
-            event_manager.register_event(e,allowed_subscribers=[f"{e.value}_handler"])
+            event_manager.register_event(e, allowed_subscribers=[f"{e.value}_handler"])
 
         for e in event_types.NapcatEvent.MESSAGE:
-            event_manager.register_event(e,allowed_subscribers=[f"{e.value}_handler"])
+            event_manager.register_event(e, allowed_subscribers=[f"{e.value}_handler"])
 
     def get_plugin_components(self):
         components = []
         components.append((LauchNapcatAdapterHandler.get_handler_info(), LauchNapcatAdapterHandler))
         components.append((APITestHandler.get_handler_info(), APITestHandler))
         for handler in get_classes_in_module(event_handlers):
-            if issubclass(handler,BaseEventHandler):
+            if issubclass(handler, BaseEventHandler):
                 components.append((handler.get_handler_info(), handler))
         return components

@@ -48,7 +48,7 @@ from .utils.dependency_config import get_dependency_config, configure_dependency
 
 from .apis import (
     chat_api,
-    tool_api,  
+    tool_api,
     component_manage_api,
     config_api,
     database_api,
@@ -91,8 +91,8 @@ __all__ = [
     # 增强命令系统
     "PlusCommand",
     "CommandArgs",
-    "PlusCommandAdapter", 
-    "create_plus_command_adapter", 
+    "PlusCommandAdapter",
+    "create_plus_command_adapter",
     "create_plus_command_adapter",
     # 类型定义
     "ComponentType",

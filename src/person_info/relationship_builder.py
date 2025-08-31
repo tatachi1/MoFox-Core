@@ -351,13 +351,12 @@ class RelationshipBuilder:
     # 统筹各模块协作、对外提供服务接口
     # ================================
 
-    async def build_relation(self,immediate_build: str = "",max_build_threshold: int = MAX_MESSAGE_COUNT):
+    async def build_relation(self, immediate_build: str = "", max_build_threshold: int = MAX_MESSAGE_COUNT):
         """构建关系
         immediate_build: 立即构建关系，可选值为"all"或person_id
         """
         self._cleanup_old_segments()
         current_time = time.time()
-            
 
         if latest_messages := get_raw_msg_by_timestamp_with_chat(
             self.chat_id,
@@ -388,12 +387,11 @@ class RelationshipBuilder:
         users_to_build_relationship = []
         for person_id, segments in self.person_engaged_cache.items():
             total_message_count = self._get_total_message_count(person_id)
-            person = Person(person_id=person_id)
-            if not person.is_known:
-                continue
-            person_name = person.person_name or person_id
-            
-            if total_message_count >= max_build_threshold or (total_message_count >= 5 and (immediate_build == person_id or immediate_build == "all")):
+            person_name = get_person_info_manager().get_value_sync(person_id, "person_name") or person_id
+
+            if total_message_count >= max_build_threshold or (
+                total_message_count >= 5 and (immediate_build == person_id or immediate_build == "all")
+            ):
                 users_to_build_relationship.append(person_id)
                 logger.info(
                     f"{self.log_prefix} 用户 {person_name} 满足关系构建条件，总消息数：{total_message_count}，消息段数：{len(segments)}"
@@ -414,7 +412,6 @@ class RelationshipBuilder:
             # 移除已处理的用户缓存
             del self.person_engaged_cache[person_id]
             self._save_cache()
-            
 
     # ================================
     # 关系构建模块

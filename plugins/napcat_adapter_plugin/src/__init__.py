@@ -2,6 +2,7 @@ from enum import Enum
 import tomlkit
 import os
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 
 
@@ -22,9 +23,7 @@ class CommandType(Enum):
         return self.value
 
 
-pyproject_path = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "pyproject.toml"
-)
+pyproject_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "pyproject.toml")
 toml_data = tomlkit.parse(open(pyproject_path, "r", encoding="utf-8").read())
 project_data = toml_data.get("project", {})
 version = project_data.get("version", "unknown")

@@ -296,18 +296,14 @@ def main():
 
     # 保存简化的结果
     with open(save_path, "w", encoding="utf-8") as f:
-        f.write(orjson.dumps(
-            simplified_result, option=orjson.OPT_INDENT_2).decode('utf-8')
-        )
+        f.write(orjson.dumps(simplified_result, option=orjson.OPT_INDENT_2).decode("utf-8"))
 
     print(f"\n结果已保存到 {save_path}")
 
     # 同时保存完整结果到results目录
     os.makedirs("results", exist_ok=True)
     with open("results/personality_result.json", "w", encoding="utf-8") as f:
-        f.write(orjson.dumps(
-            result, option=orjson.OPT_INDENT_2).decode('utf-8')
-        )
+        f.write(orjson.dumps(result, option=orjson.OPT_INDENT_2).decode("utf-8"))
 
 
 if __name__ == "__main__":

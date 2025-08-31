@@ -64,7 +64,7 @@ class QZoneService:
         """发送一条说说"""
         # --- 获取互通组上下文 ---
         context = await self._get_intercom_context(stream_id) if stream_id else None
-        
+
         story = await self.content_service.generate_story(topic, context=context)
         if not story:
             return {"success": False, "message": "生成说说内容失败"}
@@ -175,9 +175,9 @@ class QZoneService:
             logger.info(f"监控任务: 发现 {len(friend_feeds)} 条好友新动态，准备处理...")
             for feed in friend_feeds:
                 target_qq = feed.get("target_qq")
-                if not target_qq or str(target_qq) == str(qq_account): # 确保不重复处理自己的
+                if not target_qq or str(target_qq) == str(qq_account):  # 确保不重复处理自己的
                     continue
-                
+
                 await self._process_single_feed(feed, api_client, target_qq, target_qq)
                 await asyncio.sleep(random.uniform(5, 10))
         except Exception as e:
@@ -200,18 +200,17 @@ class QZoneService:
             return None
 
         chat_manager = get_chat_manager()
-        bot_platform = config_api.get_global_config('bot.platform')
+        bot_platform = config_api.get_global_config("bot.platform")
 
         for group in intercom_config.groups:
             # 使用集合以优化查找效率
-            group_stream_ids = {
-                chat_manager.get_stream_id(bot_platform, chat_id, True)
-                for chat_id in group.chat_ids
-            }
+            group_stream_ids = {chat_manager.get_stream_id(bot_platform, chat_id, True) for chat_id in group.chat_ids}
 
             if stream_id in group_stream_ids:
-                logger.debug(f"Stream ID '{stream_id}' 在互通组 '{getattr(group, 'name', 'Unknown')}' 中找到，正在构建上下文。")
-                
+                logger.debug(
+                    f"Stream ID '{stream_id}' 在互通组 '{getattr(group, 'name', 'Unknown')}' 中找到，正在构建上下文。"
+                )
+
                 all_messages = []
                 end_time = time.time()
                 start_time = end_time - (3 * 24 * 60 * 60)  # 获取过去3天的消息
@@ -222,8 +221,8 @@ class QZoneService:
                         chat_id=chat_id,
                         timestamp_start=start_time,
                         timestamp_end=end_time,
-                        limit=20, # 每个聊天最多获取20条
-                        limit_mode="latest"
+                        limit=20,  # 每个聊天最多获取20条
+                        limit_mode="latest",
                     )
                     all_messages.extend(messages)
 
@@ -232,7 +231,7 @@ class QZoneService:
 
                 # 按时间戳对所有消息进行排序
                 all_messages.sort(key=lambda x: x.get("time", 0))
-                
+
                 # 限制总消息数，例如最多100条
                 if len(all_messages) > 100:
                     all_messages = all_messages[-100:]
@@ -255,9 +254,9 @@ class QZoneService:
             return
 
         # 1. 将评论分为用户评论和自己的回复
-        user_comments = [c for c in comments if str(c.get('qq_account')) != str(qq_account)]
-        my_replies = [c for c in comments if str(c.get('qq_account')) == str(qq_account)]
-        
+        user_comments = [c for c in comments if str(c.get("qq_account")) != str(qq_account)]
+        my_replies = [c for c in comments if str(c.get("qq_account")) == str(qq_account)]
+
         if not user_comments:
             return
 
@@ -267,10 +266,10 @@ class QZoneService:
         # 3. 使用验证后的持久化记录来筛选未回复的评论
         comments_to_reply = []
         for comment in user_comments:
-            comment_tid = comment.get('comment_tid')
+            comment_tid = comment.get("comment_tid")
             if not comment_tid:
                 continue
-                
+
             # 检查是否已经在持久化记录中标记为已回复
             if not self.reply_tracker.has_replied(fid, comment_tid):
                 comments_to_reply.append(comment)
@@ -284,15 +283,11 @@ class QZoneService:
             comment_tid = comment.get("comment_tid")
             nickname = comment.get("nickname", "")
             comment_content = comment.get("content", "")
-            
+
             try:
-                reply_content = await self.content_service.generate_comment_reply(
-                    content, comment_content, nickname
-                )
+                reply_content = await self.content_service.generate_comment_reply(content, comment_content, nickname)
                 if reply_content:
-                    success = await api_client["reply"](
-                        fid, qq_account, nickname, reply_content, comment_tid
-                    )
+                    success = await api_client["reply"](fid, qq_account, nickname, reply_content, comment_tid)
                     if success:
                         # 标记为已回复
                         self.reply_tracker.mark_as_replied(fid, comment_tid)
@@ -309,20 +304,20 @@ class QZoneService:
         """验证并清理已删除的回复记录"""
         # 获取当前记录中该说说的所有已回复评论ID
         recorded_replied_comments = self.reply_tracker.get_replied_comments(fid)
-        
+
         if not recorded_replied_comments:
             return
-        
+
         # 从API返回的我的回复中提取parent_tid（即被回复的评论ID）
         current_replied_comments = set()
         for reply in my_replies:
-            parent_tid = reply.get('parent_tid')
+            parent_tid = reply.get("parent_tid")
             if parent_tid:
                 current_replied_comments.add(parent_tid)
-        
+
         # 找出记录中有但实际已不存在的回复
         deleted_replies = recorded_replied_comments - current_replied_comments
-        
+
         if deleted_replies:
             logger.info(f"检测到 {len(deleted_replies)} 个回复已被删除，清理记录...")
             for comment_tid in deleted_replies:
@@ -353,20 +348,23 @@ class QZoneService:
 
         try:
             # 获取所有图片文件
-            all_files = [f for f in os.listdir(image_dir)
-                        if os.path.isfile(os.path.join(image_dir, f))
-                        and f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp'))]
-            
+            all_files = [
+                f
+                for f in os.listdir(image_dir)
+                if os.path.isfile(os.path.join(image_dir, f))
+                and f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp"))
+            ]
+
             if not all_files:
                 logger.warning(f"图片目录中没有找到图片文件: {image_dir}")
                 return images
-            
+
             # 检查是否启用配图
             enable_image = bool(self.get_config("send.enable_image", False))
             if not enable_image:
                 logger.info("说说配图功能已关闭")
                 return images
-            
+
             # 根据配置选择图片数量
             config_image_number = self.get_config("send.image_number", 1)
             try:
@@ -374,13 +372,13 @@ class QZoneService:
             except (ValueError, TypeError):
                 config_image_number = 1
                 logger.warning("配置项 image_number 值无效，使用默认值 1")
-            
+
             max_images = min(min(config_image_number, 9), len(all_files))  # 最多9张，最少1张
             selected_count = max(1, max_images)  # 确保至少选择1张
             selected_files = random.sample(all_files, selected_count)
-            
+
             logger.info(f"从 {len(all_files)} 张图片中随机选择了 {selected_count} 张配图")
-            
+
             for filename in selected_files:
                 full_path = os.path.join(image_dir, filename)
                 try:
@@ -390,7 +388,7 @@ class QZoneService:
                         logger.info(f"加载图片: {filename} ({len(image_data)} bytes)")
                 except Exception as e:
                     logger.error(f"加载图片 {filename} 失败: {e}")
-                    
+
             return images
         except Exception as e:
             logger.error(f"加载本地图片失败: {e}")
@@ -412,11 +410,13 @@ class QZoneService:
             host = self.get_config("cookie.http_fallback_host", "172.20.130.55")
             port = self.get_config("cookie.http_fallback_port", "9999")
             napcat_token = self.get_config("cookie.napcat_token", "")
-            
+
             cookie_data = await self._fetch_cookies_http(host, port, napcat_token)
             if cookie_data and "cookies" in cookie_data:
                 cookie_str = cookie_data["cookies"]
-                parsed_cookies = {k.strip(): v.strip() for k, v in (p.split('=', 1) for p in cookie_str.split('; ') if '=' in p)}
+                parsed_cookies = {
+                    k.strip(): v.strip() for k, v in (p.split("=", 1) for p in cookie_str.split("; ") if "=" in p)
+                }
                 with open(cookie_file_path, "wb") as f:
                     f.write(orjson.dumps(parsed_cookies))
                 logger.info(f"Cookie已更新并保存至: {cookie_file_path}")
@@ -448,7 +448,7 @@ class QZoneService:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30.0)) as session:
                     async with session.post(url, json=payload, headers=headers) as resp:
                         resp.raise_for_status()
-                        
+
                         if resp.status != 200:
                             error_msg = f"Napcat服务返回错误状态码: {resp.status}"
                             if resp.status == 403:
@@ -476,15 +476,15 @@ class QZoneService:
 
     async def _get_api_client(self, qq_account: str, stream_id: Optional[str]) -> Optional[Dict]:
         cookies = await self.cookie_service.get_cookies(qq_account, stream_id)
-        if not cookies: 
+        if not cookies:
             return None
-        
-        p_skey = cookies.get('p_skey') or cookies.get('p_skey'.upper())
-        if not p_skey: 
+
+        p_skey = cookies.get("p_skey") or cookies.get("p_skey".upper())
+        if not p_skey:
             return None
-        
+
         gtk = self._generate_gtk(p_skey)
-        uin = cookies.get('uin', '').lstrip('o')
+        uin = cookies.get("uin", "").lstrip("o")
 
         async def _request(method, url, params=None, data=None, headers=None):
             final_headers = {"referer": f"https://user.qzone.qq.com/{uin}", "origin": "https://user.qzone.qq.com"}
@@ -516,13 +516,13 @@ class QZoneService:
                     "format": "json",
                     "qzreferrer": f"https://user.qzone.qq.com/{uin}",
                 }
-                
+
                 # 处理图片上传
                 if images:
                     logger.info(f"开始上传 {len(images)} 张图片...")
                     pic_bos = []
                     richvals = []
-                    
+
                     for i, img_bytes in enumerate(images):
                         try:
                             # 上传图片到QQ空间
@@ -530,18 +530,18 @@ class QZoneService:
                             if upload_result:
                                 pic_bos.append(upload_result["pic_bo"])
                                 richvals.append(upload_result["richval"])
-                                logger.info(f"图片 {i+1} 上传成功")
+                                logger.info(f"图片 {i + 1} 上传成功")
                             else:
-                                logger.error(f"图片 {i+1} 上传失败")
+                                logger.error(f"图片 {i + 1} 上传失败")
                         except Exception as e:
-                            logger.error(f"上传图片 {i+1} 时发生异常: {e}")
-                    
+                            logger.error(f"上传图片 {i + 1} 时发生异常: {e}")
+
                     if pic_bos and richvals:
                         # 完全按照原版格式设置图片参数
-                        post_data['pic_bo'] = ','.join(pic_bos)
-                        post_data['richtype'] = '1'
-                        post_data['richval'] = '\t'.join(richvals)  # 原版使用制表符分隔
-                        
+                        post_data["pic_bo"] = ",".join(pic_bos)
+                        post_data["richtype"] = "1"
+                        post_data["richval"] = "\t".join(richvals)  # 原版使用制表符分隔
+
                         logger.info(f"准备发布带图说说: {len(pic_bos)} 张图片")
                         logger.info(f"pic_bo参数: {post_data['pic_bo']}")
                         logger.info(f"richval参数长度: {len(post_data['richval'])} 字符")
@@ -551,7 +551,7 @@ class QZoneService:
                 res_text = await _request("POST", self.EMOTION_PUBLISH_URL, params={"g_tk": gtk}, data=post_data)
                 result = orjson.loads(res_text)
                 tid = result.get("tid", "")
-                
+
                 if tid:
                     if images and pic_bos:
                         logger.info(f"成功发布带图说说，tid: {tid}，包含 {len(pic_bos)} 张图片")
@@ -559,7 +559,7 @@ class QZoneService:
                         logger.info(f"成功发布文本说说，tid: {tid}")
                 else:
                     logger.error(f"发布说说失败，API返回: {result}")
-                
+
                 return bool(tid), tid
             except Exception as e:
                 logger.error(f"发布说说异常: {e}", exc_info=True)
@@ -573,38 +573,38 @@ class QZoneService:
         def _get_picbo_and_richval(upload_result: dict) -> tuple:
             """从上传结果中提取图片的picbo和richval值（仿照原版实现）"""
             json_data = upload_result
-            
-            if 'ret' not in json_data:
+
+            if "ret" not in json_data:
                 raise Exception("获取图片picbo和richval失败")
-            
-            if json_data['ret'] != 0:
+
+            if json_data["ret"] != 0:
                 raise Exception("上传图片失败")
-                
+
             # 从URL中提取bo参数
-            picbo_spt = json_data['data']['url'].split('&bo=')
+            picbo_spt = json_data["data"]["url"].split("&bo=")
             if len(picbo_spt) < 2:
                 raise Exception("上传图片失败")
             picbo = picbo_spt[1]
-            
+
             # 构造richval - 完全按照原版格式
             richval = ",{},{},{},{},{},{},,{},{}".format(
-                json_data['data']['albumid'],
-                json_data['data']['lloc'],
-                json_data['data']['sloc'],
-                json_data['data']['type'],
-                json_data['data']['height'],
-                json_data['data']['width'],
-                json_data['data']['height'],
-                json_data['data']['width']
+                json_data["data"]["albumid"],
+                json_data["data"]["lloc"],
+                json_data["data"]["sloc"],
+                json_data["data"]["type"],
+                json_data["data"]["height"],
+                json_data["data"]["width"],
+                json_data["data"]["height"],
+                json_data["data"]["width"],
             )
-            
+
             return picbo, richval
 
         async def _upload_image(image_bytes: bytes, index: int) -> Optional[Dict[str, str]]:
             """上传图片到QQ空间（完全按照原版实现）"""
             try:
                 upload_url = "https://up.qzone.qq.com/cgi-bin/upload/cgi_upload_image"
-                
+
                 # 完全按照原版构建请求数据
                 post_data = {
                     "filename": "filename",
@@ -616,7 +616,7 @@ class QZoneService:
                     "zzpaneluin": uin,
                     "p_uin": uin,
                     "uin": uin,
-                    "p_skey": cookies.get('p_skey', ''),
+                    "p_skey": cookies.get("p_skey", ""),
                     "output_type": "json",
                     "qzonetoken": "",
                     "refer": "shuoshuo",
@@ -627,51 +627,40 @@ class QZoneService:
                     "hd_height": "10000",
                     "hd_quality": "96",
                     "backUrls": "http://upbak.photo.qzone.qq.com/cgi-bin/upload/cgi_upload_image,"
-                                "http://119.147.64.75/cgi-bin/upload/cgi_upload_image",
+                    "http://119.147.64.75/cgi-bin/upload/cgi_upload_image",
                     "url": f"https://up.qzone.qq.com/cgi-bin/upload/cgi_upload_image?g_tk={gtk}",
                     "base64": "1",
                     "picfile": _image_to_base64(image_bytes),
                 }
-                
-                headers = {
-                    'referer': f'https://user.qzone.qq.com/{uin}',
-                    'origin': 'https://user.qzone.qq.com'
-                }
-                
-                logger.info(f"开始上传图片 {index+1}...")
-                
+
+                headers = {"referer": f"https://user.qzone.qq.com/{uin}", "origin": "https://user.qzone.qq.com"}
+
+                logger.info(f"开始上传图片 {index + 1}...")
+
                 async with aiohttp.ClientSession(cookies=cookies) as session:
                     timeout = aiohttp.ClientTimeout(total=60)
-                    async with session.post(
-                        upload_url,
-                        data=post_data,
-                        headers=headers,
-                        timeout=timeout
-                    ) as response:
+                    async with session.post(upload_url, data=post_data, headers=headers, timeout=timeout) as response:
                         if response.status == 200:
                             resp_text = await response.text()
                             logger.info(f"图片上传响应状态码: {response.status}")
                             logger.info(f"图片上传响应内容前500字符: {resp_text[:500]}")
-                            
+
                             # 按照原版方式解析响应
-                            start_idx = resp_text.find('{')
-                            end_idx = resp_text.rfind('}') + 1
+                            start_idx = resp_text.find("{")
+                            end_idx = resp_text.rfind("}") + 1
                             if start_idx != -1 and end_idx != -1:
                                 json_str = resp_text[start_idx:end_idx]
                                 upload_result = eval(json_str)  # 与原版保持一致使用eval
-                                
+
                                 logger.info(f"图片上传解析结果: {upload_result}")
-                                
-                                if upload_result.get('ret') == 0:
+
+                                if upload_result.get("ret") == 0:
                                     # 使用原版的参数提取逻辑
                                     picbo, richval = _get_picbo_and_richval(upload_result)
-                                    logger.info(f"图片 {index+1} 上传成功: picbo={picbo}")
-                                    return {
-                                        "pic_bo": picbo,
-                                        "richval": richval
-                                    }
+                                    logger.info(f"图片 {index + 1} 上传成功: picbo={picbo}")
+                                    return {"pic_bo": picbo, "richval": richval}
                                 else:
-                                    logger.error(f"图片 {index+1} 上传失败: {upload_result}")
+                                    logger.error(f"图片 {index + 1} 上传失败: {upload_result}")
                                     return None
                             else:
                                 logger.error("无法解析上传响应")
@@ -680,9 +669,9 @@ class QZoneService:
                             error_text = await response.text()
                             logger.error(f"图片上传HTTP请求失败，状态码: {response.status}, 响应: {error_text[:200]}")
                             return None
-                            
+
             except Exception as e:
-                logger.error(f"上传图片 {index+1} 异常: {e}", exc_info=True)
+                logger.error(f"上传图片 {index + 1} 异常: {e}", exc_info=True)
                 return None
 
         async def _list_feeds(t_qq: str, num: int, is_monitoring_own_feeds: bool = False) -> List[Dict]:
@@ -719,18 +708,20 @@ class QZoneService:
                         if is_commented:
                             continue
 
-                    images = [pic['url1'] for pic in msg.get('pictotal', []) if 'url1' in pic]
+                    images = [pic["url1"] for pic in msg.get("pictotal", []) if "url1" in pic]
 
                     comments = []
-                    if 'commentlist' in msg:
-                        for c in msg['commentlist']:
-                            comments.append({
-                                'qq_account': c.get('uin'),
-                                'nickname': c.get('name'),
-                                'content': c.get('content'),
-                                'comment_tid': c.get('tid'),
-                                'parent_tid': c.get('parent_tid') # API直接返回了父ID
-                            })
+                    if "commentlist" in msg:
+                        for c in msg["commentlist"]:
+                            comments.append(
+                                {
+                                    "qq_account": c.get("uin"),
+                                    "nickname": c.get("name"),
+                                    "content": c.get("content"),
+                                    "comment_tid": c.get("tid"),
+                                    "parent_tid": c.get("parent_tid"),  # API直接返回了父ID
+                                }
+                            )
 
                     feeds_list.append(
                         {
@@ -743,7 +734,7 @@ class QZoneService:
                             if isinstance(msg.get("rt_con"), dict)
                             else "",
                             "images": images,
-                            "comments": comments
+                            "comments": comments,
                         }
                     )
                 return feeds_list
@@ -820,136 +811,149 @@ class QZoneService:
             """监控好友动态"""
             try:
                 params = {
-                    "uin": uin, "scope": 0, "view": 1, "filter": "all", "flag": 1,
-                    "applist": "all", "pagenum": 1, "count": num, "format": "json",
-                    "g_tk": gtk, "useutf8": 1, "outputhtmlfeed": 1
+                    "uin": uin,
+                    "scope": 0,
+                    "view": 1,
+                    "filter": "all",
+                    "flag": 1,
+                    "applist": "all",
+                    "pagenum": 1,
+                    "count": num,
+                    "format": "json",
+                    "g_tk": gtk,
+                    "useutf8": 1,
+                    "outputhtmlfeed": 1,
                 }
                 res_text = await _request("GET", self.ZONE_LIST_URL, params=params)
-                
+
                 # 处理不同的响应格式
                 json_str = ""
                 stripped_res_text = res_text.strip()
-                if stripped_res_text.startswith('_Callback(') and stripped_res_text.endswith(');'):
-                    json_str = stripped_res_text[len('_Callback('):-2]
-                elif stripped_res_text.startswith('{') and stripped_res_text.endswith('}'):
+                if stripped_res_text.startswith("_Callback(") and stripped_res_text.endswith(");"):
+                    json_str = stripped_res_text[len("_Callback(") : -2]
+                elif stripped_res_text.startswith("{") and stripped_res_text.endswith("}"):
                     json_str = stripped_res_text
                 else:
                     logger.warning(f"意外的响应格式: {res_text[:100]}...")
                     return []
-                
-                json_str = json_str.replace('undefined', 'null').strip()
-                
+
+                json_str = json_str.replace("undefined", "null").strip()
+
                 try:
                     json_data = json5.loads(json_str)
                     if not isinstance(json_data, dict):
                         logger.warning(f"解析后的JSON数据不是字典类型: {type(json_data)}")
                         return []
 
-                    if json_data.get('code') != 0:
-                        error_code = json_data.get('code')
-                        error_msg = json_data.get('message', '未知错误')
+                    if json_data.get("code") != 0:
+                        error_code = json_data.get("code")
+                        error_msg = json_data.get("message", "未知错误")
                         logger.warning(f"QQ空间API返回错误: code={error_code}, message={error_msg}")
                         return []
-                        
+
                 except Exception as parse_error:
                     logger.error(f"JSON解析失败: {parse_error}, 原始数据: {json_str[:200]}...")
                     return []
 
                 feeds_data = []
                 if isinstance(json_data, dict):
-                    data_level1 = json_data.get('data')
+                    data_level1 = json_data.get("data")
                     if isinstance(data_level1, dict):
-                        feeds_data = data_level1.get('data', [])
-                
+                        feeds_data = data_level1.get("data", [])
+
                 feeds_list = []
                 for feed in feeds_data:
                     if not feed or not isinstance(feed, dict):
                         continue
 
-                    if str(feed.get('appid', '')) != '311':
+                    if str(feed.get("appid", "")) != "311":
                         continue
 
-                    target_qq = str(feed.get('uin', ''))
-                    tid = feed.get('key', '')
+                    target_qq = str(feed.get("uin", ""))
+                    tid = feed.get("key", "")
                     if not target_qq or not tid:
                         continue
 
                     if target_qq == str(uin):
                         continue
 
-                    html_content = feed.get('html', '')
+                    html_content = feed.get("html", "")
                     if not html_content:
                         continue
 
-                    soup = bs4.BeautifulSoup(html_content, 'html.parser')
-                    
-                    like_btn = soup.find('a', class_='qz_like_btn_v3')
+                    soup = bs4.BeautifulSoup(html_content, "html.parser")
+
+                    like_btn = soup.find("a", class_="qz_like_btn_v3")
                     is_liked = False
                     if like_btn and isinstance(like_btn, bs4.Tag):
-                        is_liked = like_btn.get('data-islike') == '1'
+                        is_liked = like_btn.get("data-islike") == "1"
 
                     if is_liked:
                         continue
 
-                    text_div = soup.find('div', class_='f-info')
+                    text_div = soup.find("div", class_="f-info")
                     text = text_div.get_text(strip=True) if text_div else ""
-                    
+
                     # --- 借鉴原版插件的精确图片提取逻辑 ---
                     image_urls = []
-                    img_box = soup.find('div', class_='img-box')
+                    img_box = soup.find("div", class_="img-box")
                     if img_box:
-                        for img in img_box.find_all('img'):
-                            src = img.get('src')
+                        for img in img_box.find_all("img"):
+                            src = img.get("src")
                             # 排除QQ空间的小图标和表情
-                            if src and 'qzonestyle.gtimg.cn' not in src:
+                            if src and "qzonestyle.gtimg.cn" not in src:
                                 image_urls.append(src)
-                    
+
                     # 视频封面也视为图片
-                    video_thumb = soup.select_one('div.video-img img')
-                    if video_thumb and 'src' in video_thumb.attrs:
-                        image_urls.append(video_thumb['src'])
+                    video_thumb = soup.select_one("div.video-img img")
+                    if video_thumb and "src" in video_thumb.attrs:
+                        image_urls.append(video_thumb["src"])
 
                     # 去重
                     images = list(set(image_urls))
-                    
+
                     comments = []
-                    comment_divs = soup.find_all('div', class_='f-single-comment')
+                    comment_divs = soup.find_all("div", class_="f-single-comment")
                     for comment_div in comment_divs:
                         # --- 处理主评论 ---
-                        author_a = comment_div.find('a', class_='f-nick')
-                        content_span = comment_div.find('span', class_='f-re-con')
-                        
+                        author_a = comment_div.find("a", class_="f-nick")
+                        content_span = comment_div.find("span", class_="f-re-con")
+
                         if author_a and content_span:
-                            comments.append({
-                                'qq_account': str(comment_div.get('data-uin', '')),
-                                'nickname': author_a.get_text(strip=True),
-                                'content': content_span.get_text(strip=True),
-                                'comment_tid': comment_div.get('data-tid', ''),
-                                'parent_tid': None  # 主评论没有父ID
-                            })
+                            comments.append(
+                                {
+                                    "qq_account": str(comment_div.get("data-uin", "")),
+                                    "nickname": author_a.get_text(strip=True),
+                                    "content": content_span.get_text(strip=True),
+                                    "comment_tid": comment_div.get("data-tid", ""),
+                                    "parent_tid": None,  # 主评论没有父ID
+                                }
+                            )
 
                         # --- 处理这条主评论下的所有回复 ---
-                        reply_divs = comment_div.find_all('div', class_='f-single-re')
+                        reply_divs = comment_div.find_all("div", class_="f-single-re")
                         for reply_div in reply_divs:
-                            reply_author_a = reply_div.find('a', class_='f-nick')
-                            reply_content_span = reply_div.find('span', class_='f-re-con')
-                            
-                            if reply_author_a and reply_content_span:
-                                comments.append({
-                                    'qq_account': str(reply_div.get('data-uin', '')),
-                                    'nickname': reply_author_a.get_text(strip=True),
-                                    'content': reply_content_span.get_text(strip=True).lstrip(': '), # 移除回复内容前多余的冒号和空格
-                                    'comment_tid': reply_div.get('data-tid', ''),
-                                    'parent_tid': reply_div.get('data-parent-tid', comment_div.get('data-tid', '')) # 如果没有父ID，则将父ID设为主评论ID
-                                })
+                            reply_author_a = reply_div.find("a", class_="f-nick")
+                            reply_content_span = reply_div.find("span", class_="f-re-con")
 
-                    feeds_list.append({
-                        'target_qq': target_qq,
-                        'tid': tid,
-                        'content': text,
-                        'images': images,
-                        'comments': comments
-                    })
+                            if reply_author_a and reply_content_span:
+                                comments.append(
+                                    {
+                                        "qq_account": str(reply_div.get("data-uin", "")),
+                                        "nickname": reply_author_a.get_text(strip=True),
+                                        "content": reply_content_span.get_text(strip=True).lstrip(
+                                            ": "
+                                        ),  # 移除回复内容前多余的冒号和空格
+                                        "comment_tid": reply_div.get("data-tid", ""),
+                                        "parent_tid": reply_div.get(
+                                            "data-parent-tid", comment_div.get("data-tid", "")
+                                        ),  # 如果没有父ID，则将父ID设为主评论ID
+                                    }
+                                )
+
+                    feeds_list.append(
+                        {"target_qq": target_qq, "tid": tid, "content": text, "images": images, "comments": comments}
+                    )
                 logger.info(f"监控任务发现 {len(feeds_list)} 条未处理的新说说。")
                 return feeds_list
             except Exception as e:

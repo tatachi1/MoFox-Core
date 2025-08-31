@@ -1,4 +1,4 @@
-#import asyncio
+# import asyncio
 import asyncio
 import hashlib
 import os
@@ -24,7 +24,6 @@ else:
 from src.common.logger import initialize_logging, get_logger, shutdown_logging
 
 # UI日志适配器
-import ui_log_adapter
 
 
 initialize_logging()
@@ -70,6 +69,7 @@ async def request_shutdown() -> bool:
         logger.error(f"请求关闭程序时发生错误: {e}")
         return False
 
+
 def easter_egg():
     # 彩蛋
     init()
@@ -79,7 +79,6 @@ def easter_egg():
     for i, char in enumerate(text):
         rainbow_text += rainbow_colors[i % len(rainbow_colors)] + char
     logger.info(rainbow_text)
-
 
 
 async def graceful_shutdown():
@@ -198,21 +197,21 @@ def check_eula():
 
 class MaiBotMain(BaseMain):
     """麦麦机器人主程序类"""
-    
+
     def __init__(self):
         super().__init__()
         self.main_system = None
-    
+
     def setup_timezone(self):
         """设置时区"""
         if platform.system().lower() != "windows":
             time.tzset()  # type: ignore
-            
+
     def check_and_confirm_eula(self):
         """检查并确认EULA和隐私条款"""
         check_eula()
         logger.info("检查EULA和隐私条款完成")
-    
+
     def initialize_database(self):
         """初始化数据库"""
 
@@ -231,12 +230,12 @@ class MaiBotMain(BaseMain):
         except Exception as e:
             logger.error(f"数据库表结构初始化失败: {e}")
             raise e
-    
+
     def create_main_system(self):
         """创建MainSystem实例"""
         self.main_system = MainSystem()
         return self.main_system
-    
+
     def run(self):
         """运行主程序"""
         self.setup_timezone()
@@ -244,7 +243,6 @@ class MaiBotMain(BaseMain):
         self.initialize_database()
 
         return self.create_main_system()
-
 
 
 if __name__ == "__main__":

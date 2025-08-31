@@ -168,7 +168,7 @@ class MaiEmoji:
                     )
                     session.add(emoji)
                     session.commit()
-                    
+
                     logger.info(f"[注册] 表情包信息保存到数据库: {self.filename} ({self.emotion})")
 
                     return True
@@ -204,7 +204,9 @@ class MaiEmoji:
             # 2. 删除数据库记录
             try:
                 with get_db_session() as session:
-                    will_delete_emoji = session.execute(select(Emoji).where(Emoji.emoji_hash == self.hash)).scalar_one_or_none()
+                    will_delete_emoji = session.execute(
+                        select(Emoji).where(Emoji.emoji_hash == self.hash)
+                    ).scalar_one_or_none()
                     if will_delete_emoji is None:
                         logger.warning(f"[删除] 数据库中未找到哈希值为 {self.hash} 的表情包记录。")
                         result = 0  # Indicate no DB record was deleted
@@ -402,6 +404,7 @@ class EmojiManager:
 
     def initialize(self) -> None:
         """初始化数据库连接和表情目录"""
+
     #     try:
     #         db.connect(reuse_if_open=True)
     #         if db.is_closed():
@@ -671,7 +674,6 @@ class EmojiManager:
             logger.info(f"[数据库] 加载完成: 共加载 {self.emoji_num} 个表情包记录。")
             if load_errors > 0:
                 logger.warning(f"[数据库] 加载过程中出现 {load_errors} 个错误。")
-            
 
         except Exception as e:
             logger.error(f"[错误] 从数据库加载所有表情包对象失败: {str(e)}")
@@ -689,7 +691,6 @@ class EmojiManager:
         """
         try:
             with get_db_session() as session:
-
                 if emoji_hash:
                     query = session.execute(select(Emoji).where(Emoji.emoji_hash == emoji_hash)).scalars().all()
                 else:
@@ -775,13 +776,14 @@ class EmojiManager:
             # 如果内存中没有，从数据库查找
             try:
                 with get_db_session() as session:
-                    emoji_record = session.execute(select(Emoji).where(Emoji.emoji_hash == emoji_hash)).scalar_one_or_none()
+                    emoji_record = session.execute(
+                        select(Emoji).where(Emoji.emoji_hash == emoji_hash)
+                    ).scalar_one_or_none()
                 if emoji_record and emoji_record.description:
                     logger.info(f"[缓存命中] 从数据库获取表情包描述: {emoji_record.description[:50]}...")
                     return emoji_record.description
             except Exception as e:
                 logger.error(f"从数据库查询表情包描述时出错: {e}")
-
 
             return None
 
@@ -799,7 +801,6 @@ class EmojiManager:
             bool: 是否成功删除
         """
         try:
-
             # 从emoji_objects中查找表情包对象
             emoji = await self.get_emoji_from_manager(emoji_hash)
 
@@ -838,7 +839,6 @@ class EmojiManager:
             bool: 是否成功替换表情包
         """
         try:
-
             # 获取所有表情包对象
             emoji_objects = self.emoji_objects
             # 计算每个表情包的选择概率
@@ -936,9 +936,13 @@ class EmojiManager:
             existing_description = None
             try:
                 with get_db_session() as session:
-                # from src.common.database.database_model_compat import Images
+                    # from src.common.database.database_model_compat import Images
 
-                    existing_image = session.query(Images).filter((Images.emoji_hash == image_hash) & (Images.type == "emoji")).one_or_none()
+                    existing_image = (
+                        session.query(Images)
+                        .filter((Images.emoji_hash == image_hash) & (Images.type == "emoji"))
+                        .one_or_none()
+                    )
                     if existing_image and existing_image.description:
                         existing_description = existing_image.description
                         logger.info(f"[复用描述] 找到已有详细描述: {existing_description[:50]}...")

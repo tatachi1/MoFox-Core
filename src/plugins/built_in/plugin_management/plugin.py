@@ -20,7 +20,7 @@ from src.plugin_system.core.plugin_hot_reload import hot_reload_manager
 
 class ManagementCommand(PlusCommand):
     """插件管理命令 - 使用PlusCommand系统"""
-    
+
     command_name = "pm"
     command_description = "插件管理命令，支持插件和组件的管理操作"
     command_aliases = ["pluginmanage", "插件管理"]
@@ -37,10 +37,10 @@ class ManagementCommand(PlusCommand):
         if args.is_empty():
             await self._show_help("all")
             return True, "显示帮助信息", True
-        
+
         subcommand = args.get_first().lower()
         remaining_args = args.get_args()[1:]  # 获取除第一个参数外的所有参数
-        
+
         if subcommand in ["plugin", "插件"]:
             return await self._handle_plugin_commands(remaining_args)
         elif subcommand in ["component", "组件", "comp"]:
@@ -57,9 +57,9 @@ class ManagementCommand(PlusCommand):
         if not args:
             await self._show_help("plugin")
             return True, "显示插件帮助", True
-        
+
         action = args[0].lower()
-        
+
         if action in ["help", "帮助"]:
             await self._show_help("plugin")
         elif action in ["list", "列表"]:
@@ -85,7 +85,7 @@ class ManagementCommand(PlusCommand):
         else:
             await self.send_text("❌ 插件管理命令不合法\n使用 /pm plugin help 查看帮助")
             return False, "命令不合法", True
-        
+
         return True, "插件命令执行完成", True
 
     async def _handle_component_commands(self, args: List[str]) -> Tuple[bool, str, bool]:
@@ -93,9 +93,9 @@ class ManagementCommand(PlusCommand):
         if not args:
             await self._show_help("component")
             return True, "显示组件帮助", True
-        
+
         action = args[0].lower()
-        
+
         if action in ["help", "帮助"]:
             await self._show_help("component")
         elif action in ["list", "列表"]:
@@ -144,7 +144,7 @@ class ManagementCommand(PlusCommand):
         else:
             await self.send_text("❌ 组件管理命令不合法\n使用 /pm component help 查看帮助")
             return False, "命令不合法", True
-        
+
         return True, "组件命令执行完成", True
 
     async def _show_help(self, target: str):
@@ -212,7 +212,7 @@ class ManagementCommand(PlusCommand):
 💡 示例：
 • `/pm component list type plus_command`
 • `/pm component enable global echo_command command`"""
-        
+
         await self.send_text(help_msg)
 
     async def _list_loaded_plugins(self):
@@ -260,7 +260,7 @@ class ManagementCommand(PlusCommand):
     async def _force_reload_plugin(self, plugin_name: str):
         """强制重载指定插件（深度清理）"""
         await self.send_text(f"🔄 开始强制重载插件: `{plugin_name}`...")
-        
+
         try:
             success = hot_reload_manager.force_reload_plugin(plugin_name)
             if success:
@@ -274,34 +274,34 @@ class ManagementCommand(PlusCommand):
         """显示热重载状态"""
         try:
             status = hot_reload_manager.get_status()
-            
+
             status_text = f"""🔄 **热重载系统状态**
 
-🟢 **运行状态:** {'运行中' if status['is_running'] else '已停止'}
-📂 **监听目录:** {len(status['watch_directories'])} 个
-👁️ **活跃观察者:** {status['active_observers']} 个
-📦 **已加载插件:** {status['loaded_plugins']} 个
-❌ **失败插件:** {status['failed_plugins']} 个
-⏱️ **防抖延迟:** {status.get('debounce_delay', 0)} 秒
+🟢 **运行状态:** {"运行中" if status["is_running"] else "已停止"}
+📂 **监听目录:** {len(status["watch_directories"])} 个
+👁️ **活跃观察者:** {status["active_observers"]} 个
+📦 **已加载插件:** {status["loaded_plugins"]} 个
+❌ **失败插件:** {status["failed_plugins"]} 个
+⏱️ **防抖延迟:** {status.get("debounce_delay", 0)} 秒
 
 📋 **监听的目录:**"""
-            
-            for i, watch_dir in enumerate(status['watch_directories'], 1):
+
+            for i, watch_dir in enumerate(status["watch_directories"], 1):
                 dir_type = "(内置插件)" if "src" in watch_dir else "(外部插件)"
                 status_text += f"\n{i}. `{watch_dir}` {dir_type}"
-            
-            if status.get('pending_reloads'):
+
+            if status.get("pending_reloads"):
                 status_text += f"\n\n⏳ **待重载插件:** {', '.join([f'`{p}`' for p in status['pending_reloads']])}"
-            
+
             await self.send_text(status_text)
-            
+
         except Exception as e:
             await self.send_text(f"❌ 获取热重载状态时发生错误: {str(e)}")
 
     async def _clear_all_caches(self):
         """清理所有模块缓存"""
         await self.send_text("🧹 开始清理所有Python模块缓存...")
-        
+
         try:
             hot_reload_manager.clear_all_caches()
             await self.send_text("✅ 模块缓存清理完成！建议重载相关插件以确保生效。")
@@ -432,10 +432,12 @@ class ManagementCommand(PlusCommand):
             "event_handler": ComponentType.EVENT_HANDLER,
             "plus_command": ComponentType.PLUS_COMMAND,
         }
-        
+
         component_type = type_mapping.get(target_type.lower())
         if not component_type:
-            await self.send_text(f"❌ 未知组件类型: `{target_type}`\n支持的类型: action, command, event_handler, plus_command")
+            await self.send_text(
+                f"❌ 未知组件类型: `{target_type}`\n支持的类型: action, command, event_handler, plus_command"
+            )
             return
 
         components_info = component_manage_api.get_components_info_by_type(component_type)
@@ -456,12 +458,12 @@ class ManagementCommand(PlusCommand):
             "event_handler": ComponentType.EVENT_HANDLER,
             "plus_command": ComponentType.PLUS_COMMAND,
         }
-        
+
         target_component_type = type_mapping.get(component_type.lower())
         if not target_component_type:
             await self.send_text(f"❌ 未知组件类型: `{component_type}`")
             return
-            
+
         if component_manage_api.globally_enable_component(component_name, target_component_type):
             await self.send_text(f"✅ 全局启用组件成功: `{component_name}`")
         else:
@@ -475,12 +477,12 @@ class ManagementCommand(PlusCommand):
             "event_handler": ComponentType.EVENT_HANDLER,
             "plus_command": ComponentType.PLUS_COMMAND,
         }
-        
+
         target_component_type = type_mapping.get(component_type.lower())
         if not target_component_type:
             await self.send_text(f"❌ 未知组件类型: `{component_type}`")
             return
-            
+
         success = await component_manage_api.globally_disable_component(component_name, target_component_type)
         if success:
             await self.send_text(f"✅ 全局禁用组件成功: `{component_name}`")
@@ -495,12 +497,12 @@ class ManagementCommand(PlusCommand):
             "event_handler": ComponentType.EVENT_HANDLER,
             "plus_command": ComponentType.PLUS_COMMAND,
         }
-        
+
         target_component_type = type_mapping.get(component_type.lower())
         if not target_component_type:
             await self.send_text(f"❌ 未知组件类型: `{component_type}`")
             return
-            
+
         stream_id = self.message.chat_stream.stream_id
         if component_manage_api.locally_enable_component(component_name, target_component_type, stream_id):
             await self.send_text(f"✅ 本地启用组件成功: `{component_name}`")
@@ -515,12 +517,12 @@ class ManagementCommand(PlusCommand):
             "event_handler": ComponentType.EVENT_HANDLER,
             "plus_command": ComponentType.PLUS_COMMAND,
         }
-        
+
         target_component_type = type_mapping.get(component_type.lower())
         if not target_component_type:
             await self.send_text(f"❌ 未知组件类型: `{component_type}`")
             return
-            
+
         stream_id = self.message.chat_stream.stream_id
         if component_manage_api.locally_disable_component(component_name, target_component_type, stream_id):
             await self.send_text(f"✅ 本地禁用组件成功: `{component_name}`")
@@ -549,7 +551,7 @@ class PluginManagementPlugin(BasePlugin):
             "plugin.management.admin",
             "插件管理：可以管理插件和组件的加载、卸载、启用、禁用等操作",
             "plugin_management",
-            False
+            False,
         )
 
     def get_plugin_components(self) -> List[Tuple[PlusCommandInfo, Type[PlusCommand]]]:

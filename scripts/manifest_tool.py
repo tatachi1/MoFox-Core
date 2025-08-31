@@ -51,10 +51,7 @@ def create_minimal_manifest(plugin_dir: str, plugin_name: str, description: str 
 
     try:
         with open(manifest_path, "w", encoding="utf-8") as f:
-            f.write(orjson.dumps(
-                minimal_manifest,
-                option=orjson.OPT_INDENT_2
-            ).decode('utf-8'))
+            f.write(orjson.dumps(minimal_manifest, option=orjson.OPT_INDENT_2).decode("utf-8"))
         print(f"✅ 已创建最小化manifest文件: {manifest_path}")
         return True
     except Exception as e:
@@ -102,10 +99,7 @@ def create_complete_manifest(plugin_dir: str, plugin_name: str) -> bool:
 
     try:
         with open(manifest_path, "w", encoding="utf-8") as f:
-            f.write(orjson.dumps(
-                complete_manifest,
-                option=orjson.OPT_INDENT_2
-            ).decode('utf-8'))
+            f.write(orjson.dumps(complete_manifest, option=orjson.OPT_INDENT_2).decode("utf-8"))
         print(f"✅ 已创建完整manifest模板: {manifest_path}")
         print("💡 请根据实际情况修改manifest文件中的内容")
         return True

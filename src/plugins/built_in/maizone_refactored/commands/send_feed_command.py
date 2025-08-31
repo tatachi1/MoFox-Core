@@ -2,6 +2,7 @@
 """
 发送说说命令        await self.send_text(f"收到！正在为你生成关于"{topic or '随机'}"的说说，请稍候...【热重载测试成功】")件
 """
+
 from typing import Tuple
 
 from src.common.logger import get_logger
@@ -18,6 +19,7 @@ class SendFeedCommand(PlusCommand):
     响应用户通过 `/send_feed` 命令发送说说的请求。
     测试热重载功能 - 这是一个测试注释，现在应该可以正常工作了！
     """
+
     command_name: str = "send_feed"
     command_description: str = "发一条QQ空间说说"
     command_aliases = ["发空间"]
@@ -48,7 +50,7 @@ class SendFeedCommand(PlusCommand):
                 return True, "发送成功", True
             else:
                 await self.send_text(f"哎呀，发送失败了：{result.get('message', '未知错误')}")
-                return False, result.get('message', '未知错误'), True
+                return False, result.get("message", "未知错误"), True
 
         except Exception as e:
             logger.error(f"执行发送说说命令时发生未知异常: {e}", exc_info=True)

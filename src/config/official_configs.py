@@ -12,7 +12,6 @@ from src.config.config_base import ValidatedConfigBase
 """
 
 
-
 class DatabaseConfig(ValidatedConfigBase):
     """数据库配置类"""
 
@@ -25,7 +24,9 @@ class DatabaseConfig(ValidatedConfigBase):
     mysql_password: str = Field(default="", description="MySQL密码")
     mysql_charset: str = Field(default="utf8mb4", description="MySQL字符集")
     mysql_unix_socket: str = Field(default="", description="MySQL Unix套接字路径")
-    mysql_ssl_mode: Literal["DISABLED", "PREFERRED", "REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY"] = Field(default="DISABLED", description="SSL模式")
+    mysql_ssl_mode: Literal["DISABLED", "PREFERRED", "REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY"] = Field(
+        default="DISABLED", description="SSL模式"
+    )
     mysql_ssl_ca: str = Field(default="", description="SSL CA证书路径")
     mysql_ssl_cert: str = Field(default="", description="SSL客户端证书路径")
     mysql_ssl_key: str = Field(default="", description="SSL客户端密钥路径")
@@ -56,13 +57,11 @@ class PersonalityConfig(ValidatedConfigBase):
     compress_identity: bool = Field(default=True, description="是否压缩身份")
 
 
-
 class RelationshipConfig(ValidatedConfigBase):
     """关系配置类"""
 
     enable_relationship: bool = Field(default=True, description="是否启用关系")
     relation_frequency: float = Field(default=1.0, description="关系频率")
-
 
 
 class ChatConfig(ValidatedConfigBase):
@@ -78,14 +77,20 @@ class ChatConfig(ValidatedConfigBase):
     focus_value: float = Field(default=1.0, description="专注值")
     force_focus_private: bool = Field(default=False, description="强制专注私聊")
     group_chat_mode: Literal["auto", "normal", "focus"] = Field(default="auto", description="群聊模式")
-    timestamp_display_mode: Literal["normal", "normal_no_YMD", "relative"] = Field(default="normal_no_YMD", description="时间戳显示模式")
+    timestamp_display_mode: Literal["normal", "normal_no_YMD", "relative"] = Field(
+        default="normal_no_YMD", description="时间戳显示模式"
+    )
     enable_proactive_thinking: bool = Field(default=False, description="启用主动思考")
     proactive_thinking_interval: int = Field(default=1500, description="主动思考间隔")
     The_scope_that_proactive_thinking_can_trigger: str = Field(default="all", description="主动思考可以触发的范围")
     proactive_thinking_in_private: bool = Field(default=True, description="主动思考可以在私聊里面启用")
     proactive_thinking_in_group: bool = Field(default=True, description="主动思考可以在群聊里面启用")
-    proactive_thinking_enable_in_private: List[str] = Field(default_factory=list, description="启用主动思考的私聊范围，格式：platform:user_id，为空则不限制")
-    proactive_thinking_enable_in_groups: List[str] = Field(default_factory=list, description="启用主动思考的群聊范围，格式：platform:group_id，为空则不限制")
+    proactive_thinking_enable_in_private: List[str] = Field(
+        default_factory=list, description="启用主动思考的私聊范围，格式：platform:user_id，为空则不限制"
+    )
+    proactive_thinking_enable_in_groups: List[str] = Field(
+        default_factory=list, description="启用主动思考的群聊范围，格式：platform:group_id，为空则不限制"
+    )
     delta_sigma: int = Field(default=120, description="采用正态分布随机时间间隔")
 
     def get_current_talk_frequency(self, chat_stream_id: Optional[str] = None) -> float:
@@ -247,7 +252,6 @@ class ChatConfig(ValidatedConfigBase):
         return None
 
 
-
 class MessageReceiveConfig(ValidatedConfigBase):
     """消息接收配置类"""
 
@@ -255,12 +259,10 @@ class MessageReceiveConfig(ValidatedConfigBase):
     ban_msgs_regex: List[str] = Field(default_factory=lambda: list(), description="禁用消息正则列表")
 
 
-
 class NormalChatConfig(ValidatedConfigBase):
     """普通聊天配置类"""
 
     willing_mode: str = Field(default="classical", description="意愿模式")
-
 
 
 class ExpressionRule(ValidatedConfigBase):
@@ -366,11 +368,11 @@ class ToolConfig(ValidatedConfigBase):
     history: ToolHistoryConfig = Field(default_factory=ToolHistoryConfig)
     """工具历史记录配置"""
 
+
 class VoiceConfig(ValidatedConfigBase):
     """语音识别配置类"""
 
     enable_asr: bool = Field(default=False, description="启用语音识别")
-
 
 
 class EmojiConfig(ValidatedConfigBase):
@@ -387,13 +389,14 @@ class EmojiConfig(ValidatedConfigBase):
     enable_emotion_analysis: bool = Field(default=True, description="启用情感分析")
 
 
-
 class MemoryConfig(ValidatedConfigBase):
     """记忆配置类"""
 
     enable_memory: bool = Field(default=True, description="启用记忆")
     memory_build_interval: int = Field(default=600, description="记忆构建间隔")
-    memory_build_distribution: list[float] = Field(default_factory=lambda: [6.0, 3.0, 0.6, 32.0, 12.0, 0.4], description="记忆构建分布")
+    memory_build_distribution: list[float] = Field(
+        default_factory=lambda: [6.0, 3.0, 0.6, 32.0, 12.0, 0.4], description="记忆构建分布"
+    )
     memory_build_sample_num: int = Field(default=8, description="记忆构建样本数量")
     memory_build_sample_length: int = Field(default=40, description="记忆构建样本长度")
     memory_compress_rate: float = Field(default=0.1, description="记忆压缩率")
@@ -403,11 +406,12 @@ class MemoryConfig(ValidatedConfigBase):
     consolidate_memory_interval: int = Field(default=1000, description="记忆巩固间隔")
     consolidation_similarity_threshold: float = Field(default=0.7, description="巩固相似性阈值")
     consolidate_memory_percentage: float = Field(default=0.01, description="巩固记忆百分比")
-    memory_ban_words: list[str] = Field(default_factory=lambda: ["表情包", "图片", "回复", "聊天记录"], description="记忆禁用词")
+    memory_ban_words: list[str] = Field(
+        default_factory=lambda: ["表情包", "图片", "回复", "聊天记录"], description="记忆禁用词"
+    )
     enable_instant_memory: bool = Field(default=True, description="启用即时记忆")
     enable_llm_instant_memory: bool = Field(default=True, description="启用基于LLM的瞬时记忆")
     enable_vector_instant_memory: bool = Field(default=True, description="启用基于向量的瞬时记忆")
-
 
 
 class MoodConfig(ValidatedConfigBase):
@@ -415,7 +419,6 @@ class MoodConfig(ValidatedConfigBase):
 
     enable_mood: bool = Field(default=False, description="启用情绪")
     mood_update_threshold: float = Field(default=1.0, description="情绪更新阈值")
-
 
 
 class KeywordRuleConfig(ValidatedConfigBase):
@@ -427,6 +430,7 @@ class KeywordRuleConfig(ValidatedConfigBase):
 
     def __post_init__(self):
         import re
+
         if not self.keywords and not self.regex:
             raise ValueError("关键词规则必须至少包含keywords或regex中的一个")
         if not self.reaction:
@@ -438,13 +442,11 @@ class KeywordRuleConfig(ValidatedConfigBase):
                 raise ValueError(f"无效的正则表达式 '{pattern}': {str(e)}") from e
 
 
-
 class KeywordReactionConfig(ValidatedConfigBase):
     """关键词配置类"""
 
     keyword_rules: list[KeywordRuleConfig] = Field(default_factory=lambda: [], description="关键词规则列表")
     regex_rules: list[KeywordRuleConfig] = Field(default_factory=lambda: [], description="正则表达式规则列表")
-
 
 
 class CustomPromptConfig(ValidatedConfigBase):
@@ -453,7 +455,6 @@ class CustomPromptConfig(ValidatedConfigBase):
     image_prompt: str = Field(default="", description="图片提示词")
     planner_custom_prompt_enable: bool = Field(default=False, description="启用规划器自定义提示词")
     planner_custom_prompt_content: str = Field(default="", description="规划器自定义提示词内容")
-
 
 
 class ResponsePostProcessConfig(ValidatedConfigBase):
@@ -489,6 +490,7 @@ class DebugConfig(ValidatedConfigBase):
 
 class ExperimentalConfig(ValidatedConfigBase):
     """实验功能配置类"""
+
     pfc_chatting: bool = Field(default=False, description="启用PFC聊天")
 
 
@@ -503,7 +505,6 @@ class MaimMessageConfig(ValidatedConfigBase):
     cert_file: str = Field(default="", description="证书文件")
     key_file: str = Field(default="", description="密钥文件")
     auth_token: list[str] = Field(default_factory=lambda: [], description="认证令牌列表")
-
 
 
 class LPMMKnowledgeConfig(ValidatedConfigBase):
@@ -523,7 +524,6 @@ class LPMMKnowledgeConfig(ValidatedConfigBase):
     embedding_dimension: int = Field(default=1024, description="嵌入维度")
 
 
-
 class ScheduleConfig(ValidatedConfigBase):
     """日程配置类"""
 
@@ -540,10 +540,11 @@ class DependencyManagementConfig(ValidatedConfigBase):
     mirror_url: str = Field(default="", description="镜像URL")
     use_proxy: bool = Field(default=False, description="使用代理")
     proxy_url: str = Field(default="", description="代理URL")
-    pip_options: list[str] = Field(default_factory=lambda: ["--no-warn-script-location", "--disable-pip-version-check"], description="Pip选项")
+    pip_options: list[str] = Field(
+        default_factory=lambda: ["--no-warn-script-location", "--disable-pip-version-check"], description="Pip选项"
+    )
     prompt_before_install: bool = Field(default=False, description="安装前提示")
     install_log_level: str = Field(default="INFO", description="安装日志级别")
-
 
 
 class VideoAnalysisConfig(ValidatedConfigBase):
@@ -551,14 +552,16 @@ class VideoAnalysisConfig(ValidatedConfigBase):
 
     enable: bool = Field(default=True, description="启用")
     analysis_mode: str = Field(default="batch_frames", description="分析模式")
-    frame_extraction_mode: str = Field(default="keyframe", description="抽帧模式：keyframe(关键帧), fixed_number(固定数量), time_interval(时间间隔)")
+    frame_extraction_mode: str = Field(
+        default="keyframe", description="抽帧模式：keyframe(关键帧), fixed_number(固定数量), time_interval(时间间隔)"
+    )
     frame_interval_seconds: float = Field(default=2.0, description="抽帧时间间隔")
     max_frames: int = Field(default=8, description="最大帧数")
     frame_quality: int = Field(default=85, description="帧质量")
     max_image_size: int = Field(default=800, description="最大图像大小")
     enable_frame_timing: bool = Field(default=True, description="启用帧时间")
     batch_analysis_prompt: str = Field(default="", description="批量分析提示")
-    
+
     # Rust模块相关配置
     rust_keyframe_threshold: float = Field(default=2.0, description="关键帧检测阈值")
     rust_use_simd: bool = Field(default=True, description="启用SIMD优化")
@@ -575,7 +578,7 @@ class WebSearchConfig(ValidatedConfigBase):
     tavily_api_keys: list[str] = Field(default_factory=lambda: [], description="Tavily API密钥列表，支持轮询机制")
     exa_api_keys: list[str] = Field(default_factory=lambda: [], description="exa API密钥列表，支持轮询机制")
     enabled_engines: list[str] = Field(default_factory=lambda: ["ddg"], description="启用的搜索引擎")
-    search_strategy: Literal["fallback","single","parallel"] = Field(default="single", description="搜索策略")
+    search_strategy: Literal["fallback", "single", "parallel"] = Field(default="single", description="搜索策略")
 
 
 class AntiPromptInjectionConfig(ValidatedConfigBase):
@@ -611,7 +614,9 @@ class SleepSystemConfig(ValidatedConfigBase):
     decay_interval: float = Field(default=30.0, ge=1.0, description="唤醒度衰减间隔(秒)")
     angry_duration: float = Field(default=300.0, ge=10.0, description="愤怒状态持续时间(秒)")
     angry_prompt: str = Field(default="你被人吵醒了非常生气，说话带着怒气", description="被吵醒后的愤怒提示词")
-    re_sleep_delay_minutes: int = Field(default=5, ge=1, description="被唤醒后，如果多久没有新消息则尝试重新入睡（分钟）")
+    re_sleep_delay_minutes: int = Field(
+        default=5, ge=1, description="被唤醒后，如果多久没有新消息则尝试重新入睡（分钟）"
+    )
 
     # --- 失眠机制相关参数 ---
     enable_insomnia_system: bool = Field(default=True, description="是否启用失眠系统")
@@ -625,11 +630,17 @@ class SleepSystemConfig(ValidatedConfigBase):
 
     # --- 弹性睡眠与睡前消息 ---
     enable_flexible_sleep: bool = Field(default=True, description="是否启用弹性睡眠")
-    flexible_sleep_pressure_threshold: float = Field(default=40.0, description="触发弹性睡眠的睡眠压力阈值，低于该值可能延迟入睡")
+    flexible_sleep_pressure_threshold: float = Field(
+        default=40.0, description="触发弹性睡眠的睡眠压力阈值，低于该值可能延迟入睡"
+    )
     max_sleep_delay_minutes: int = Field(default=60, description="单日最大延迟入睡分钟数")
     enable_pre_sleep_notification: bool = Field(default=True, description="是否启用睡前消息")
-    pre_sleep_notification_groups: List[str] = Field(default_factory=list, description="接收睡前消息的群号列表, 格式: [\"platform:group_id1\", \"platform:group_id2\"]")
-    pre_sleep_prompt: str = Field(default="我准备睡觉了，请生成一句简短自然的晚安问候。", description="用于生成睡前消息的提示")
+    pre_sleep_notification_groups: List[str] = Field(
+        default_factory=list, description='接收睡前消息的群号列表, 格式: ["platform:group_id1", "platform:group_id2"]'
+    )
+    pre_sleep_prompt: str = Field(
+        default="我准备睡觉了，请生成一句简短自然的晚安问候。", description="用于生成睡前消息的提示"
+    )
 
 
 class MonthlyPlanSystemConfig(ValidatedConfigBase):
@@ -644,30 +655,35 @@ class MonthlyPlanSystemConfig(ValidatedConfigBase):
 
 class ContextGroup(ValidatedConfigBase):
     """上下文共享组配置"""
+
     name: str = Field(..., description="共享组的名称")
     chat_ids: List[str] = Field(..., description="属于该组的聊天ID列表")
 
 
 class CrossContextConfig(ValidatedConfigBase):
     """跨群聊上下文共享配置"""
+
     enable: bool = Field(default=False, description="是否启用跨群聊上下文共享功能")
     groups: List[ContextGroup] = Field(default_factory=list, description="上下文共享组列表")
 
 
 class MaizoneIntercomConfig(ValidatedConfigBase):
     """Maizone互通组配置"""
+
     enable: bool = Field(default=False, description="是否启用Maizone互通组功能")
     groups: List[ContextGroup] = Field(default_factory=list, description="Maizone互通组列表")
 
 
 class CommandConfig(ValidatedConfigBase):
     """命令系统配置类"""
-    
-    command_prefixes: List[str] = Field(default_factory=lambda: ['/', '!', '.', '#'], description="支持的命令前缀列表")
+
+    command_prefixes: List[str] = Field(default_factory=lambda: ["/", "!", ".", "#"], description="支持的命令前缀列表")
 
 
 class PermissionConfig(ValidatedConfigBase):
     """权限系统配置类"""
-    
+
     # Master用户配置（拥有最高权限，无视所有权限节点）
-    master_users: List[List[str]] = Field(default_factory=list, description="Master用户列表，格式: [[platform, user_id], ...]")
+    master_users: List[List[str]] = Field(
+        default_factory=list, description="Master用户列表，格式: [[platform, user_id], ...]"
+    )

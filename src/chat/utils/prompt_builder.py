@@ -12,6 +12,7 @@ install(extra_lines=3)
 
 logger = get_logger("prompt_build")
 
+
 class PromptContext:
     def __init__(self):
         self._context_prompts: Dict[str, Dict[str, "Prompt"]] = {}
@@ -27,7 +28,7 @@ class PromptContext:
     @_current_context.setter
     def _current_context(self, value: Optional[str]):
         """设置当前协程的上下文ID"""
-        self._current_context_var.set(value) # type: ignore
+        self._current_context_var.set(value)  # type: ignore
 
     @asynccontextmanager
     async def async_scope(self, context_id: Optional[str] = None):
@@ -51,7 +52,7 @@ class PromptContext:
             # 保存当前协程的上下文值，不影响其他协程
             previous_context = self._current_context
             # 设置当前协程的新上下文
-            token = self._current_context_var.set(context_id) if context_id else None # type: ignore
+            token = self._current_context_var.set(context_id) if context_id else None  # type: ignore
         else:
             # 如果没有提供新上下文，保持当前上下文不变
             previous_context = self._current_context
@@ -69,7 +70,8 @@ class PromptContext:
                     # 如果reset失败，尝试直接设置
                     try:
                         self._current_context = previous_context
-                    except Exception: ...
+                    except Exception:
+                        ...
                     # 静默忽略恢复失败
 
     async def get_prompt_async(self, name: str) -> Optional["Prompt"]:
@@ -174,7 +176,9 @@ class Prompt(str):
         """将临时标记还原为实际的花括号字符"""
         return template.replace(Prompt._TEMP_LEFT_BRACE, "{").replace(Prompt._TEMP_RIGHT_BRACE, "}")
 
-    def __new__(cls, fstr, name: Optional[str] = None, args: Optional[Union[List[Any], tuple[Any, ...]]] = None, **kwargs):
+    def __new__(
+        cls, fstr, name: Optional[str] = None, args: Optional[Union[List[Any], tuple[Any, ...]]] = None, **kwargs
+    ):
         # 如果传入的是元组，转换为列表
         if isinstance(args, tuple):
             args = list(args)
@@ -219,7 +223,9 @@ class Prompt(str):
         return prompt
 
     @classmethod
-    def _format_template(cls, template, args: Optional[List[Any]] = None, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def _format_template(
+        cls, template, args: Optional[List[Any]] = None, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         if kwargs is None:
             kwargs = {}
         # 预处理模板中的转义花括号

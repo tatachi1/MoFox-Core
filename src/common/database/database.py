@@ -16,30 +16,30 @@ _sql_engine = None
 
 logger = get_logger("database")
 
+
 # 兼容性：为了不破坏现有代码，保留db变量但指向SQLAlchemy
 class DatabaseProxy:
     """数据库代理类"""
-    
+
     def __init__(self):
         self._engine = None
         self._session = None
-    
+
     def initialize(self, *args, **kwargs):
         """初始化数据库连接"""
         return initialize_database_compat()
-    
 
 
 class SQLAlchemyTransaction:
     """SQLAlchemy事务上下文管理器"""
-    
+
     def __init__(self):
         self.session = None
-    
+
     def __enter__(self):
         self.session = get_db_session()
         return self.session
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
             self.session.commit()
@@ -47,8 +47,10 @@ class SQLAlchemyTransaction:
             self.session.rollback()
         self.session.close()
 
+
 # 创建全局数据库代理实例
 db = DatabaseProxy()
+
 
 def __create_database_instance():
     uri = os.getenv("MONGODB_URI")
@@ -95,10 +97,10 @@ def initialize_sql_database(database_config):
         database_config: DatabaseConfig对象
     """
     global _sql_engine
-    
+
     try:
         logger.info("使用SQLAlchemy初始化SQL数据库...")
-        
+
         # 记录数据库配置信息
         if database_config.database_type == "mysql":
             connection_info = f"{database_config.mysql_user}@{database_config.mysql_host}:{database_config.mysql_port}/{database_config.mysql_database}"
@@ -113,7 +115,7 @@ def initialize_sql_database(database_config):
                 db_path = database_config.sqlite_path
             logger.info("SQLite数据库连接配置:")
             logger.info(f"  数据库文件: {db_path}")
-        
+
         # 使用SQLAlchemy初始化
         success = initialize_database_compat()
         if success:
@@ -121,12 +123,13 @@ def initialize_sql_database(database_config):
             logger.info("SQLAlchemy数据库初始化成功")
         else:
             logger.error("SQLAlchemy数据库初始化失败")
-            
+
         return _sql_engine
-        
+
     except Exception as e:
         logger.error(f"初始化SQL数据库失败: {e}")
         return None
+
 
 class DBWrapper:
     """数据库代理类，保持接口兼容性同时实现懒加载。"""
@@ -140,4 +143,3 @@ class DBWrapper:
 
 # 全局MongoDB数据库访问点
 memory_db: Database = DBWrapper()  # type: ignore
-

@@ -203,12 +203,12 @@ class MessageRecv(Message):
                 self.is_voice = False
                 self.is_video = True
                 logger.info(f"接收到视频消息，数据类型: {type(segment.data)}")
-                
+
                 # 检查视频分析功能是否可用
                 if not is_video_analysis_available():
                     logger.warning("⚠️ Rust视频处理模块不可用，跳过视频分析")
                     return "[视频]"
-                
+
                 if global_config.video_analysis.enable:
                     logger.info("已启用视频识别,开始识别")
                     if isinstance(segment.data, dict):
@@ -216,25 +216,23 @@ class MessageRecv(Message):
                             # 从Adapter接收的视频数据
                             video_base64 = segment.data.get("base64")
                             filename = segment.data.get("filename", "video.mp4")
-                            
+
                             logger.info(f"视频文件名: {filename}")
                             logger.info(f"Base64数据长度: {len(video_base64) if video_base64 else 0}")
-                            
+
                             if video_base64:
                                 # 解码base64视频数据
                                 video_bytes = base64.b64decode(video_base64)
                                 logger.info(f"解码后视频大小: {len(video_bytes)} 字节")
-                                
+
                                 # 使用video analyzer分析视频
                                 video_analyzer = get_video_analyzer()
                                 result = await video_analyzer.analyze_video_from_bytes(
-                                    video_bytes,
-                                    filename,
-                                    prompt=global_config.video_analysis.batch_analysis_prompt
+                                    video_bytes, filename, prompt=global_config.video_analysis.batch_analysis_prompt
                                 )
-                                
+
                                 logger.info(f"视频分析结果: {result}")
-                                
+
                                 # 返回视频分析结果
                                 summary = result.get("summary", "")
                                 if summary:
@@ -247,6 +245,7 @@ class MessageRecv(Message):
                         except Exception as e:
                             logger.error(f"视频处理失败: {str(e)}")
                             import traceback
+
                             logger.error(f"错误详情: {traceback.format_exc()}")
                             return "[收到视频，但处理时出现错误]"
                     else:
@@ -278,9 +277,9 @@ class MessageRecvS4U(MessageRecv):
         self.is_screen = False
         self.is_internal = False
         self.voice_done = None
-        
+
         self.chat_info = None
-    
+
     async def process(self) -> None:
         self.processed_plain_text = await self._process_message_segments(self.message_segment)
 
@@ -382,14 +381,14 @@ class MessageRecvS4U(MessageRecv):
                 self.is_voice = False
                 self.is_picid = False
                 self.is_emoji = False
-                
+
                 logger.info(f"接收到视频消息，数据类型: {type(segment.data)}")
-                
+
                 # 检查视频分析功能是否可用
                 if not is_video_analysis_available():
                     logger.warning("⚠️ Rust视频处理模块不可用，跳过视频分析")
                     return "[视频]"
-                
+
                 if global_config.video_analysis.enable:
                     logger.info("已启用视频识别,开始识别")
                     if isinstance(segment.data, dict):
@@ -397,25 +396,23 @@ class MessageRecvS4U(MessageRecv):
                             # 从Adapter接收的视频数据
                             video_base64 = segment.data.get("base64")
                             filename = segment.data.get("filename", "video.mp4")
-                            
+
                             logger.info(f"视频文件名: {filename}")
                             logger.info(f"Base64数据长度: {len(video_base64) if video_base64 else 0}")
-                            
+
                             if video_base64:
                                 # 解码base64视频数据
                                 video_bytes = base64.b64decode(video_base64)
                                 logger.info(f"解码后视频大小: {len(video_bytes)} 字节")
-                                
+
                                 # 使用video analyzer分析视频
                                 video_analyzer = get_video_analyzer()
                                 result = await video_analyzer.analyze_video_from_bytes(
-                                    video_bytes,
-                                    filename,
-                                    prompt=global_config.video_analysis.batch_analysis_prompt
+                                    video_bytes, filename, prompt=global_config.video_analysis.batch_analysis_prompt
                                 )
-                                
+
                                 logger.info(f"视频分析结果: {result}")
-                                
+
                                 # 返回视频分析结果
                                 summary = result.get("summary", "")
                                 if summary:
@@ -428,6 +425,7 @@ class MessageRecvS4U(MessageRecv):
                         except Exception as e:
                             logger.error(f"视频处理失败: {str(e)}")
                             import traceback
+
                             logger.error(f"错误详情: {traceback.format_exc()}")
                             return "[收到视频，但处理时出现错误]"
                     else:

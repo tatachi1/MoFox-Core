@@ -3,6 +3,7 @@
 服务管理器/定位器
 这是一个独立的模块，用于注册和获取插件内的全局服务实例，以避免循环导入。
 """
+
 from typing import Dict, Any, Callable
 from .qzone_service import QZoneService
 

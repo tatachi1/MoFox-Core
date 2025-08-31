@@ -3,6 +3,7 @@
 图片服务模块
 负责处理所有与图片相关的任务，特别是AI生成图片。
 """
+
 import base64
 from pathlib import Path
 from typing import Callable
@@ -74,12 +75,7 @@ class ImageService:
             "authorization": f"Bearer {api_key}",
             "content-type": "application/json",
         }
-        payload = {
-            "prompt": story,
-            "n": batch_size,
-            "response_format": "b64_json",
-            "style": "cinematic-default"
-        }
+        payload = {"prompt": story, "n": batch_size, "response_format": "b64_json", "style": "cinematic-default"}
 
         try:
             async with aiohttp.ClientSession() as session:

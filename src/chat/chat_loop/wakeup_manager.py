@@ -8,14 +8,15 @@ from .hfc_context import HfcContext
 
 logger = get_logger("wakeup")
 
+
 class WakeUpManager:
     def __init__(self, context: HfcContext):
         """
         初始化唤醒度管理器
-        
+
         Args:
             context: HFC聊天上下文对象
-            
+
         功能说明:
         - 管理休眠状态下的唤醒度累积
         - 处理唤醒度的自然衰减
@@ -29,7 +30,7 @@ class WakeUpManager:
         self._decay_task: Optional[asyncio.Task] = None
         self.last_log_time = 0
         self.log_interval = 30
-        
+
         # 从配置文件获取参数
         sleep_config = global_config.sleep_system
         self.wakeup_threshold = sleep_config.wakeup_threshold
@@ -40,7 +41,7 @@ class WakeUpManager:
         self.angry_duration = sleep_config.angry_duration
         self.enabled = sleep_config.enable
         self.angry_prompt = sleep_config.angry_prompt
-        
+
         self._load_wakeup_state()
 
     def _get_storage_key(self) -> str:
@@ -73,7 +74,7 @@ class WakeUpManager:
         if not self.enabled:
             logger.info(f"{self.context.log_prefix} 唤醒度系统已禁用，跳过启动")
             return
-            
+
         if not self._decay_task:
             self._decay_task = asyncio.create_task(self._decay_loop())
             self._decay_task.add_done_callback(self._handle_decay_completion)
@@ -100,18 +101,19 @@ class WakeUpManager:
         """唤醒度衰减循环"""
         while self.context.running:
             await asyncio.sleep(self.decay_interval)
-            
+
             current_time = time.time()
-            
+
             # 检查愤怒状态是否过期
             if self.is_angry and current_time - self.angry_start_time >= self.angry_duration:
                 self.is_angry = False
                 # 通知情绪管理系统清除愤怒状态
                 from src.mood.mood_manager import mood_manager
+
                 mood_manager.clear_angry_from_wakeup(self.context.stream_id)
                 logger.info(f"{self.context.log_prefix} 愤怒状态结束，恢复正常")
                 self._save_wakeup_state()
-            
+
             # 唤醒度自然衰减
             if self.wakeup_value > 0:
                 old_value = self.wakeup_value
@@ -123,27 +125,28 @@ class WakeUpManager:
     def add_wakeup_value(self, is_private_chat: bool, is_mentioned: bool = False) -> bool:
         """
         增加唤醒度值
-        
+
         Args:
             is_private_chat: 是否为私聊
             is_mentioned: 是否被艾特(仅群聊有效)
-            
+
         Returns:
             bool: 是否达到唤醒阈值
         """
         # 如果系统未启用，直接返回
         if not self.enabled:
             return False
-            
+
         # 只有在休眠且非失眠状态下才累积唤醒度
         from src.schedule.schedule_manager import schedule_manager
         from src.schedule.sleep_manager import SleepState
+
         current_sleep_state = schedule_manager.get_current_sleep_state()
         if current_sleep_state != SleepState.SLEEPING:
             return False
-            
+
         old_value = self.wakeup_value
-        
+
         if is_private_chat:
             # 私聊每条消息都增加唤醒度
             self.wakeup_value += self.private_message_increment
@@ -155,19 +158,23 @@ class WakeUpManager:
         else:
             # 群聊未被艾特，不增加唤醒度
             return False
-        
+
         current_time = time.time()
         if current_time - self.last_log_time > self.log_interval:
-            logger.info(f"{self.context.log_prefix} 唤醒度变化: {old_value:.1f} -> {self.wakeup_value:.1f} (阈值: {self.wakeup_threshold})")
+            logger.info(
+                f"{self.context.log_prefix} 唤醒度变化: {old_value:.1f} -> {self.wakeup_value:.1f} (阈值: {self.wakeup_threshold})"
+            )
             self.last_log_time = current_time
         else:
-            logger.debug(f"{self.context.log_prefix} 唤醒度变化: {old_value:.1f} -> {self.wakeup_value:.1f} (阈值: {self.wakeup_threshold})")
-        
+            logger.debug(
+                f"{self.context.log_prefix} 唤醒度变化: {old_value:.1f} -> {self.wakeup_value:.1f} (阈值: {self.wakeup_threshold})"
+            )
+
         # 检查是否达到唤醒阈值
         if self.wakeup_value >= self.wakeup_threshold:
             self._trigger_wakeup()
             return True
-        
+
         self._save_wakeup_state()
         return False
 
@@ -176,17 +183,19 @@ class WakeUpManager:
         self.is_angry = True
         self.angry_start_time = time.time()
         self.wakeup_value = 0.0  # 重置唤醒度
-        
+
         self._save_wakeup_state()
-        
+
         # 通知情绪管理系统进入愤怒状态
         from src.mood.mood_manager import mood_manager
+
         mood_manager.set_angry_from_wakeup(self.context.stream_id)
-        
+
         # 通知日程管理器重置睡眠状态
         from src.schedule.schedule_manager import schedule_manager
+
         schedule_manager.reset_sleep_state_after_wakeup()
-        
+
         logger.info(f"{self.context.log_prefix} 唤醒度达到阈值({self.wakeup_threshold})，被吵醒进入愤怒状态！")
 
     def get_angry_prompt_addition(self) -> str:
@@ -203,6 +212,7 @@ class WakeUpManager:
                 self.is_angry = False
                 # 通知情绪管理系统清除愤怒状态
                 from src.mood.mood_manager import mood_manager
+
                 mood_manager.clear_angry_from_wakeup(self.context.stream_id)
                 logger.info(f"{self.context.log_prefix} 愤怒状态自动过期")
                 return False
@@ -214,5 +224,7 @@ class WakeUpManager:
             "wakeup_value": self.wakeup_value,
             "wakeup_threshold": self.wakeup_threshold,
             "is_angry": self.is_angry,
-            "angry_remaining_time": max(0, self.angry_duration - (time.time() - self.angry_start_time)) if self.is_angry else 0
+            "angry_remaining_time": max(0, self.angry_duration - (time.time() - self.angry_start_time))
+            if self.is_angry
+            else 0,
         }

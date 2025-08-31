@@ -15,7 +15,7 @@ logger = get_logger("hfc")
 class CycleDetail:
     """
     循环信息记录类
-    
+
     功能说明:
     - 记录单次思考循环的详细信息
     - 包含循环ID、思考ID、时间戳等基本信息
@@ -26,10 +26,10 @@ class CycleDetail:
     def __init__(self, cycle_id: Union[int, str]):
         """
         初始化循环详情记录
-        
+
         Args:
             cycle_id: 循环ID，用于标识循环的顺序
-            
+
         功能说明:
         - 设置循环基本标识信息
         - 初始化时间戳和计时器
@@ -47,10 +47,10 @@ class CycleDetail:
     def to_dict(self) -> Dict[str, Any]:
         """
         将循环信息转换为字典格式
-        
+
         Returns:
             dict: 包含所有循环信息的字典，已处理循环引用和序列化问题
-            
+
         功能说明:
         - 递归转换复杂对象为可序列化格式
         - 防止循环引用导致的无限递归
@@ -111,10 +111,10 @@ class CycleDetail:
     def set_loop_info(self, loop_info: Dict[str, Any]):
         """
         设置循环信息
-        
+
         Args:
             loop_info: 包含循环规划和动作信息的字典
-            
+
         功能说明:
         - 从传入的循环信息中提取规划和动作信息
         - 更新当前循环详情的相关字段
@@ -126,14 +126,14 @@ class CycleDetail:
 def get_recent_message_stats(minutes: float = 30, chat_id: Optional[str] = None) -> dict:
     """
     获取最近消息统计信息
-    
+
     Args:
         minutes: 检索的分钟数，默认30分钟
         chat_id: 指定的chat_id，仅统计该chat下的消息。为None时统计全部
-        
+
     Returns:
         dict: {"bot_reply_count": int, "total_message_count": int}
-        
+
     功能说明:
     - 统计指定时间范围内的消息数量
     - 区分机器人回复和总消息数
@@ -162,7 +162,7 @@ def get_recent_message_stats(minutes: float = 30, chat_id: Optional[str] = None)
 async def send_typing():
     """
     发送打字状态指示
-    
+
     功能说明:
     - 创建内心聊天流（用于状态显示）
     - 发送typing状态消息
@@ -181,10 +181,11 @@ async def send_typing():
         message_type="state", content="typing", stream_id=chat.stream_id, storage_message=False
     )
 
+
 async def stop_typing():
     """
     停止打字状态指示
-    
+
     功能说明:
     - 创建内心聊天流（用于状态显示）
     - 发送stop_typing状态消息

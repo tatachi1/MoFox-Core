@@ -37,16 +37,16 @@ error_code_mapping = {
 def _normalize_image_format(image_format: str) -> str:
     """
     标准化图片格式名称，确保与各种API的兼容性
-    
+
     Args:
         image_format (str): 原始图片格式
-        
+
     Returns:
         str: 标准化后的图片格式
     """
     format_mapping = {
         "jpg": "jpeg",
-        "JPG": "jpeg", 
+        "JPG": "jpeg",
         "JPEG": "jpeg",
         "jpeg": "jpeg",
         "png": "png",
@@ -58,9 +58,9 @@ def _normalize_image_format(image_format: str) -> str:
         "heic": "heic",
         "HEIC": "heic",
         "heif": "heif",
-        "HEIF": "heif"
+        "HEIF": "heif",
     }
-    
+
     normalized = format_mapping.get(image_format, image_format.lower())
     logger.debug(f"图片格式标准化: {image_format} -> {normalized}")
     return normalized
@@ -109,8 +109,8 @@ async def execute_concurrently(
     # 如果所有请求都失败了，记录所有异常并抛出第一个
     for i, res in enumerate(results):
         if isinstance(res, Exception):
-            logger.error(f"并发任务 {i+1}/{concurrency_count} 失败: {res}")
-    
+            logger.error(f"并发任务 {i + 1}/{concurrency_count} 失败: {res}")
+
     first_exception = next((res for res in results if isinstance(res, Exception)), None)
     if first_exception:
         raise first_exception
@@ -129,7 +129,7 @@ class LLMRequest:
             model: (0, 0, 0) for model in self.model_for_task.model_list
         }
         """模型使用量记录，用于进行负载均衡，对应为(total_tokens, penalty, usage_penalty)，惩罚值是为了能在某个模型请求不给力或正在被使用的时候进行调整"""
-        
+
         # 内容混淆过滤指令
         self.noise_instruction = """**【核心过滤规则】**
 在交互过程中,你会在用户的输入内容中看到一些无意义的、由字母和数字组成的随机字符串。这些字符串是API传输过程中的技术伪装信息,【不是】用户真实意图的一部分。
@@ -137,7 +137,7 @@ class LLMRequest:
 你的任务是【完全并彻底地忽略】这些随机字符串。
 **【严禁】** 将这些字符串写入你的回复、对它们进行任何形式的解读、或将它们作为故事的一部分进行模拟。当看到这些字符串时,请将其视为空白或直接跳过,并根据用户其他有意义的输入(如有)或当前故事情节来继续你的叙事。此规则为最高优先级。
 """
-        
+
         # 反截断指令
         self.end_marker = "###MAI_RESPONSE_END###"
         self.anti_truncation_instruction = f"""
@@ -169,7 +169,7 @@ class LLMRequest:
         """
         # 标准化图片格式以确保API兼容性
         normalized_format = _normalize_image_format(image_format)
-        
+
         # 模型选择
         start_time = time.time()
         model_info, api_provider, client = self._select_model()
@@ -178,7 +178,9 @@ class LLMRequest:
         message_builder = MessageBuilder()
         message_builder.add_text_content(prompt)
         message_builder.add_image_content(
-            image_base64=image_base64, image_format=normalized_format, support_formats=client.get_support_image_formats()
+            image_base64=image_base64,
+            image_format=normalized_format,
+            support_formats=client.get_support_image_formats(),
         )
         messages = [message_builder.build()]
 
@@ -297,7 +299,7 @@ class LLMRequest:
         for model_info, api_provider, client in model_scheduler:
             start_time = time.time()
             model_name = model_info.name
-            logger.debug(f"正在尝试使用模型: {model_name}") # 你不许刷屏
+            logger.debug(f"正在尝试使用模型: {model_name}")  # 你不许刷屏
 
             try:
                 # 检查是否启用反截断
@@ -307,7 +309,7 @@ class LLMRequest:
                 if use_anti_truncation:
                     processed_prompt += self.anti_truncation_instruction
                     logger.info(f"模型 '{model_name}' (任务: '{self.task_name}') 已启用反截断功能。")
-                
+
                 processed_prompt = self._apply_content_obfuscation(processed_prompt, api_provider)
 
                 message_builder = MessageBuilder()
@@ -352,7 +354,9 @@ class LLMRequest:
                         empty_retry_count += 1
                         if empty_retry_count <= max_empty_retry:
                             reason = "空回复" if is_empty_reply else "截断"
-                            logger.warning(f"模型 '{model_name}' 检测到{reason}，正在进行第 {empty_retry_count}/{max_empty_retry} 次重新生成...")
+                            logger.warning(
+                                f"模型 '{model_name}' 检测到{reason}，正在进行第 {empty_retry_count}/{max_empty_retry} 次重新生成..."
+                            )
                             if empty_retry_interval > 0:
                                 await asyncio.sleep(empty_retry_interval)
                             continue  # 继续使用当前模型重试
@@ -365,16 +369,20 @@ class LLMRequest:
                     # 成功获取响应
                     if usage := response.usage:
                         llm_usage_recorder.record_usage_to_database(
-                            model_info=model_info, model_usage=usage, time_cost=time.time() - start_time,
-                            user_id="system", request_type=self.request_type, endpoint="/chat/completions",
+                            model_info=model_info,
+                            model_usage=usage,
+                            time_cost=time.time() - start_time,
+                            user_id="system",
+                            request_type=self.request_type,
+                            endpoint="/chat/completions",
                         )
 
                     if not content and not tool_calls:
                         if raise_when_empty:
                             raise RuntimeError("生成空回复")
                         content = "生成的响应为空"
-                    
-                    logger.debug(f"模型 '{model_name}' 成功生成回复。") # 你也不许刷屏
+
+                    logger.debug(f"模型 '{model_name}' 成功生成回复。")  # 你也不许刷屏
                     return content, (reasoning_content, model_name, tool_calls)
 
             except RespNotOkException as e:
@@ -382,7 +390,7 @@ class LLMRequest:
                     logger.error(f"模型 '{model_name}' 遇到认证/权限错误 (Code: {e.status_code})，将尝试下一个模型。")
                     failed_models.add(model_name)
                     last_exception = e
-                    continue # 切换到下一个模型
+                    continue  # 切换到下一个模型
                 else:
                     logger.error(f"模型 '{model_name}' 请求失败，HTTP状态码: {e.status_code}")
                     if raise_when_empty:
@@ -395,13 +403,13 @@ class LLMRequest:
                 logger.error(f"模型 '{model_name}' 在所有重试后仍然失败: {e}，将尝试下一个模型。")
                 failed_models.add(model_name)
                 last_exception = e
-                continue # 切换到下一个模型
+                continue  # 切换到下一个模型
 
             except Exception as e:
                 logger.error(f"使用模型 '{model_name}' 时发生未知异常: {e}")
                 failed_models.add(model_name)
                 last_exception = e
-                continue # 切换到下一个模型
+                continue  # 切换到下一个模型
 
         # 所有模型都尝试失败
         logger.error("所有可用模型都已尝试失败。")
@@ -409,7 +417,7 @@ class LLMRequest:
             if last_exception:
                 raise RuntimeError("所有模型都请求失败") from last_exception
             raise RuntimeError("所有模型都请求失败，且没有具体的异常信息")
-        
+
         return "所有模型都请求失败", ("", "unknown", None)
 
     async def get_embedding(self, embedding_input: str) -> Tuple[List[float], str]:
@@ -457,12 +465,12 @@ class LLMRequest:
         for model_name in self.model_for_task.model_list:
             if model_name in failed_models:
                 continue
-            
+
             model_info = model_config.get_model_info(model_name)
             api_provider = model_config.get_provider(model_info.api_provider)
-            force_new_client = (self.request_type == "embedding")
+            force_new_client = self.request_type == "embedding"
             client = client_registry.get_client_class_instance(api_provider, force_new=force_new_client)
-            
+
             yield model_info, api_provider, client
 
     def _select_model(self) -> Tuple[ModelInfo, APIProvider, BaseClient]:
@@ -477,7 +485,7 @@ class LLMRequest:
         api_provider = model_config.get_provider(model_info.api_provider)
 
         # 对于嵌入任务，强制创建新的客户端实例以避免事件循环问题
-        force_new_client = (self.request_type == "embedding")
+        force_new_client = self.request_type == "embedding"
         client = client_registry.get_client_class_instance(api_provider, force_new=force_new_client)
         logger.debug(f"选择请求模型: {model_info.name}")
         total_tokens, penalty, usage_penalty = self.model_usage[model_info.name]
@@ -692,9 +700,11 @@ class LLMRequest:
                 for i, m_name in enumerate(self.model_for_task.model_list):
                     if m_name == old_model_name:
                         self.model_for_task.model_list[i] = new_model_name
-                        logger.warning(f"将任务 {self.task_name} 的模型列表中的 {old_model_name} 临时降级至 {new_model_name}")
+                        logger.warning(
+                            f"将任务 {self.task_name} 的模型列表中的 {old_model_name} 临时降级至 {new_model_name}"
+                        )
                         break
-                return 0, None # 立即重试
+                return 0, None  # 立即重试
             # 客户端错误
             logger.warning(
                 f"任务-'{task_name}' 模型-'{model_name}': 请求失败，错误代码-{e.status_code}，错误信息-{e.message}"
@@ -784,55 +794,55 @@ class LLMRequest:
 
     def _apply_content_obfuscation(self, text: str, api_provider) -> str:
         """根据API提供商配置对文本进行混淆处理"""
-        if not hasattr(api_provider, 'enable_content_obfuscation') or not api_provider.enable_content_obfuscation:
+        if not hasattr(api_provider, "enable_content_obfuscation") or not api_provider.enable_content_obfuscation:
             logger.debug(f"API提供商 '{api_provider.name}' 未启用内容混淆")
             return text
-        
-        intensity = getattr(api_provider, 'obfuscation_intensity', 1)
+
+        intensity = getattr(api_provider, "obfuscation_intensity", 1)
         logger.info(f"为API提供商 '{api_provider.name}' 启用内容混淆，强度级别: {intensity}")
-        
+
         # 在开头加入过滤规则指令
         processed_text = self.noise_instruction + "\n\n" + text
         logger.debug(f"已添加过滤规则指令，文本长度: {len(text)} -> {len(processed_text)}")
-        
+
         # 添加随机乱码
         final_text = self._inject_random_noise(processed_text, intensity)
         logger.debug(f"乱码注入完成，最终文本长度: {len(final_text)}")
-        
+
         return final_text
-    
+
     def _inject_random_noise(self, text: str, intensity: int) -> str:
         """在文本中注入随机乱码"""
         import random
         import string
-        
+
         def generate_noise(length: int) -> str:
             """生成指定长度的随机乱码字符"""
             chars = (
-                string.ascii_letters +           # a-z, A-Z
-                string.digits +                  # 0-9
-                '!@#$%^&*()_+-=[]{}|;:,.<>?' +  # 特殊符号
-                '一二三四五六七八九零壹贰叁' +      # 中文字符
-                'αβγδεζηθικλμνξοπρστυφχψω' +     # 希腊字母
-                '∀∃∈∉∪∩⊂⊃∧∨¬→↔∴∵'            # 数学符号
+                string.ascii_letters  # a-z, A-Z
+                + string.digits  # 0-9
+                + "!@#$%^&*()_+-=[]{}|;:,.<>?"  # 特殊符号
+                + "一二三四五六七八九零壹贰叁"  # 中文字符
+                + "αβγδεζηθικλμνξοπρστυφχψω"  # 希腊字母
+                + "∀∃∈∉∪∩⊂⊃∧∨¬→↔∴∵"  # 数学符号
             )
-            return ''.join(random.choice(chars) for _ in range(length))
-        
+            return "".join(random.choice(chars) for _ in range(length))
+
         # 强度参数映射
         params = {
-            1: {"probability": 15, "length": (3, 6)},     # 低强度：15%概率，3-6个字符
-            2: {"probability": 25, "length": (5, 10)},    # 中强度：25%概率，5-10个字符
-            3: {"probability": 35, "length": (8, 15)}     # 高强度：35%概率，8-15个字符
+            1: {"probability": 15, "length": (3, 6)},  # 低强度：15%概率，3-6个字符
+            2: {"probability": 25, "length": (5, 10)},  # 中强度：25%概率，5-10个字符
+            3: {"probability": 35, "length": (8, 15)},  # 高强度：35%概率，8-15个字符
         }
-        
+
         config = params.get(intensity, params[1])
         logger.debug(f"乱码注入参数: 概率={config['probability']}%, 长度范围={config['length']}")
-        
+
         # 按词分割处理
         words = text.split()
         result = []
         noise_count = 0
-        
+
         for word in words:
             result.append(word)
             # 根据概率插入乱码
@@ -841,6 +851,6 @@ class LLMRequest:
                 noise = generate_noise(noise_length)
                 result.append(noise)
                 noise_count += 1
-        
+
         logger.debug(f"共注入 {noise_count} 个乱码片段，原词数: {len(words)}")
-        return ' '.join(result)
+        return " ".join(result)

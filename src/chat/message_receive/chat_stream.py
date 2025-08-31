@@ -13,6 +13,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from src.common.database.sqlalchemy_models import ChatStreams  # 新增导入
 from src.common.database.sqlalchemy_database_api import get_db_session
 from src.config.config import global_config  # 新增导入
+
 # 避免循环导入，使用TYPE_CHECKING进行类型提示
 if TYPE_CHECKING:
     from .message import MessageRecv
@@ -22,6 +23,7 @@ install(extra_lines=3)
 
 
 logger = get_logger("chat_stream")
+
 
 class ChatMessageContext:
     """聊天消息上下文，存储消息的上下文信息"""
@@ -131,11 +133,11 @@ class ChatManager:
             self.streams: Dict[str, ChatStream] = {}  # stream_id -> ChatStream
             self.last_messages: Dict[str, "MessageRecv"] = {}  # stream_id -> last_message
             # try:
-                # with get_db_session() as session:
-                #     db.connect(reuse_if_open=True)
-                #     # 确保 ChatStreams 表存在
-                #     session.execute(text("CREATE TABLE IF NOT EXISTS chat_streams (stream_id TEXT PRIMARY KEY, platform TEXT, create_time REAL, last_active_time REAL, user_platform TEXT, user_id TEXT, user_nickname TEXT, user_cardname TEXT, group_platform TEXT, group_id TEXT, group_name TEXT)"))
-                #     session.commit()
+            # with get_db_session() as session:
+            #     db.connect(reuse_if_open=True)
+            #     # 确保 ChatStreams 表存在
+            #     session.execute(text("CREATE TABLE IF NOT EXISTS chat_streams (stream_id TEXT PRIMARY KEY, platform TEXT, create_time REAL, last_active_time REAL, user_platform TEXT, user_id TEXT, user_nickname TEXT, user_cardname TEXT, group_platform TEXT, group_id TEXT, group_name TEXT)"))
+            #     session.commit()
             # except Exception as e:
             #     logger.error(f"数据库连接或 ChatStreams 表创建失败: {e}")
 
@@ -351,10 +353,7 @@ class ChatManager:
                 # 根据数据库类型选择插入语句
                 if global_config.database.database_type == "sqlite":
                     stmt = sqlite_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=['stream_id'],
-                        set_=fields_to_save
-                    )
+                    stmt = stmt.on_conflict_do_update(index_elements=["stream_id"], set_=fields_to_save)
                 elif global_config.database.database_type == "mysql":
                     stmt = mysql_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)
                     stmt = stmt.on_duplicate_key_update(
@@ -363,10 +362,7 @@ class ChatManager:
                 else:
                     # 默认使用通用插入，尝试SQLite语法
                     stmt = sqlite_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=['stream_id'],
-                        set_=fields_to_save
-                    )
+                    stmt = stmt.on_conflict_do_update(index_elements=["stream_id"], set_=fields_to_save)
 
                 session.execute(stmt)
                 session.commit()

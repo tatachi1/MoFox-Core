@@ -95,9 +95,8 @@ def _entity_extract(llm_req: LLMRequest, paragraph: str) -> List[str]:
 def _rdf_triple_extract(llm_req: LLMRequest, paragraph: str, entities: list) -> List[List[str]]:
     """对段落进行实体提取，返回提取出的实体列表（JSON格式）"""
     rdf_extract_context = prompt_template.build_rdf_triple_extract_context(
-        paragraph, entities=orjson.dumps(entities).decode('utf-8')
+        paragraph, entities=orjson.dumps(entities).decode("utf-8")
     )
-
 
     # 使用 asyncio.run 来运行异步方法
     try:

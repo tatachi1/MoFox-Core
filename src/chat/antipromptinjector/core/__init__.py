@@ -10,4 +10,4 @@
 from .detector import PromptInjectionDetector
 from .shield import MessageShield
 
-__all__ = ['PromptInjectionDetector', 'MessageShield']
+__all__ = ["PromptInjectionDetector", "MessageShield"]

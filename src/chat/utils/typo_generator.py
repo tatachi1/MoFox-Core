@@ -73,9 +73,7 @@ class ChineseTypoGenerator:
 
         # 保存到缓存文件
         with open(cache_file, "w", encoding="utf-8") as f:
-            f.write(orjson.dumps(
-                normalized_freq, option=orjson.OPT_INDENT_2).decode('utf-8')
-            )
+            f.write(orjson.dumps(normalized_freq, option=orjson.OPT_INDENT_2).decode("utf-8"))
 
         return normalized_freq
 

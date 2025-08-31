@@ -13,8 +13,10 @@ from src.common.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class Base(DeclarativeBase):
     pass
+
 
 def _model_to_dict(instance: Base) -> Dict[str, Any]:
     """
@@ -193,9 +195,9 @@ def count_messages(message_filter: dict[str, Any]) -> int:
             count = session.execute(query).scalar()
             return count or 0
     except Exception as e:
-            log_message = f"使用 SQLAlchemy 计数消息失败 (message_filter={message_filter}): {e}\n{traceback.format_exc()}"
-            logger.error(log_message)
-            return 0
+        log_message = f"使用 SQLAlchemy 计数消息失败 (message_filter={message_filter}): {e}\n{traceback.format_exc()}"
+        logger.error(log_message)
+        return 0
 
 
 # 你可以在这里添加更多与 messages 集合相关的数据库操作函数，例如 find_one_message, insert_message 等。

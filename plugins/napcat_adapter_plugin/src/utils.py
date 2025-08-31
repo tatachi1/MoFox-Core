@@ -8,6 +8,7 @@ import io
 
 from .database import BanUser, db_manager
 from src.common.logger import get_logger
+
 logger = get_logger("napcat_adapter")
 from .response_pool import get_response
 

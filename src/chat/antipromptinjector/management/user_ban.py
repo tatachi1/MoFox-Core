@@ -17,29 +17,29 @@ logger = get_logger("anti_injector.user_ban")
 
 class UserBanManager:
     """用户封禁管理器"""
-    
+
     def __init__(self, config):
         """初始化封禁管理器
-        
+
         Args:
             config: 反注入配置对象
         """
         self.config = config
-    
+
     async def check_user_ban(self, user_id: str, platform: str) -> Optional[Tuple[bool, Optional[str], str]]:
         """检查用户是否被封禁
-        
+
         Args:
             user_id: 用户ID
             platform: 平台名称
-            
+
         Returns:
             如果用户被封禁则返回拒绝结果，否则返回None
         """
         try:
             with get_db_session() as session:
                 ban_record = session.query(BanUser).filter_by(user_id=user_id, platform=platform).first()
-                
+
                 if ban_record:
                     # 只有违规次数达到阈值时才算被封禁
                     if ban_record.violation_num >= self.config.auto_ban_violation_threshold:
@@ -54,16 +54,16 @@ class UserBanManager:
                             ban_record.created_at = datetime.datetime.now()
                             session.commit()
                             logger.info(f"用户 {platform}:{user_id} 封禁已过期，违规次数已重置")
-                
+
             return None
-            
+
         except Exception as e:
             logger.error(f"检查用户封禁状态失败: {e}", exc_info=True)
             return None
-    
+
     async def record_violation(self, user_id: str, platform: str, detection_result: DetectionResult):
         """记录用户违规行为
-        
+
         Args:
             user_id: 用户ID
             platform: 平台名称
@@ -73,7 +73,7 @@ class UserBanManager:
             with get_db_session() as session:
                 # 查找或创建违规记录
                 ban_record = session.query(BanUser).filter_by(user_id=user_id, platform=platform).first()
-                
+
                 if ban_record:
                     ban_record.violation_num += 1
                     ban_record.reason = f"提示词注入攻击 (置信度: {detection_result.confidence:.2f})"
@@ -83,12 +83,12 @@ class UserBanManager:
                         user_id=user_id,
                         violation_num=1,
                         reason=f"提示词注入攻击 (置信度: {detection_result.confidence:.2f})",
-                        created_at=datetime.datetime.now()
+                        created_at=datetime.datetime.now(),
                     )
                     session.add(ban_record)
-                
+
                 session.commit()
-                
+
                 # 检查是否需要自动封禁
                 if ban_record.violation_num >= self.config.auto_ban_violation_threshold:
                     logger.warning(f"用户 {platform}:{user_id} 违规次数达到 {ban_record.violation_num}，触发自动封禁")
@@ -98,6 +98,6 @@ class UserBanManager:
                     session.commit()
                 else:
                     logger.info(f"用户 {platform}:{user_id} 违规记录已更新，当前违规次数: {ban_record.violation_num}")
-                
+
         except Exception as e:
             logger.error(f"记录违规行为失败: {e}", exc_info=True)

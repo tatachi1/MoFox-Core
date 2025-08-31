@@ -10,7 +10,7 @@ from src.common.database.monthly_plan_db import (
     archive_active_plans_for_month,
     has_active_plans,
     get_active_plans_for_month,
-    delete_plans_by_ids
+    delete_plans_by_ids,
 )
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
@@ -27,18 +27,16 @@ DEFAULT_MONTHLY_PLAN_GUIDELINES = """
 请确保计划既有挑战性又不会过于繁重，保持生活的平衡和乐趣。
 """
 
+
 class MonthlyPlanManager:
     """月度计划管理器
-    
+
     负责月度计划的生成、管理和生命周期控制。
     与 ScheduleManager 解耦，专注于月度层面的计划管理。
     """
-    
+
     def __init__(self):
-        self.llm = LLMRequest(
-            model_set=model_config.model_task_config.schedule_generator, 
-            request_type="monthly_plan"
-        )
+        self.llm = LLMRequest(model_set=model_config.model_task_config.schedule_generator, request_type="monthly_plan")
         self.generation_running = False
         self.monthly_task_started = False
 
@@ -50,7 +48,7 @@ class MonthlyPlanManager:
             await async_task_manager.add_task(task)
             self.monthly_task_started = True
             logger.info(" 每月月度计划生成任务已成功启动。")
-            
+
             # 启动时立即检查并按需生成
             logger.info(" 执行启动时月度计划检查...")
             await self.ensure_and_generate_plans_if_needed()
@@ -64,65 +62,65 @@ class MonthlyPlanManager:
         """
         if target_month is None:
             target_month = datetime.now().strftime("%Y-%m")
-        
+
         if not has_active_plans(target_month):
             logger.info(f" {target_month} 没有任何有效的月度计划，将立即生成。")
             return await self.generate_monthly_plans(target_month)
         else:
             logger.info(f"{target_month} 已存在有效的月度计划。")
             plans = get_active_plans_for_month(target_month)
-            
+
             # 检查是否超出上限
             max_plans = global_config.monthly_plan_system.max_plans_per_month
             if len(plans) > max_plans:
                 logger.warning(f"当前月度计划数量 ({len(plans)}) 超出上限 ({max_plans})，将自动删除多余的计划。")
                 # 按创建时间升序排序（旧的在前），然后删除超出上限的部分（新的）
-                plans_to_delete = sorted(plans, key=lambda p: p.created_at, reverse=True)[:len(plans)-max_plans]
+                plans_to_delete = sorted(plans, key=lambda p: p.created_at, reverse=True)[: len(plans) - max_plans]
                 delete_ids = [p.id for p in plans_to_delete]
                 delete_plans_by_ids(delete_ids)
                 # 重新获取计划列表
                 plans = get_active_plans_for_month(target_month)
 
             if plans:
-                plan_texts = "\n".join([f"  {i+1}. {plan.plan_text}" for i, plan in enumerate(plans)])
+                plan_texts = "\n".join([f"  {i + 1}. {plan.plan_text}" for i, plan in enumerate(plans)])
                 logger.info(f"当前月度计划内容:\n{plan_texts}")
-            return True # 已经有计划，也算成功
+            return True  # 已经有计划，也算成功
 
     async def generate_monthly_plans(self, target_month: Optional[str] = None) -> bool:
         """
         生成指定月份的月度计划
-        
+
         :param target_month: 目标月份，格式为 "YYYY-MM"。如果为 None，则为当前月份。
         :return: 是否生成成功
         """
         if self.generation_running:
             logger.info("月度计划生成任务已在运行中，跳过重复启动")
             return False
-            
+
         self.generation_running = True
-        
+
         try:
             # 确定目标月份
             if target_month is None:
                 target_month = datetime.now().strftime("%Y-%m")
-            
+
             logger.info(f"开始为 {target_month} 生成月度计划...")
-            
+
             # 检查是否启用月度计划系统
             if not global_config.monthly_plan_system or not global_config.monthly_plan_system.enable:
                 logger.info(" 月度计划系统已禁用，跳过计划生成。")
                 return False
-            
+
             # 获取上个月的归档计划作为参考
             last_month = self._get_previous_month(target_month)
             archived_plans = get_archived_plans_for_month(last_month)
-            
+
             # 构建生成 Prompt
             prompt = self._build_generation_prompt(target_month, archived_plans)
-            
+
             # 调用 LLM 生成计划
             plans = await self._generate_plans_with_llm(prompt)
-            
+
             if plans:
                 # 保存到数据库
                 add_new_plans(plans, target_month)
@@ -131,7 +129,7 @@ class MonthlyPlanManager:
             else:
                 logger.warning(f"未能为 {target_month} 生成有效的月度计划。")
                 return False
-                
+
         except Exception as e:
             logger.error(f" 生成 {target_month} 月度计划时发生错误: {e}")
             return False
@@ -149,24 +147,24 @@ class MonthlyPlanManager:
     def _get_previous_month(self, current_month: str) -> str:
         """获取上个月的月份字符串"""
         try:
-            year, month = map(int, current_month.split('-'))
+            year, month = map(int, current_month.split("-"))
             if month == 1:
-                return f"{year-1}-12"
+                return f"{year - 1}-12"
             else:
-                return f"{year}-{month-1:02d}"
+                return f"{year}-{month - 1:02d}"
         except Exception:
             # 如果解析失败，返回一个不存在的月份
             return "1900-01"
 
     def _build_generation_prompt(self, target_month: str, archived_plans: List) -> str:
         """构建月度计划生成的 Prompt"""
-        
+
         # 获取配置
-        guidelines = getattr(global_config.monthly_plan_system, 'guidelines', None) or DEFAULT_MONTHLY_PLAN_GUIDELINES
+        guidelines = getattr(global_config.monthly_plan_system, "guidelines", None) or DEFAULT_MONTHLY_PLAN_GUIDELINES
         personality = global_config.personality.personality_core
         personality_side = global_config.personality.personality_side
         max_plans = global_config.monthly_plan_system.max_plans_per_month
-        
+
         # 构建上月未完成计划的参考信息
         archived_plans_block = ""
         if archived_plans:
@@ -177,7 +175,7 @@ class MonthlyPlanManager:
 
 你可以考虑是否要在这个月继续推进这些计划，或者制定全新的计划。
 """
-        
+
         prompt = f"""
 我，{global_config.bot.nickname}，需要为自己制定 {target_month} 的月度计划。
 
@@ -207,35 +205,35 @@ class MonthlyPlanManager:
 
 请你扮演我，以我的身份和兴趣，为 {target_month} 制定合适的月度计划。
 """
-        
+
         return prompt
 
     async def _generate_plans_with_llm(self, prompt: str) -> List[str]:
         """使用 LLM 生成月度计划列表"""
         max_retries = 3
-        
+
         for attempt in range(1, max_retries + 1):
             try:
                 logger.info(f" 正在生成月度计划 (第 {attempt} 次尝试)")
-                
+
                 response, _ = await self.llm.generate_response_async(prompt)
-                
+
                 # 解析响应
                 plans = self._parse_plans_response(response)
-                
+
                 if plans:
                     logger.info(f"成功生成 {len(plans)} 条月度计划")
                     return plans
                 else:
                     logger.warning(f"第 {attempt} 次生成的计划为空，继续重试...")
-                    
+
             except Exception as e:
                 logger.error(f"第 {attempt} 次生成月度计划失败: {e}")
-                
+
             # 添加短暂延迟，避免过于频繁的请求
             if attempt < max_retries:
                 await asyncio.sleep(2)
-        
+
         logger.error(" 所有尝试都失败，无法生成月度计划")
         return []
 
@@ -244,31 +242,31 @@ class MonthlyPlanManager:
         try:
             # 清理响应文本
             response = response.strip()
-            
+
             # 按行分割
-            lines = [line.strip() for line in response.split('\n') if line.strip()]
-            
+            lines = [line.strip() for line in response.split("\n") if line.strip()]
+
             # 过滤掉明显不是计划的行（比如包含特殊标记的行）
             plans = []
             for line in lines:
                 # 跳过包含特殊标记的行
-                if any(marker in line for marker in ['**', '##', '```', '---', '===', '###']):
+                if any(marker in line for marker in ["**", "##", "```", "---", "===", "###"]):
                     continue
-                
+
                 # 移除可能的序号前缀
-                line = line.lstrip('0123456789.- ')
-                
+                line = line.lstrip("0123456789.- ")
+
                 # 确保计划不为空且有意义
-                if len(line) > 5 and not line.startswith(('请', '以上', '总结', '注意')):
+                if len(line) > 5 and not line.startswith(("请", "以上", "总结", "注意")):
                     plans.append(line)
-            
+
             # 限制计划数量
             max_plans = global_config.monthly_plan_system.max_plans_per_month
             if len(plans) > max_plans:
                 plans = plans[:max_plans]
-            
+
             return plans
-            
+
         except Exception as e:
             logger.error(f"解析月度计划响应时发生错误: {e}")
             return []
@@ -276,17 +274,17 @@ class MonthlyPlanManager:
     async def archive_current_month_plans(self, target_month: Optional[str] = None):
         """
         归档当前月份的活跃计划
-        
+
         :param target_month: 目标月份，格式为 "YYYY-MM"。如果为 None，则为当前月份。
         """
         try:
             if target_month is None:
                 target_month = datetime.now().strftime("%Y-%m")
-            
+
             logger.info(f" 开始归档 {target_month} 的活跃月度计划...")
             archived_count = archive_active_plans_for_month(target_month)
             logger.info(f" 成功归档了 {archived_count} 条 {target_month} 的月度计划。")
-            
+
         except Exception as e:
             logger.error(f" 归档 {target_month} 月度计划时发生错误: {e}")
 
@@ -303,29 +301,31 @@ class MonthlyPlanGenerationTask(AsyncTask):
             try:
                 # 计算到下个月1号凌晨的时间
                 now = datetime.now()
-                
+
                 # 获取下个月的第一天
                 if now.month == 12:
                     next_month = datetime(now.year + 1, 1, 1)
                 else:
                     next_month = datetime(now.year, now.month + 1, 1)
-                
+
                 sleep_seconds = (next_month - now).total_seconds()
-                
-                logger.info(f" 下一次月度计划生成任务将在 {sleep_seconds:.2f} 秒后运行 (北京时间 {next_month.strftime('%Y-%m-%d %H:%M:%S')})")
-                
+
+                logger.info(
+                    f" 下一次月度计划生成任务将在 {sleep_seconds:.2f} 秒后运行 (北京时间 {next_month.strftime('%Y-%m-%d %H:%M:%S')})"
+                )
+
                 # 等待直到下个月1号
                 await asyncio.sleep(sleep_seconds)
-                
+
                 # 先归档上个月的计划
                 last_month = (next_month - timedelta(days=1)).strftime("%Y-%m")
                 await self.monthly_plan_manager.archive_current_month_plans(last_month)
-                
+
                 # 生成新月份的计划
                 current_month = next_month.strftime("%Y-%m")
                 logger.info(f" 到达月初，开始生成 {current_month} 的月度计划...")
                 await self.monthly_plan_manager.generate_monthly_plans(current_month)
-                
+
             except asyncio.CancelledError:
                 logger.info(" 每月月度计划生成任务被取消。")
                 break

@@ -2,6 +2,7 @@
 默认回复生成器 - 集成SmartPrompt系统
 使用重构后的SmartPrompt系统替换原有的复杂提示词构建逻辑
 """
+
 import traceback
 import time
 import asyncio
@@ -17,7 +18,7 @@ from src.config.config import global_config, model_config
 from src.individuality.individuality import get_individuality
 from src.llm_models.utils_model import LLMRequest
 from src.chat.message_receive.message import UserInfo, Seg, MessageRecv, MessageSending
-from src.chat.message_receive.chat_stream import ChatStream, get_chat_manager
+from src.chat.message_receive.chat_stream import ChatStream
 from src.chat.message_receive.uni_message_sender import HeartFCSender
 from src.chat.utils.timer_calculator import Timer
 from src.chat.utils.utils import get_chat_type_and_target_info
@@ -26,7 +27,6 @@ from src.chat.utils.chat_message_builder import (
     build_readable_messages,
     get_raw_msg_before_timestamp_with_chat,
     replace_user_references_sync,
-    build_readable_messages_with_id,
 )
 from src.chat.express.expression_selector import expression_selector
 from src.chat.memory_system.memory_activator import MemoryActivator
@@ -270,7 +270,9 @@ class DefaultReplyer:
             from src.plugin_system.core.event_manager import event_manager
 
             if not from_plugin:
-                result = await event_manager.trigger_event(EventType.POST_LLM,plugin_name="SYSTEM",prompt=prompt,stream_id=stream_id)
+                result = await event_manager.trigger_event(
+                    EventType.POST_LLM, plugin_name="SYSTEM", prompt=prompt, stream_id=stream_id
+                )
                 if not result.all_continue_process():
                     raise UserWarning(f"插件{result.get_summary().get('stopped_handlers', '')}于请求前中断了内容生成")
 
@@ -290,9 +292,17 @@ class DefaultReplyer:
                 }
                 # 触发 AFTER_LLM 事件
                 if not from_plugin:
-                    result = await event_manager.trigger_event(EventType.AFTER_LLM,plugin_name="SYSTEM",prompt=prompt,llm_response=llm_response,stream_id=stream_id)
+                    result = await event_manager.trigger_event(
+                        EventType.AFTER_LLM,
+                        plugin_name="SYSTEM",
+                        prompt=prompt,
+                        llm_response=llm_response,
+                        stream_id=stream_id,
+                    )
                     if not result.all_continue_process():
-                        raise UserWarning(f"插件{result.get_summary().get('stopped_handlers','')}于请求后取消了内容生成")
+                        raise UserWarning(
+                            f"插件{result.get_summary().get('stopped_handlers', '')}于请求后取消了内容生成"
+                        )
             except UserWarning as e:
                 raise e
             except Exception as llm_e:
@@ -844,7 +854,7 @@ class DefaultReplyer:
         target_user_info = None
         if sender:
             target_user_info = await person_info_manager.get_person_info_by_name(sender)
-        
+
         # 并行执行六个构建任务
         task_results = await asyncio.gather(
             self._time_and_run_task(
@@ -857,7 +867,8 @@ class DefaultReplyer:
             ),
             self._time_and_run_task(self.get_prompt_info(chat_talking_prompt_short, reply_to), "prompt_info"),
             self._time_and_run_task(
-                PromptUtils.build_cross_context(chat_id, target_user_info, global_config.personality.prompt_mode), "cross_context"
+                PromptUtils.build_cross_context(chat_id, target_user_info, global_config.personality.prompt_mode),
+                "cross_context",
             ),
         )
 
@@ -891,7 +902,9 @@ class DefaultReplyer:
 
         # 检查是否为视频分析结果，并注入引导语
         if target and ("[视频内容]" in target or "好的，我将根据您提供的" in target):
-            video_prompt_injection = "\n请注意，以上内容是你刚刚观看的视频，请以第一人称分享你的观后感，而不是在分析一份报告。"
+            video_prompt_injection = (
+                "\n请注意，以上内容是你刚刚观看的视频，请以第一人称分享你的观后感，而不是在分析一份报告。"
+            )
             memory_block += video_prompt_injection
 
         keywords_reaction_prompt = await self.build_keywords_reaction_prompt(target)
@@ -961,14 +974,14 @@ class DefaultReplyer:
             mood_prompt=mood_prompt,
             action_descriptions=action_descriptions,
         )
-        
+
         # 使用重构后的SmartPrompt系统
         smart_prompt = SmartPrompt(
             template_name=None,  # 由current_prompt_mode自动选择
-            parameters=prompt_params
+            parameters=prompt_params,
         )
         prompt_text = await smart_prompt.build_prompt()
-        
+
         return prompt_text
 
     async def build_prompt_rewrite_context(
@@ -1089,10 +1102,10 @@ class DefaultReplyer:
             expression_habits_block=expression_habits_block,
             relation_info_block=relation_info,
         )
-        
+
         smart_prompt = SmartPrompt(parameters=prompt_params)
         prompt_text = await smart_prompt.build_prompt()
-        
+
         return prompt_text
 
     async def _build_single_sending_message(

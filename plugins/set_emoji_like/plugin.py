@@ -23,7 +23,7 @@ def get_emoji_id(emoji_input: str) -> str | None:
     if emoji_input.isdigit() or (isinstance(emoji_input, str) and emoji_input.startswith("😊")):
         if emoji_input in qq_face:
             return emoji_input
-    
+
     # 尝试从 "[表情：xxx]" 格式中提取
     match = re.search(r"\[表情：(.+?)\]", emoji_input)
     if match:
@@ -36,7 +36,7 @@ def get_emoji_id(emoji_input: str) -> str | None:
         # value 的格式是 "[表情：xxx]"
         if f"[表情：{emoji_name}]" == value:
             return key
-            
+
     return None
 
 
@@ -58,12 +58,17 @@ class SetEmojiLikeAction(BaseAction):
         match = re.search(r"\[表情：(.+?)\]", name)
         if match:
             emoji_options.append(match.group(1))
-    
+
     action_parameters = {
         "emoji": f"要回应的表情,必须从以下表情中选择: {', '.join(emoji_options)}",
         "set": "是否设置回应 (True/False)",
     }
-    action_require = ["当需要对消息贴表情时使用","当你想回应某条消息但又不想发文字时使用","不要连续发送，如果你已经贴表情包，就不要选择此动作","当你想用贴表情回应某条消息时使用"]
+    action_require = [
+        "当需要对消息贴表情时使用",
+        "当你想回应某条消息但又不想发文字时使用",
+        "不要连续发送，如果你已经贴表情包，就不要选择此动作",
+        "当你想用贴表情回应某条消息时使用",
+    ]
     llm_judge_prompt = """
     判定是否需要使用贴表情动作的条件：
     1. 用户明确要求使用贴表情包
@@ -87,10 +92,10 @@ class SetEmojiLikeAction(BaseAction):
             await self.store_action_info(
                 action_build_into_prompt=True,
                 action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: 未提供消息ID",
-                action_done=False
+                action_done=False,
             )
             return False, "未提供消息ID"
-        
+
         emoji_input = self.action_data.get("emoji")
         set_like = self.action_data.get("set", True)
 
@@ -105,7 +110,7 @@ class SetEmojiLikeAction(BaseAction):
             await self.store_action_info(
                 action_build_into_prompt=True,
                 action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: 找不到表情: '{emoji_input}'",
-                action_done=False
+                action_done=False,
             )
             return False, f"找不到表情: '{emoji_input}'。请从可用列表中选择。"
 
@@ -115,7 +120,7 @@ class SetEmojiLikeAction(BaseAction):
             await self.store_action_info(
                 action_build_into_prompt=True,
                 action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: 未提供消息ID",
-                action_done=False
+                action_done=False,
             )
             return False, "未提供消息ID"
 
@@ -123,40 +128,36 @@ class SetEmojiLikeAction(BaseAction):
             # 使用适配器API发送贴表情命令
             response = await send_api.adapter_command_to_stream(
                 action="set_msg_emoji_like",
-                params={
-                    "message_id": message_id, 
-                    "emoji_id": emoji_id,
-                    "set": set_like
-                },
+                params={"message_id": message_id, "emoji_id": emoji_id, "set": set_like},
                 stream_id=self.chat_stream.stream_id if self.chat_stream else None,
                 timeout=30.0,
-                storage_message=False
+                storage_message=False,
             )
-            
+
             if response["status"] == "ok":
                 logger.info(f"设置表情回应成功: {response}")
                 await self.store_action_info(
                     action_build_into_prompt=True,
                     action_prompt_display=f"执行了set_emoji_like动作,{emoji_input},设置表情回应: {emoji_id}, 是否设置: {set_like}",
-                    action_done=True
+                    action_done=True,
                 )
                 return True, f"成功设置表情回应: {response.get('message', '成功')}"
             else:
-                error_msg = response.get('message', '未知错误')
+                error_msg = response.get("message", "未知错误")
                 logger.error(f"设置表情回应失败: {error_msg}")
                 await self.store_action_info(
                     action_build_into_prompt=True,
                     action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: {error_msg}",
-                    action_done=False
+                    action_done=False,
                 )
                 return False, f"设置表情回应失败: {error_msg}"
-                
+
         except Exception as e:
             logger.error(f"设置表情回应失败: {e}")
             await self.store_action_info(
                 action_build_into_prompt=True,
                 action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: {e}",
-                action_done=False
+                action_done=False,
             )
             return False, f"设置表情回应失败: {e}"
 
@@ -174,10 +175,7 @@ class SetEmojiLikePlugin(BasePlugin):
     config_file_name: str = "config.toml"  # 配置文件名
 
     # 配置节描述
-    config_section_descriptions = {
-        "plugin": "插件基本信息",
-        "components": "插件组件"
-    }
+    config_section_descriptions = {"plugin": "插件基本信息", "components": "插件组件"}
 
     # 配置Schema定义
     config_schema: dict = {
@@ -189,7 +187,7 @@ class SetEmojiLikePlugin(BasePlugin):
         },
         "components": {
             "action_set_emoji_like": ConfigField(type=bool, default=True, description="是否启用设置表情回应功能"),
-        }
+        },
     }
 
     def get_plugin_components(self) -> List[Tuple[ComponentInfo, Type]]:

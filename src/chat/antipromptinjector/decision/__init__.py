@@ -10,4 +10,4 @@
 from .decision_maker import ProcessingDecisionMaker
 from .counter_attack import CounterAttackGenerator
 
-__all__ = ['ProcessingDecisionMaker', 'CounterAttackGenerator']
+__all__ = ["ProcessingDecisionMaker", "CounterAttackGenerator"]

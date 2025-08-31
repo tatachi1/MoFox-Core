@@ -18,6 +18,7 @@ from src.llm_models.utils_model import LLMRequest
 from src.common.database.sqlalchemy_models import get_db_session
 
 from sqlalchemy import select, and_
+
 install(extra_lines=3)
 
 logger = get_logger("chat_image")
@@ -66,9 +67,14 @@ class ImageManager:
         """
         try:
             with get_db_session() as session:
-                record = session.execute(select(ImageDescriptions).where(
-                    and_(ImageDescriptions.image_description_hash == image_hash, ImageDescriptions.type == description_type)
-                )).scalar()
+                record = session.execute(
+                    select(ImageDescriptions).where(
+                        and_(
+                            ImageDescriptions.image_description_hash == image_hash,
+                            ImageDescriptions.type == description_type,
+                        )
+                    )
+                ).scalar()
                 return record.description if record else None
         except Exception as e:
             logger.error(f"从数据库获取描述失败 (SQLAlchemy): {str(e)}")
@@ -87,9 +93,14 @@ class ImageManager:
             current_timestamp = time.time()
             with get_db_session() as session:
                 # 查找现有记录
-                existing = session.execute(select(ImageDescriptions).where(
-                    and_(ImageDescriptions.image_description_hash == image_hash, ImageDescriptions.type == description_type)
-                )).scalar()
+                existing = session.execute(
+                    select(ImageDescriptions).where(
+                        and_(
+                            ImageDescriptions.image_description_hash == image_hash,
+                            ImageDescriptions.type == description_type,
+                        )
+                    )
+                ).scalar()
 
                 if existing:
                     # 更新现有记录
@@ -101,16 +112,17 @@ class ImageManager:
                         image_description_hash=image_hash,
                         type=description_type,
                         description=description,
-                        timestamp=current_timestamp
+                        timestamp=current_timestamp,
                     )
                     session.add(new_desc)
                     session.commit()
                 #  会在上下文管理器中自动调用
         except Exception as e:
             logger.error(f"保存描述到数据库失败 (SQLAlchemy): {str(e)}")
-            
+
     async def get_emoji_tag(self, image_base64: str) -> str:
         from src.chat.emoji_system.emoji_manager import get_emoji_manager
+
         emoji_manager = get_emoji_manager()
         if isinstance(image_base64, str):
             image_base64 = image_base64.encode("ascii", errors="ignore").decode("ascii")
@@ -137,6 +149,7 @@ class ImageManager:
             # 优先使用EmojiManager查询已注册表情包的描述
             try:
                 from src.chat.emoji_system.emoji_manager import get_emoji_manager
+
                 emoji_manager = get_emoji_manager()
                 tags = await emoji_manager.get_emoji_tag_by_hash(image_hash)
                 if tags:
@@ -231,10 +244,11 @@ class ImageManager:
                 # 保存到数据库 (Images表) - 包含详细描述用于可能的注册流程
                 try:
                     from src.common.database.sqlalchemy_models import get_db_session
+
                     with get_db_session() as session:
-                        existing_img = session.execute(select(Images).where(
-                            and_(Images.emoji_hash == image_hash, Images.type == "emoji")
-                        )).scalar()
+                        existing_img = session.execute(
+                            select(Images).where(and_(Images.emoji_hash == image_hash, Images.type == "emoji"))
+                        ).scalar()
 
                         if existing_img:
                             existing_img.path = file_path
@@ -327,7 +341,7 @@ class ImageManager:
                         existing_image.image_id = str(uuid.uuid4())
                     if not hasattr(existing_image, "vlm_processed") or existing_image.vlm_processed is None:
                         existing_image.vlm_processed = True
-                    
+
                     logger.debug(f"[数据库] 更新已有图片记录: {image_hash[:8]}...")
                 else:
                     new_img = Images(
@@ -341,7 +355,7 @@ class ImageManager:
                         count=1,
                     )
                     session.add(new_img)
-                    
+
                     logger.debug(f"[数据库] 创建新图片记录: {image_hash[:8]}...")
             except Exception as e:
                 logger.error(f"保存图片文件或元数据失败: {str(e)}")
@@ -384,7 +398,8 @@ class ImageManager:
                     # 确保是RGB格式方便比较
                     frame = gif.convert("RGB")
                     all_frames.append(frame.copy())
-            except EOFError: ... # 读完啦
+            except EOFError:
+                ...  # 读完啦
 
             if not all_frames:
                 logger.warning("GIF中没有找到任何帧")
@@ -514,7 +529,7 @@ class ImageManager:
                             existing_image.vlm_processed = False
 
                     existing_image.count += 1
-                    
+
                     return existing_image.image_id, f"[picid:{existing_image.image_id}]"
 
                 # print(f"图片不存在: {image_hash}")
@@ -572,19 +587,23 @@ class ImageManager:
                 image = session.execute(select(Images).where(Images.image_id == image_id)).scalar()
 
                 # 优先检查是否已有其他相同哈希的图片记录包含描述
-                existing_with_description = session.execute(select(Images).where(
-                    and_(
-                        Images.emoji_hash == image_hash,
-                        Images.description.isnot(None),
-                        Images.description != "",
-                        Images.id != image.id
+                existing_with_description = session.execute(
+                    select(Images).where(
+                        and_(
+                            Images.emoji_hash == image_hash,
+                            Images.description.isnot(None),
+                            Images.description != "",
+                            Images.id != image.id,
+                        )
                     )
-                )).scalar()
+                ).scalar()
                 if existing_with_description:
-                    logger.debug(f"[缓存复用] 从其他相同图片记录复用描述: {existing_with_description.description[:50]}...")
+                    logger.debug(
+                        f"[缓存复用] 从其他相同图片记录复用描述: {existing_with_description.description[:50]}..."
+                    )
                     image.description = existing_with_description.description
                     image.vlm_processed = True
-                    
+
                     # 同时保存到ImageDescriptions表作为备用缓存
                     self._save_description_to_db(image_hash, existing_with_description.description, "image")
                     return
@@ -594,7 +613,7 @@ class ImageManager:
                     logger.debug(f"[缓存复用] 从ImageDescriptions表复用描述: {cached_description[:50]}...")
                     image.description = cached_description
                     image.vlm_processed = True
-                    
+
                     return
 
                 # 获取图片格式

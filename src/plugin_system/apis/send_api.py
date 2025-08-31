@@ -64,7 +64,7 @@ async def wait_adapter_response(request_id: str, timeout: float = 30.0) -> dict:
     """等待适配器响应"""
     future = asyncio.Future()
     _adapter_response_pool[request_id] = future
-    
+
     try:
         response = await asyncio.wait_for(future, timeout=timeout)
         return response
@@ -369,10 +369,10 @@ async def adapter_command_to_stream(
     platform: Optional[str] = "qq",
     stream_id: Optional[str] = None,
     timeout: float = 30.0,
-    storage_message: bool = False
+    storage_message: bool = False,
 ) -> dict:
     """向适配器发送命令并获取返回值
-    
+
        雅诺狐的耳朵特别软
 
     Args:
@@ -388,20 +388,20 @@ async def adapter_command_to_stream(
             - 成功: {"status": "ok", "data": {...}, "message": "..."}
             - 失败: {"status": "failed", "message": "错误信息"}
             - 错误: {"status": "error", "message": "错误信息"}
-            
+
     Raises:
         ValueError: 当stream_id和platform都未提供时抛出
     """
     if not stream_id and not platform:
         raise ValueError("必须提供stream_id或platform参数")
-    
-    try:
 
+    try:
         logger.debug(f"[SendAPI] 向适配器发送命令: {action}")
 
         # 如果没有提供stream_id，则生成一个临时的
         if stream_id is None:
             import uuid
+
             stream_id = f"adapter_temp_{uuid.uuid4().hex[:8]}"
             logger.debug(f"[SendAPI] 自动生成临时stream_id: {stream_id}")
 
@@ -411,22 +411,15 @@ async def adapter_command_to_stream(
             # 如果是自动生成的stream_id且找不到聊天流，创建一个临时的虚拟流
             if stream_id.startswith("adapter_temp_"):
                 logger.debug(f"[SendAPI] 创建临时虚拟聊天流: {stream_id}")
-                
+
                 # 创建临时的用户信息和聊天流
 
-                temp_user_info = UserInfo(
-                    user_id="system",
-                    user_nickname="System",
-                    platform=platform
-                )
-                
+                temp_user_info = UserInfo(user_id="system", user_nickname="System", platform=platform)
+
                 temp_chat_stream = ChatStream(
-                    stream_id=stream_id,
-                    platform=platform,
-                    user_info=temp_user_info,
-                    group_info=None
+                    stream_id=stream_id, platform=platform, user_info=temp_user_info, group_info=None
                 )
-                
+
                 target_stream = temp_chat_stream
             else:
                 logger.error(f"[SendAPI] 未找到聊天流: {stream_id}")
@@ -474,10 +467,7 @@ async def adapter_command_to_stream(
 
         # 发送消息
         sent_msg = await heart_fc_sender.send_message(
-            bot_message,
-            typing=False,
-            set_reply=False,
-            storage_message=storage_message
+            bot_message, typing=False, set_reply=False, storage_message=storage_message
         )
 
         if not sent_msg:
@@ -488,9 +478,9 @@ async def adapter_command_to_stream(
 
         # 等待适配器响应
         response = await wait_adapter_response(message_id, timeout)
-        
+
         logger.debug(f"[SendAPI] 收到适配器响应: {response}")
-        
+
         return response
 
     except Exception as e:

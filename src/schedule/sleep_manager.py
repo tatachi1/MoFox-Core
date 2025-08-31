@@ -17,11 +17,12 @@ logger = get_logger("sleep_manager")
 
 class SleepState(Enum):
     """睡眠状态枚举"""
-    AWAKE = auto()           # 完全清醒
-    INSOMNIA = auto()        # 失眠（在理论睡眠时间内保持清醒）
-    PREPARING_SLEEP = auto() # 准备入睡（缓冲期）
-    SLEEPING = auto()        # 正在休眠
-    WOKEN_UP = auto()        # 被吵醒
+
+    AWAKE = auto()  # 完全清醒
+    INSOMNIA = auto()  # 失眠（在理论睡眠时间内保持清醒）
+    PREPARING_SLEEP = auto()  # 准备入睡（缓冲期）
+    SLEEPING = auto()  # 正在休眠
+    WOKEN_UP = auto()  # 被吵醒
 
 
 class SleepManager:
@@ -36,8 +37,8 @@ class SleepManager:
         self._total_delayed_minutes_today: int = 0
         self._last_sleep_check_date: Optional[date] = None
         self._last_fully_slept_log_time: float = 0
-        self._re_sleep_attempt_time: Optional[datetime] = None # 新增：重新入睡的尝试时间
-        
+        self._re_sleep_attempt_time: Optional[datetime] = None  # 新增：重新入睡的尝试时间
+
         self._load_sleep_state()
 
     def get_current_sleep_state(self) -> SleepState:
@@ -82,30 +83,37 @@ class SleepManager:
         if self._current_state == SleepState.AWAKE:
             if is_in_theoretical_sleep:
                 logger.info(f"进入理论休眠时间 '{activity}'，开始进行睡眠决策...")
-                
+
                 # --- 合并后的失眠与弹性睡眠决策逻辑 ---
                 sleep_pressure = wakeup_manager.context.sleep_pressure if wakeup_manager else 999
                 pressure_threshold = global_config.sleep_system.flexible_sleep_pressure_threshold
-                
+
                 # 决策1：因睡眠压力低而延迟入睡（原弹性睡眠）
-                if sleep_pressure < pressure_threshold and self._total_delayed_minutes_today < global_config.sleep_system.max_sleep_delay_minutes:
+                if (
+                    sleep_pressure < pressure_threshold
+                    and self._total_delayed_minutes_today < global_config.sleep_system.max_sleep_delay_minutes
+                ):
                     delay_minutes = 15
                     self._total_delayed_minutes_today += delay_minutes
                     self._sleep_buffer_end_time = now + timedelta(minutes=delay_minutes)
                     self._current_state = SleepState.INSOMNIA
-                    logger.info(f"睡眠压力 ({sleep_pressure:.1f}) 低于阈值 ({pressure_threshold})，进入失眠状态，延迟入睡 {delay_minutes} 分钟。")
-                    
+                    logger.info(
+                        f"睡眠压力 ({sleep_pressure:.1f}) 低于阈值 ({pressure_threshold})，进入失眠状态，延迟入睡 {delay_minutes} 分钟。"
+                    )
+
                     # 发送睡前通知
                     if global_config.sleep_system.enable_pre_sleep_notification:
                         asyncio.create_task(self._send_pre_sleep_notification())
-                        
+
                 # 决策2：进入正常的入睡准备流程
                 else:
                     buffer_seconds = random.randint(5 * 60, 10 * 60)
                     self._sleep_buffer_end_time = now + timedelta(seconds=buffer_seconds)
                     self._current_state = SleepState.PREPARING_SLEEP
-                    logger.info(f"睡眠压力正常或已达今日最大延迟，进入准备入睡状态，将在 {buffer_seconds / 60:.1f} 分钟内入睡。")
-                    
+                    logger.info(
+                        f"睡眠压力正常或已达今日最大延迟，进入准备入睡状态，将在 {buffer_seconds / 60:.1f} 分钟内入睡。"
+                    )
+
                     # 发送睡前通知
                     if global_config.sleep_system.enable_pre_sleep_notification:
                         asyncio.create_task(self._send_pre_sleep_notification())
@@ -123,7 +131,10 @@ class SleepManager:
                 sleep_pressure = wakeup_manager.context.sleep_pressure if wakeup_manager else 999
                 pressure_threshold = global_config.sleep_system.flexible_sleep_pressure_threshold
 
-                if sleep_pressure >= pressure_threshold or self._total_delayed_minutes_today >= global_config.sleep_system.max_sleep_delay_minutes:
+                if (
+                    sleep_pressure >= pressure_threshold
+                    or self._total_delayed_minutes_today >= global_config.sleep_system.max_sleep_delay_minutes
+                ):
                     logger.info("睡眠压力足够或已达最大延迟，从失眠状态转换到准备入睡。")
                     buffer_seconds = random.randint(5 * 60, 10 * 60)
                     self._sleep_buffer_end_time = now + timedelta(seconds=buffer_seconds)
@@ -133,7 +144,7 @@ class SleepManager:
                     delay_minutes = 15
                     self._total_delayed_minutes_today += delay_minutes
                     self._sleep_buffer_end_time = now + timedelta(minutes=delay_minutes)
-                
+
                 self._save_sleep_state()
 
         # 状态：准备入睡 (PREPARING_SLEEP)
@@ -171,21 +182,23 @@ class SleepManager:
                 self._save_sleep_state()
             elif self._re_sleep_attempt_time and now >= self._re_sleep_attempt_time:
                 logger.info("被吵醒后经过一段时间，尝试重新入睡...")
-                
+
                 sleep_pressure = wakeup_manager.context.sleep_pressure if wakeup_manager else 999
                 pressure_threshold = global_config.sleep_system.flexible_sleep_pressure_threshold
 
                 if sleep_pressure >= pressure_threshold:
                     logger.info("睡眠压力足够，从被吵醒状态转换到准备入睡。")
-                    buffer_seconds = random.randint(3 * 60, 8 * 60) # 重新入睡的缓冲期可以短一些
+                    buffer_seconds = random.randint(3 * 60, 8 * 60)  # 重新入睡的缓冲期可以短一些
                     self._sleep_buffer_end_time = now + timedelta(seconds=buffer_seconds)
                     self._current_state = SleepState.PREPARING_SLEEP
                     self._re_sleep_attempt_time = None
                 else:
                     delay_minutes = 15
                     self._re_sleep_attempt_time = now + timedelta(minutes=delay_minutes)
-                    logger.info(f"睡眠压力({sleep_pressure:.1f})仍然较低，暂时保持清醒，在 {delay_minutes} 分钟后再次尝试。")
-                
+                    logger.info(
+                        f"睡眠压力({sleep_pressure:.1f})仍然较低，暂时保持清醒，在 {delay_minutes} 分钟后再次尝试。"
+                    )
+
                 self._save_sleep_state()
 
     def reset_sleep_state_after_wakeup(self):
@@ -194,12 +207,12 @@ class SleepManager:
             logger.info("被唤醒，进入 WOKEN_UP 状态！")
             self._current_state = SleepState.WOKEN_UP
             self._sleep_buffer_end_time = None
-            
+
             # 设置一个延迟，之后再尝试重新入睡
-            re_sleep_delay_minutes = getattr(global_config.sleep_system, 're_sleep_delay_minutes', 10)
+            re_sleep_delay_minutes = getattr(global_config.sleep_system, "re_sleep_delay_minutes", 10)
             self._re_sleep_attempt_time = datetime.now() + timedelta(minutes=re_sleep_delay_minutes)
             logger.info(f"将在 {re_sleep_delay_minutes} 分钟后尝试重新入睡。")
-            
+
             self._save_sleep_state()
 
     def _is_in_theoretical_sleep_time(self, now_time: time) -> tuple[bool, Optional[str]]:
@@ -215,7 +228,7 @@ class SleepManager:
                         continue
 
                     if any(keyword in activity for keyword in sleep_keywords):
-                        start_str, end_str = time_range.split('-')
+                        start_str, end_str = time_range.split("-")
                         start_time = datetime.strptime(start_str.strip(), "%H:%M").time()
                         end_time = datetime.strptime(end_str.strip(), "%H:%M").time()
 
@@ -228,7 +241,7 @@ class SleepManager:
                 except (ValueError, KeyError, AttributeError) as e:
                     logger.warning(f"解析日程事件时出错: {event}, 错误: {e}")
                     continue
-            
+
         return False, None
 
     async def _send_pre_sleep_notification(self):
@@ -240,7 +253,7 @@ class SleepManager:
             if not groups:
                 logger.info("未配置睡前通知的群组，跳过发送。")
                 return
-            
+
             if not prompt:
                 logger.warning("睡前通知的prompt为空，跳过发送。")
                 return
@@ -255,21 +268,20 @@ class SleepManager:
                     if len(parts) != 2:
                         logger.warning(f"无效的群组ID格式: {group_id_str}")
                         continue
-                    
+
                     platform, group_id = parts
-                    
+
                     # 使用与 ChatStream.get_stream_id 相同的逻辑生成 stream_id
                     import hashlib
+
                     key = "_".join([platform, group_id])
                     stream_id = hashlib.md5(key.encode()).hexdigest()
 
                     logger.info(f"正在为群组 {group_id_str} (Stream ID: {stream_id}) 生成睡前消息...")
-                    
+
                     # 调用 generator_api 生成回复
                     success, reply_set, _ = await generator_api.generate_reply(
-                        chat_id=stream_id,
-                        extra_info=prompt,
-                        request_type="schedule.pre_sleep_notification"
+                        chat_id=stream_id, extra_info=prompt, request_type="schedule.pre_sleep_notification"
                     )
 
                     if success and reply_set:
@@ -283,7 +295,7 @@ class SleepManager:
                     else:
                         logger.error(f"为群组 {group_id_str} 生成睡前消息失败。")
 
-                    await asyncio.sleep(random.uniform(2, 5)) # 避免发送过快
+                    await asyncio.sleep(random.uniform(2, 5))  # 避免发送过快
 
                 except Exception as e:
                     logger.error(f"向群组 {group_id_str} 发送睡前消息失败: {e}")
@@ -296,10 +308,16 @@ class SleepManager:
         try:
             state = {
                 "current_state": self._current_state.name,
-                "sleep_buffer_end_time_ts": self._sleep_buffer_end_time.timestamp() if self._sleep_buffer_end_time else None,
+                "sleep_buffer_end_time_ts": self._sleep_buffer_end_time.timestamp()
+                if self._sleep_buffer_end_time
+                else None,
                 "total_delayed_minutes_today": self._total_delayed_minutes_today,
-                "last_sleep_check_date_str": self._last_sleep_check_date.isoformat() if self._last_sleep_check_date else None,
-                "re_sleep_attempt_time_ts": self._re_sleep_attempt_time.timestamp() if self._re_sleep_attempt_time else None,
+                "last_sleep_check_date_str": self._last_sleep_check_date.isoformat()
+                if self._last_sleep_check_date
+                else None,
+                "re_sleep_attempt_time_ts": self._re_sleep_attempt_time.timestamp()
+                if self._re_sleep_attempt_time
+                else None,
             }
             local_storage["schedule_sleep_state"] = state
             logger.debug(f"已保存睡眠状态: {state}")
@@ -318,13 +336,13 @@ class SleepManager:
                 end_time_ts = state.get("sleep_buffer_end_time_ts")
                 if end_time_ts:
                     self._sleep_buffer_end_time = datetime.fromtimestamp(end_time_ts)
-                
+
                 re_sleep_ts = state.get("re_sleep_attempt_time_ts")
                 if re_sleep_ts:
                     self._re_sleep_attempt_time = datetime.fromtimestamp(re_sleep_ts)
 
                 self._total_delayed_minutes_today = state.get("total_delayed_minutes_today", 0)
-                
+
                 date_str = state.get("last_sleep_check_date_str")
                 if date_str:
                     self._last_sleep_check_date = datetime.fromisoformat(date_str).date()

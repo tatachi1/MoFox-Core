@@ -46,10 +46,10 @@ class BaseCommand(ABC):
         self.chat_type_allow = getattr(self.__class__, "chat_type_allow", ChatType.ALL)
 
         logger.debug(f"{self.log_prefix} Command组件初始化完成")
-        
+
         # 验证聊天类型限制
         if not self._validate_chat_type():
-            is_group = hasattr(self.message, 'is_group_message') and self.message.is_group_message
+            is_group = hasattr(self.message, "is_group_message") and self.message.is_group_message
             logger.warning(
                 f"{self.log_prefix} Command '{self.command_name}' 不支持当前聊天类型: "
                 f"{'群聊' if is_group else '私聊'}, 允许类型: {self.chat_type_allow.value}"
@@ -65,16 +65,16 @@ class BaseCommand(ABC):
 
     def _validate_chat_type(self) -> bool:
         """验证当前聊天类型是否允许执行此Command
-        
+
         Returns:
             bool: 如果允许执行返回True，否则返回False
         """
         if self.chat_type_allow == ChatType.ALL:
             return True
-        
+
         # 检查是否为群聊消息
-        is_group = hasattr(self.message, 'is_group_message') and self.message.is_group_message
-        
+        is_group = hasattr(self.message, "is_group_message") and self.message.is_group_message
+
         if self.chat_type_allow == ChatType.GROUP and is_group:
             return True
         elif self.chat_type_allow == ChatType.PRIVATE and not is_group:
@@ -84,9 +84,9 @@ class BaseCommand(ABC):
 
     def is_chat_type_allowed(self) -> bool:
         """检查当前聊天类型是否允许执行此Command
-        
+
         这是一个公开的方法，供外部调用检查聊天类型限制
-        
+
         Returns:
             bool: 如果允许执行返回True，否则返回False
         """

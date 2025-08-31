@@ -19,7 +19,7 @@ from src.plugin_system.base.component_types import PythonDependency
 
 class EchoCommand(PlusCommand):
     """Echo命令示例"""
-    
+
     command_name = "echo"
     command_description = "回显命令"
     command_aliases = ["say", "repeat"]
@@ -32,23 +32,23 @@ class EchoCommand(PlusCommand):
         if args.is_empty():
             await self.send_text("❓ 请提供要回显的内容\n用法: /echo <内容>")
             return True, "参数不足", True
-        
+
         content = args.get_raw()
-        
+
         # 检查内容长度限制
         max_length = self.get_config("commands.max_content_length", 500)
         if len(content) > max_length:
             await self.send_text(f"❌ 内容过长，最大允许 {max_length} 字符")
             return True, "内容过长", True
-        
+
         await self.send_text(f"🔊 {content}")
-        
+
         return True, "Echo命令执行成功", True
 
 
 class HelloCommand(PlusCommand):
     """Hello命令示例"""
-    
+
     command_name = "hello"
     command_description = "问候命令"
     command_aliases = ["hi", "greet"]
@@ -63,13 +63,13 @@ class HelloCommand(PlusCommand):
         else:
             name = args.get_first()
             await self.send_text(f"👋 Hello, {name}! 很高兴见到你！")
-        
+
         return True, "Hello命令执行成功", True
 
 
 class InfoCommand(PlusCommand):
     """信息命令示例"""
-    
+
     command_name = "info"
     command_description = "显示插件信息"
     command_aliases = ["about"]
@@ -91,13 +91,13 @@ class InfoCommand(PlusCommand):
             "• /test <子命令> [参数] - 测试各种功能"
         )
         await self.send_text(info_text)
-        
+
         return True, "Info命令执行成功", True
 
 
 class TestCommand(PlusCommand):
     """测试命令示例，展示参数解析功能"""
-    
+
     command_name = "test"
     command_description = "测试命令，展示参数解析功能"
     command_aliases = ["t"]
@@ -119,9 +119,9 @@ class TestCommand(PlusCommand):
             )
             await self.send_text(help_text)
             return True, "显示帮助", True
-        
+
         subcommand = args.get_first().lower()
-        
+
         if subcommand == "args":
             result = (
                 f"🔍 参数解析结果:\n"
@@ -132,7 +132,7 @@ class TestCommand(PlusCommand):
                 f"剩余参数: '{args.get_remaining()}'"
             )
             await self.send_text(result)
-            
+
         elif subcommand == "flags":
             result = (
                 f"🏴 标志测试结果:\n"
@@ -142,34 +142,34 @@ class TestCommand(PlusCommand):
                 f"--name 的值: '{args.get_flag_value('--name', '未设置')}'"
             )
             await self.send_text(result)
-            
+
         elif subcommand == "count":
             count = args.count() - 1  # 减去子命令本身
             await self.send_text(f"📊 除子命令外的参数数量: {count}")
-            
+
         elif subcommand == "join":
             remaining = args.get_remaining()
             if remaining:
                 await self.send_text(f"🔗 连接结果: {remaining}")
             else:
                 await self.send_text("❌ 没有可连接的参数")
-                
+
         else:
             await self.send_text(f"❓ 未知的子命令: {subcommand}")
-        
+
         return True, "Test命令执行成功", True
 
 
 @register_plugin
 class EchoExamplePlugin(BasePlugin):
     """Echo 示例插件"""
-    
+
     plugin_name: str = "echo_example_plugin"
     enable_plugin: bool = True
     dependencies: List[str] = []
     python_dependencies: List[Union[str, "PythonDependency"]] = []
     config_file_name: str = "config.toml"
-    
+
     config_schema = {
         "plugin": {
             "enabled": ConfigField(bool, default=True, description="是否启用插件"),
@@ -181,7 +181,7 @@ class EchoExamplePlugin(BasePlugin):
             "max_content_length": ConfigField(int, default=500, description="最大回显内容长度"),
         },
     }
-    
+
     config_section_descriptions = {
         "plugin": "插件基本配置",
         "commands": "命令相关配置",
@@ -190,14 +190,14 @@ class EchoExamplePlugin(BasePlugin):
     def get_plugin_components(self) -> List[Tuple[PlusCommandInfo, Type]]:
         """获取插件组件"""
         components = []
-        
+
         if self.get_config("plugin.enabled", True):
             # 添加所有命令，直接使用PlusCommand类
             if self.get_config("commands.echo_enabled", True):
                 components.append((EchoCommand.get_plus_command_info(), EchoCommand))
-            
+
             components.append((HelloCommand.get_plus_command_info(), HelloCommand))
             components.append((InfoCommand.get_plus_command_info(), InfoCommand))
             components.append((TestCommand.get_plus_command_info(), TestCommand))
-        
+
         return components
