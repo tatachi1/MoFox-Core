@@ -7,7 +7,7 @@ import io
 import asyncio
 import numpy as np
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from PIL import Image
 from rich.traceback import install
 
@@ -22,6 +22,22 @@ from sqlalchemy import select, and_
 install(extra_lines=3)
 
 logger = get_logger("chat_image")
+
+
+def is_image_message(message: Dict[str, Any]) -> bool:
+    """
+    判断消息是否为图片消息
+    
+    Args:
+        message: 消息字典
+        
+    Returns:
+        bool: 是否为图片消息
+    """
+    return message.get("type") == "image" or (
+        isinstance(message.get("content"), dict) and 
+        message["content"].get("type") == "image"
+    )
 
 
 class ImageManager:
