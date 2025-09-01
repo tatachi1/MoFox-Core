@@ -787,14 +787,14 @@ class QZoneService:
                 return False
 
         async def _reply(fid, host_qq, target_name, content, comment_tid):
-            """回复评论"""
+            """回复评论 - 修复为能正确提醒的回复格式"""
             try:
-                # 构造需要的参数
+                # 修复回复逻辑：确保能正确提醒被回复的人
                 data = {
-                    "topicId": f"{host_qq}_{fid}_2",  # 主题ID格式修改
+                    "topicId": f"{host_qq}_{fid}__1",  # 使用标准评论格式，而不是针对特定评论
                     "uin": uin,
                     "hostUin": host_qq,
-                    "content": content,
+                    "content": f"回复@{target_name}：{content}",  # 内容中明确标示回复对象
                     "format": "fs",
                     "plat": "qzone",
                     "source": "ic",
@@ -802,8 +802,7 @@ class QZoneService:
                     "ref": "feeds",
                     "richtype": "",
                     "richval": "",
-                    "parent_tid": comment_tid,  # 添加父评论ID
-                    "paramstr": f"@{target_name} {content}",
+                    "paramstr": f"@{target_name}",  # 确保触发@提醒机制
                 }
                 
                 # 记录详细的请求参数用于调试
