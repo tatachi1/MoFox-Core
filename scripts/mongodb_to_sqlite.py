@@ -30,7 +30,7 @@ from rich.panel import Panel
 # from rich.text import Text
 
 from src.common.database.database import db
-from src.common.database.database_model import (
+from src.common.database.sqlalchemy_models import (
     ChatStreams,
     Emoji,
     Messages,

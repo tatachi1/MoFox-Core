@@ -24,8 +24,6 @@ else:
 from src.common.logger import initialize_logging, get_logger, shutdown_logging
 
 # UI日志适配器
-
-
 initialize_logging()
 
 from src.main import MainSystem  # noqa

@@ -96,6 +96,8 @@ def init_prompt():
 
 {identity}
 {action_descriptions}
+
+--------------------------------
 {time_block}
 你现在的主要任务是和 {sender_name} 聊天。同时，也有其他用户会参与聊天，你可以参考他们的回复内容，但是你现在想回复{sender_name}的发言。
 
@@ -683,18 +685,33 @@ class DefaultReplyer:
         # 构建核心对话 prompt
         core_dialogue_prompt = ""
         if core_dialogue_list:
-            core_dialogue_list = core_dialogue_list[-int(global_config.chat.max_context_size * 2) :]  # 限制消息数量
-
-            core_dialogue_prompt_str = build_readable_messages(
-                core_dialogue_list,
-                replace_bot_name=True,
-                merge_messages=False,
-                timestamp_mode="normal",
-                read_mark=0.0,
-                truncate=True,
-                show_actions=True,
-            )
-            core_dialogue_prompt = core_dialogue_prompt_str
+            # 检查最新五条消息中是否包含bot自己说的消息
+            latest_5_messages = core_dialogue_list[-5:] if len(core_dialogue_list) >= 5 else core_dialogue_list
+            has_bot_message = any(str(msg.get("user_id")) == bot_id for msg in latest_5_messages)
+            
+            # logger.info(f"最新五条消息：{latest_5_messages}")
+            # logger.info(f"最新五条消息中是否包含bot自己说的消息：{has_bot_message}")
+            
+            # 如果最新五条消息中不包含bot的消息，则返回空字符串
+            if not has_bot_message:
+                core_dialogue_prompt = ""
+            else:
+                core_dialogue_list = core_dialogue_list[-int(global_config.chat.max_context_size * 2) :]  # 限制消息数量
+                
+                core_dialogue_prompt_str = build_readable_messages(
+                    core_dialogue_list,
+                    replace_bot_name=True,
+                    merge_messages=False,
+                    timestamp_mode="normal_no_YMD",
+                    read_mark=0.0,
+                    truncate=True,
+                    show_actions=True,
+                )
+                core_dialogue_prompt = f"""--------------------------------
+这是你和{sender}的对话，你们正在交流中：
+{core_dialogue_prompt_str}
+--------------------------------
+"""
 
         return core_dialogue_prompt, all_dialogue_prompt
 

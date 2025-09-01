@@ -1245,6 +1245,10 @@ async def get_person_id_list(messages: List[Dict[str, Any]]) -> List[str]:
         # 检查必要信息是否存在 且 不是机器人自己
         if not all([platform, user_id]) or user_id == global_config.bot.qq_account:
             continue
+        
+        # 添加空值检查，防止 platform 为 None 时出错
+        if platform is None:
+            platform = "unknown"
 
         # 添加空值检查，防止 platform 为 None 时出错
         if platform is None:

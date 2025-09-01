@@ -25,24 +25,9 @@
     "plugin_type": "action_provider",
     "components": [
       {
-        "type": "action", 
-        "name": "no_reply",
-        "description": "暂时不回复消息，等待新消息或超时"
-      },
-      {
-        "type": "action", 
-        "name": "reply",
-        "description": "执行基本回复动作"
-      },
-      {
         "type": "action",
         "name": "emoji", 
         "description": "发送表情包辅助表达情绪"
-      },
-      {
-        "type": "action",
-        "name": "anti_injector_manager",
-        "description": "管理和监控反注入系统"
       }
     ]
   }
