@@ -734,9 +734,83 @@ class MessageHandler:
         return Seg(type="text", data="[向你发送了窗口抖动，现在你的屏幕猛烈地震了一下！]")
 
     async def handle_json_message(self, raw_message: dict) -> Seg:
-        message_data: str = raw_message.get("data", "").get("data", "")
-        res = json.loads(message_data)
-        return Seg(type="json", data=res)
+        """
+        处理JSON消息
+        Parameters:
+            raw_message: dict: 原始消息
+        Returns:
+            seg_data: Seg: 处理后的消息段
+        """
+        message_data: dict = raw_message.get("data", {})
+        json_data = message_data.get("data", "")
+        
+        # 检查JSON消息格式
+        if not message_data or "data" not in message_data:
+            logger.warning("JSON消息格式不正确")
+            return Seg(type="json", data=json.dumps(message_data))
+        
+        try:
+            nested_data = json.loads(json_data)
+            
+            # 检查是否是QQ小程序分享消息
+            if "app" in nested_data and "com.tencent.miniapp" in str(nested_data.get("app", "")):
+                logger.debug("检测到QQ小程序分享消息，开始提取信息")
+                
+                # 提取目标字段
+                extracted_info = {}
+                
+                # 提取 meta.detail_1 中的信息
+                meta = nested_data.get("meta", {})
+                detail_1 = meta.get("detail_1", {})
+                
+                if detail_1:
+                    extracted_info["title"] = detail_1.get("title", "")
+                    extracted_info["desc"] = detail_1.get("desc", "")
+                    qqdocurl = detail_1.get("qqdocurl", "")
+                    
+                    # 从qqdocurl中提取b23.tv短链接
+                    if qqdocurl and "b23.tv" in qqdocurl:
+                        # 查找b23.tv链接的起始位置
+                        start_pos = qqdocurl.find("https://b23.tv/")
+                        if start_pos != -1:
+                            # 提取从https://b23.tv/开始的部分
+                            b23_part = qqdocurl[start_pos:]
+                            # 查找第一个?的位置，截取到?之前
+                            question_pos = b23_part.find("?")
+                            if question_pos != -1:
+                                extracted_info["short_url"] = b23_part[:question_pos]
+                            else:
+                                extracted_info["short_url"] = b23_part
+                        else:
+                            extracted_info["short_url"] = qqdocurl
+                    else:
+                        extracted_info["short_url"] = qqdocurl
+                
+                # 如果成功提取到关键信息，返回格式化的文本
+                if extracted_info.get("title") or extracted_info.get("desc") or extracted_info.get("short_url"):
+                    content_parts = []
+                    
+                    if extracted_info.get("title"):
+                        content_parts.append(f"来源: {extracted_info['title']}")
+                    
+                    if extracted_info.get("desc"):
+                        content_parts.append(f"标题: {extracted_info['desc']}")
+                    
+                    if extracted_info.get("short_url"):
+                        content_parts.append(f"链接: {extracted_info['short_url']}")
+                    
+                    formatted_content = "\n".join(content_parts)
+                    return Seg(type="text", data=f"这是一条小程序分享消息，可以根据来源，考虑使用对应解析工具\n{formatted_content}")
+            
+            # 如果没有提取到关键信息，返回None
+            return None
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"解析JSON消息失败: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"处理JSON消息时出错: {e}")
+            return None
 
     async def handle_rps_message(self, raw_message: dict) -> Seg:
         message_data: dict = raw_message.get("data", {})

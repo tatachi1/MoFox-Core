@@ -58,7 +58,14 @@ class VoiceConfig(ConfigBase):
     use_tts: bool = False
     """是否启用TTS功能"""
 
-
+@dataclass
+class SlicingConfig(ConfigBase):
+    max_frame_size: int = 64
+    """WebSocket帧的最大大小，单位为字节，默认64KB"""
+    
+    delay_ms: int = 10
+    """切片发送间隔时间，单位为毫秒"""
+    
 @dataclass
 class DebugConfig(ConfigBase):
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"

@@ -18,6 +18,7 @@ from .official_configs import (
     MaiBotServerConfig,
     NapcatServerConfig,
     NicknameConfig,
+    SlicingConfig,
     VoiceConfig,
 )
 
@@ -120,6 +121,7 @@ class Config(ConfigBase):
     napcat_server: NapcatServerConfig
     maibot_server: MaiBotServerConfig
     voice: VoiceConfig
+    slicing: SlicingConfig
     debug: DebugConfig
 
 
