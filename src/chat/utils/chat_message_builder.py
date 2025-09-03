@@ -809,15 +809,15 @@ def build_pic_mapping_info(pic_id_mapping: Dict[str, str]) -> str:
 
     for pic_id, display_name in sorted_items:
         # 从数据库中获取图片描述
-        description = "内容正在阅读，请稍等"
+        description = "[图片内容未知]"  # 默认描述
         try:
             with get_db_session() as session:
                 image = session.execute(select(Images).where(Images.image_id == pic_id)).scalar()
                 if image and image.description:
                     description = image.description
         except Exception:
-            ...
             # 如果查询失败，保持默认描述
+            pass
 
         mapping_lines.append(f"[{display_name}] 的内容：{description}")
 

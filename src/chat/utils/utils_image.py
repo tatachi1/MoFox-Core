@@ -546,10 +546,23 @@ class ImageManager:
 
                     existing_image.count += 1
 
-                    return existing_image.image_id, f"[picid:{existing_image.image_id}]"
+                    # 如果已有描述，直接返回
+                    if existing_image.description and existing_image.description.strip():
+                        return existing_image.image_id, f"[picid:{existing_image.image_id}]"
+                    else:
+                        # 同步处理图片描述
+                        description = await self.get_image_description(image_base64)
+                        # 更新数据库中的描述
+                        existing_image.description = description.replace("[图片：", "").replace("]", "")
+                        existing_image.vlm_processed = True
+                        return existing_image.image_id, f"[picid:{existing_image.image_id}]"
 
                 # print(f"图片不存在: {image_hash}")
                 image_id = str(uuid.uuid4())
+
+                # 同步获取图片描述
+                description = await self.get_image_description(image_base64)
+                clean_description = description.replace("[图片：", "").replace("]", "")
 
                 # 保存新图片
                 current_timestamp = time.time()
@@ -568,15 +581,13 @@ class ImageManager:
                     emoji_hash=image_hash,
                     path=file_path,
                     type="image",
+                    description=clean_description,
                     timestamp=current_timestamp,
-                    vlm_processed=False,
+                    vlm_processed=True,
                     count=1,
                 )
                 session.add(new_img)
                 session.commit()
-
-            # 启动异步VLM处理
-            asyncio.create_task(self._process_image_with_vlm(image_id, image_base64))
 
             return image_id, f"[picid:{image_id}]"
 
@@ -584,85 +595,6 @@ class ImageManager:
             logger.error(f"处理图片失败: {str(e)}")
             return "", "[图片]"
 
-    async def _process_image_with_vlm(self, image_id: str, image_base64: str) -> None:
-        """使用VLM处理图片并更新数据库
-
-        Args:
-            image_id: 图片ID
-            image_base64: 图片的base64编码
-        """
-        try:
-            # 计算图片哈希
-            # 确保base64字符串只包含ASCII字符
-            if isinstance(image_base64, str):
-                image_base64 = image_base64.encode("ascii", errors="ignore").decode("ascii")
-            image_bytes = base64.b64decode(image_base64)
-            image_hash = hashlib.md5(image_bytes).hexdigest()
-            with get_db_session() as session:
-                # 获取当前图片记录
-                image = session.execute(select(Images).where(Images.image_id == image_id)).scalar()
-
-                # 优先检查是否已有其他相同哈希的图片记录包含描述
-                existing_with_description = session.execute(
-                    select(Images).where(
-                        and_(
-                            Images.emoji_hash == image_hash,
-                            Images.description.isnot(None),
-                            Images.description != "",
-                            Images.id != image.id,
-                        )
-                    )
-                ).scalar()
-                if existing_with_description:
-                    logger.debug(
-                        f"[缓存复用] 从其他相同图片记录复用描述: {existing_with_description.description[:50]}..."
-                    )
-                    image.description = existing_with_description.description
-                    image.vlm_processed = True
-
-                    # 同时保存到ImageDescriptions表作为备用缓存
-                    self._save_description_to_db(image_hash, existing_with_description.description, "image")
-                    return
-
-                # 检查ImageDescriptions表的缓存描述
-                if cached_description := self._get_description_from_db(image_hash, "image"):
-                    logger.debug(f"[缓存复用] 从ImageDescriptions表复用描述: {cached_description[:50]}...")
-                    image.description = cached_description
-                    image.vlm_processed = True
-
-                    return
-
-                # 获取图片格式
-                image_format = Image.open(io.BytesIO(image_bytes)).format.lower()  # type: ignore
-
-                # 构建prompt
-                prompt = global_config.custom_prompt.image_prompt
-
-                # 获取VLM描述
-                logger.info(f"[VLM异步调用] 为图片生成描述 (ID: {image_id}, Hash: {image_hash[:8]}...)")
-                description, _ = await self.vlm.generate_response_for_image(
-                    prompt, image_base64, image_format, temperature=0.4, max_tokens=300
-                )
-
-                if description is None:
-                    logger.warning("VLM未能生成图片描述")
-                    description = "无法生成描述"
-
-                if cached_description := self._get_description_from_db(image_hash, "image"):
-                    logger.warning(f"虽然生成了描述，但是找到缓存图片描述: {cached_description}")
-                    description = cached_description
-
-                # 更新数据库
-                image.description = description
-                image.vlm_processed = True
-
-                # 保存描述到ImageDescriptions表作为备用缓存
-                self._save_description_to_db(image_hash, description, "image")
-
-                logger.info(f"[VLM异步完成] 图片描述生成: {description[:50]}...")
-
-        except Exception as e:
-            logger.error(f"VLM处理图片失败: {str(e)}")
 
 
 # 创建全局单例
