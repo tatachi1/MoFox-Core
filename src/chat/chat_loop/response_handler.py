@@ -1,18 +1,13 @@
 import time
 import random
-import traceback
-from typing import Optional, Dict, Any, Tuple
+from typing import Dict, Any, Tuple
 
 from src.common.logger import get_logger
-from src.config.config import global_config
-from src.plugin_system.apis import generator_api, send_api, message_api, database_api
+from src.plugin_system.apis import send_api, message_api, database_api
 from src.person_info.person_info import get_person_info_manager
 from .hfc_context import HfcContext
 
 # 导入反注入系统
-from src.chat.antipromptinjector import get_anti_injector
-from src.chat.antipromptinjector.types import ProcessResult
-from src.chat.utils.prompt import Prompt
 
 logger = get_logger("hfc")
 anti_injector_logger = get_logger("anti_injector")

@@ -36,7 +36,7 @@ from src.plugin_system.base.component_types import ActionInfo, EventType
 from src.plugin_system.apis import llm_api
 
 # 导入新的统一Prompt系统
-from src.chat.utils.prompt import Prompt, PromptParameters
+from src.chat.utils.prompt import PromptParameters
 
 logger = get_logger("replyer")
 

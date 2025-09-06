@@ -1,6 +1,5 @@
 from enum import Enum, auto
 from datetime import datetime
-from typing import Optional
 from src.common.logger import get_logger
 from src.manager.local_store_manager import local_storage
 

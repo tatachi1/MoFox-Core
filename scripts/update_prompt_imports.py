@@ -4,8 +4,6 @@
 """
 
 import os
-import re
-from pathlib import Path
 
 # 需要更新的文件列表
 files_to_update = [

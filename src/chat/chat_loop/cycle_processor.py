@@ -3,7 +3,7 @@ import time
 import traceback
 import math
 import random
-from typing import Optional, Dict, Any, Tuple
+from typing import Dict, Any, Tuple
 
 from src.chat.utils.timer_calculator import Timer
 from src.common.logger import get_logger

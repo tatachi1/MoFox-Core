@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Dict, List, Union
+from typing import Tuple, Optional, List, Union
 
 from src.common.logger import get_logger
 from .component_types import EventType, EventHandlerInfo, ComponentType
