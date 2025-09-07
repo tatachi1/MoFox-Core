@@ -80,6 +80,13 @@ class AtAction(BaseAction):
             reply_to = f"{user_name}:{at_message}"
             extra_info = f"你需要艾特用户 {user_name} 并回复他们说: {at_message}"
             
+            from src.plugin_system.core.event_manager import event_manager
+            from src.plugin_system import EventType
+            # 触发post_llm
+            result = await event_manager.trigger_event(EventType.POST_LLM,plugin_name="SYSTEM")
+            if not result.all_continue_process():
+                return False, f"被组件{result.get_summary().get("stopped_handlers","")}打断"
+            
             # 使用回复器生成回复
             success, llm_response, prompt = await replyer.generate_reply_with_context(
                 reply_to=reply_to,
