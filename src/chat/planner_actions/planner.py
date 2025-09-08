@@ -484,6 +484,7 @@ class ActionPlanner:
         mode: ChatMode = ChatMode.FOCUS,
         loop_start_time: float = 0.0,
         available_actions: Optional[Dict[str, ActionInfo]] = None,
+        pseudo_message: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """
         [注释] "大脑"规划器。
@@ -513,6 +514,8 @@ class ActionPlanner:
             truncate=False,
             show_actions=False,
         )
+        if pseudo_message:
+            chat_content_block_short += f"\n[m99] 刚刚, 用户: {pseudo_message}"
         self.last_obs_time_mark = time.time()
 
         is_group_chat, chat_target_info, current_available_actions = self.get_necessary_info()
@@ -522,8 +525,8 @@ class ActionPlanner:
         # --- 2. 启动小脑并行思考 ---
         all_sub_planner_results: List[Dict[str, Any]] = []
         
-        # PROACTIVE模式下禁用小脑，避免与大脑的主动思考决策冲突
-        if mode != ChatMode.PROACTIVE:
+        # PROACTIVE模式下，只有在有伪消息（来自提醒）时才激活小脑
+        if mode != ChatMode.PROACTIVE or pseudo_message:
             try:
                 sub_planner_actions: Dict[str, ActionInfo] = {}
                 for action_name, action_info in available_actions.items():
@@ -607,40 +610,45 @@ class ActionPlanner:
             action, reasoning = "no_reply", f"大脑处理错误: {e}"
 
         # --- 4. 整合大脑和小脑的决策 ---
-        # 如果是私聊且开启了强制回复，则将no_reply强制改为reply
-        if not is_group_chat and global_config.chat.force_reply_private and action == "no_reply":
-            action = "reply"
-            reasoning = "私聊强制回复"
-            logger.info(f"{self.log_prefix}私聊强制回复已触发，将动作从 'no_reply' 修改为 'reply'")
-            
-        is_parallel = True
-        for info in all_sub_planner_results:
-            action_type = info.get("action_type")
-            if action_type and action_type not in ["no_action", "no_reply"]:
-                action_info = available_actions.get(action_type)
-                if action_info and not action_info.parallel_action:
-                    is_parallel = False
-                    break
-
-        action_data["loop_start_time"] = loop_start_time
-        final_actions: List[Dict[str, Any]] = []
-
-        if is_parallel:
-            logger.info(f"{self.log_prefix}决策模式: 大脑与小脑并行")
-            if action not in ["no_action", "no_reply"]:
-                final_actions.append(
-                    {
-                        "action_type": action,
-                        "reasoning": reasoning,
-                        "action_data": action_data,
-                        "action_message": target_message,
-                        "available_actions": available_actions,
-                    }
-                )
-            final_actions.extend(all_sub_planner_results)
+        # 特殊规则：如果是提醒任务，且大脑决定do_nothing，则忽略大脑，采用小脑的决策
+        if mode == ChatMode.PROACTIVE and pseudo_message and action == "do_nothing":
+            logger.info(f"{self.log_prefix}提醒任务触发，大脑决策为do_nothing，忽略大脑并采用小脑决策")
+            final_actions = all_sub_planner_results
         else:
-            logger.info(f"{self.log_prefix}决策模式: 小脑优先 (检测到非并行action)")
-            final_actions.extend(all_sub_planner_results)
+            # 如果是私聊且开启了强制回复，则将no_reply强制改为reply
+            if not is_group_chat and global_config.chat.force_reply_private and action == "no_reply":
+                action = "reply"
+                reasoning = "私聊强制回复"
+                logger.info(f"{self.log_prefix}私聊强制回复已触发，将动作从 'no_reply' 修改为 'reply'")
+                
+            is_parallel = True
+            for info in all_sub_planner_results:
+                action_type = info.get("action_type")
+                if action_type and action_type not in ["no_action", "no_reply"]:
+                    action_info = available_actions.get(action_type)
+                    if action_info and not action_info.parallel_action:
+                        is_parallel = False
+                        break
+
+            action_data["loop_start_time"] = loop_start_time
+            final_actions: List[Dict[str, Any]] = []
+
+            if is_parallel:
+                logger.info(f"{self.log_prefix}决策模式: 大脑与小脑并行")
+                if action not in ["no_action", "no_reply"]:
+                    final_actions.append(
+                        {
+                            "action_type": action,
+                            "reasoning": reasoning,
+                            "action_data": action_data,
+                            "action_message": target_message,
+                            "available_actions": available_actions,
+                        }
+                    )
+                final_actions.extend(all_sub_planner_results)
+            else:
+                logger.info(f"{self.log_prefix}决策模式: 小脑优先 (检测到非并行action)")
+                final_actions.extend(all_sub_planner_results)
 
         final_actions = self._filter_no_actions(final_actions)
 

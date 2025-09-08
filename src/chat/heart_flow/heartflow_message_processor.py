@@ -178,7 +178,8 @@ class HeartFCMessageReceiver:
                         "chat_id": chat.stream_id,
                         "content": reminder_event.content,
                         "confidence": reminder_event.confidence,
-                        "created_at": datetime.now().isoformat()
+                        "created_at": datetime.now().isoformat(),
+                        "original_message_id": message.message_info.message_id
                     }
                     
                     success = await event_scheduler.schedule_event(
