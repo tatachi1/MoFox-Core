@@ -143,9 +143,12 @@ class EmojiAction(BaseAction):
                     chosen_emotion = chosen_emotion.strip().replace('"', "").replace("'", "")
                     logger.info(f"{self.log_prefix} LLM选择的情感: {chosen_emotion}")
 
-                    if chosen_emotion in emotion_map:
-                        emoji_base64, emoji_description = random.choice(emotion_map[chosen_emotion])
-                        logger.info(f"{self.log_prefix} 找到匹配情感 '{chosen_emotion}' 的表情包: {emoji_description}")
+                    # 使用模糊匹配来查找最相关的情感标签
+                    matched_key = next((key for key in emotion_map if chosen_emotion in key), None)
+                    
+                    if matched_key:
+                        emoji_base64, emoji_description = random.choice(emotion_map[matched_key])
+                        logger.info(f"{self.log_prefix} 找到匹配情感 '{chosen_emotion}' (匹配到: '{matched_key}') 的表情包: {emoji_description}")
                     else:
                         logger.warning(
                             f"{self.log_prefix} LLM选择的情感 '{chosen_emotion}' 不在可用列表中, 将随机选择一个表情包"
