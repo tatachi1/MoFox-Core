@@ -75,6 +75,9 @@ class ChatConfig(ValidatedConfigBase):
     at_bot_inevitable_reply: bool = Field(default=False, description="@机器人的必然回复")
     talk_frequency_adjust: list[list[str]] = Field(default_factory=lambda: [], description="聊天频率调整")
     focus_value: float = Field(default=1.0, description="专注值")
+    focus_mode_quiet_groups: List[str] = Field(
+        default_factory=list, description='专注模式下需要保持安静的群组列表, 格式: ["platform:group_id1", "platform:group_id2"]'
+    )
     force_reply_private: bool = Field(default=False, description="强制回复私聊")
     group_chat_mode: Literal["auto", "normal", "focus"] = Field(default="auto", description="群聊模式")
     timestamp_display_mode: Literal["normal", "normal_no_YMD", "relative"] = Field(

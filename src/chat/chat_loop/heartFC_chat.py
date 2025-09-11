@@ -379,6 +379,37 @@ class HeartFChatting:
             self.context.last_message_time = time.time()
             self.context.last_read_time = time.time()
 
+            # --- 专注模式安静群组检查 ---
+            quiet_groups = global_config.chat.focus_mode_quiet_groups
+            if quiet_groups and self.context.chat_stream:
+                is_group_chat = self.context.chat_stream.group_info is not None
+                if is_group_chat:
+                    try:
+                        platform = self.context.chat_stream.platform
+                        group_id = self.context.chat_stream.group_info.group_id
+                        
+                        # 兼容不同QQ适配器的平台名称
+                        is_qq_platform = platform in ["qq", "napcat"]
+                        
+                        current_chat_identifier = f"{platform}:{group_id}"
+                        config_identifier_for_qq = f"qq:{group_id}"
+                        
+                        is_in_quiet_list = (current_chat_identifier in quiet_groups or
+                                            (is_qq_platform and config_identifier_for_qq in quiet_groups))
+
+                        if is_in_quiet_list:
+                            is_mentioned_in_batch = False
+                            for msg in recent_messages:
+                                if msg.get("is_mentioned"):
+                                    is_mentioned_in_batch = True
+                                    break
+                            
+                            if not is_mentioned_in_batch:
+                                logger.info(f"{self.context.log_prefix} 在专注安静模式下，因未被提及而忽略了消息。")
+                                return True  # 消耗消息但不做回复
+                    except Exception as e:
+                        logger.error(f"{self.context.log_prefix} 检查专注安静群组时出错: {e}")
+
             # 处理唤醒度逻辑
             if current_sleep_state in [SleepState.SLEEPING, SleepState.PREPARING_SLEEP, SleepState.INSOMNIA]:
                 self._handle_wakeup_messages(recent_messages)
