@@ -28,9 +28,9 @@ class AtAction(BaseAction):
     # === 功能描述（必须填写）===
     action_parameters = {"user_name": "需要艾特用户的名字", "at_message": "艾特用户时要发送的消息"}
     action_require = [
-        "当需要艾特某个用户时使用",
-        "当你需要提醒特定用户查看消息时使用",
-        "在回复中需要明确指向某个用户时使用",
+        "当用户明确要求你去'叫'、'喊'、'提醒'或'艾特'某人时使用",
+        "当你判断，为了让特定的人看到消息，需要代表用户去呼叫他/她时使用",
+        "例如：'你去叫一下张三'，'提醒一下李四开会'",
     ]
     llm_judge_prompt = """
     判定是否需要使用艾特用户动作的条件：
@@ -150,10 +150,15 @@ class AtAction(BaseAction):
                 logger.error("回复器生成回复失败")
                 return False, "回复生成失败"
             
-            final_message = llm_response.get("content", "")
-            if not final_message:
+            final_message_raw = llm_response.get("content", "")
+            if not final_message_raw:
                 logger.warning("回复器生成了空内容")
                 return False, "回复内容为空"
+
+            # 对LLM生成的内容进行后处理，解析[SPLIT]标记并将分段消息合并
+            from src.chat.utils.utils import process_llm_response
+            final_message_segments = process_llm_response(final_message_raw, enable_splitter=True, enable_chinese_typo=False)
+            final_message = " ".join(final_message_segments)
 
             await self.send_command(
                 "SEND_AT_MESSAGE",

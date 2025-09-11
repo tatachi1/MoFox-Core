@@ -331,15 +331,21 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
     )
 
     if global_config.response_splitter.enable and enable_splitter:
-        logger.info("回复分割器已启用。")
-        if "[SPLIT]" in cleaned_text:
+        logger.info(f"回复分割器已启用，模式: {global_config.response_splitter.split_mode}。")
+        
+        split_mode = global_config.response_splitter.split_mode
+        
+        if split_mode == "llm" and "[SPLIT]" in cleaned_text:
+            logger.debug("检测到 [SPLIT] 标记，使用 LLM 自定义分割。")
             split_sentences_raw = cleaned_text.split("[SPLIT]")
-            # 清理每个句子首尾可能由LLM添加的空格或换行符，并移除空句子
             split_sentences = [s.strip() for s in split_sentences_raw if s.strip()]
-            logger.debug(f"LLM 自定义分割结果: {split_sentences}")
         else:
-            # 如果没有 [SPLIT] 标记，则不进行任何分割
-            split_sentences = [cleaned_text]
+            if split_mode == "llm":
+                logger.debug("未检测到 [SPLIT] 标记，本次不进行分割。")
+                split_sentences = [cleaned_text]
+            else: # mode == "punctuation"
+                logger.debug("使用基于标点的传统模式进行分割。")
+                split_sentences = split_into_sentences_w_remove_punctuation(cleaned_text)
     else:
         logger.debug("回复分割器已禁用。")
         split_sentences = [cleaned_text]

@@ -475,6 +475,7 @@ class ResponseSplitterConfig(ValidatedConfigBase):
     """回复分割器配置类"""
 
     enable: bool = Field(default=True, description="启用")
+    split_mode: str = Field(default="llm", description="分割模式: 'llm' 或 'punctuation'")
     max_length: int = Field(default=256, description="最大长度")
     max_sentence_num: int = Field(default=3, description="最大句子数")
     enable_kaomoji_protection: bool = Field(default=False, description="启用颜文字保护")
