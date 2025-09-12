@@ -567,7 +567,7 @@ class Prompt:
         
         try:
             from src.chat.memory_system.memory_activator import MemoryActivator
-            from src.chat.memory_system.async_instant_memory_wrapper import async_memory
+            from src.chat.memory_system.async_instant_memory_wrapper import get_async_instant_memory
             
             # 获取聊天历史
             chat_history = ""
@@ -589,10 +589,8 @@ class Prompt:
             )
             
             # 获取即时记忆
-            instant_memory = await async_memory.get_memory_with_fallback(
-                chat_id=self.parameters.chat_id,
-                target_user=self.parameters.sender
-            )
+            async_memory_wrapper = get_async_instant_memory(self.parameters.chat_id)
+            instant_memory = await async_memory_wrapper.get_memory_with_fallback(self.parameters.target)
             
             # 构建记忆块
             memory_parts = []
