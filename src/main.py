@@ -117,9 +117,9 @@ class MainSystem:
             # 停止消息重组器
             from src.plugin_system.core.event_manager import event_manager
             from src.plugin_system import EventType
+            import asyncio
             asyncio.run(event_manager.trigger_event(EventType.ON_STOP,permission_group="SYSTEM"))
             from src.utils.message_chunker import reassembler
-            import asyncio
 
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -250,6 +250,11 @@ MoFox_Bot(第三方修改版)
         # 初始化记忆系统
         self.hippocampus_manager.initialize()
         logger.info("记忆系统初始化成功")
+
+        # 初始化LPMM知识库
+        from src.chat.knowledge.knowledge_lib import initialize_lpmm_knowledge
+        initialize_lpmm_knowledge()
+        logger.info("LPMM知识库初始化成功")
 
         # 初始化异步记忆管理器
         try:

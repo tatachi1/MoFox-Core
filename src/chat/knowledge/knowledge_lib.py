@@ -30,51 +30,55 @@ DATA_PATH = os.path.join(ROOT_PATH, "data")
 qa_manager = None
 inspire_manager = None
 
-# 检查LPMM知识库是否启用
-if global_config.lpmm_knowledge.enable:
-    logger.info("正在初始化Mai-LPMM")
-    logger.info("创建LLM客户端")
 
-    # 初始化Embedding库
-    embed_manager = EmbeddingManager()
-    logger.info("正在从文件加载Embedding库")
-    try:
-        embed_manager.load_from_file()
-    except Exception as e:
-        logger.warning(f"此消息不会影响正常使用：从文件加载Embedding库时，{e}")
-        # logger.warning("如果你是第一次导入知识，或者还未导入知识，请忽略此错误")
-    logger.info("Embedding库加载完成")
-    # 初始化KG
-    kg_manager = KGManager()
-    logger.info("正在从文件加载KG")
-    try:
-        kg_manager.load_from_file()
-    except Exception as e:
-        logger.warning(f"此消息不会影响正常使用：从文件加载KG时，{e}")
-        # logger.warning("如果你是第一次导入知识，或者还未导入知识，请忽略此错误")
-    logger.info("KG加载完成")
+def initialize_lpmm_knowledge():
+    """初始化LPMM知识库"""
+    global qa_manager, inspire_manager
 
-    logger.info(f"KG节点数量：{len(kg_manager.graph.get_node_list())}")
-    logger.info(f"KG边数量：{len(kg_manager.graph.get_edge_list())}")
+    # 检查LPMM知识库是否启用
+    if global_config.lpmm_knowledge.enable:
+        logger.info("正在初始化Mai-LPMM")
+        logger.info("创建LLM客户端")
 
-    # 数据比对：Embedding库与KG的段落hash集合
-    for pg_hash in kg_manager.stored_paragraph_hashes:
-        # 使用与EmbeddingStore中一致的命名空间格式
-        key = f"paragraph-{pg_hash}"
-        if key not in embed_manager.stored_pg_hashes:
-            logger.warning(f"KG中存在Embedding库中不存在的段落：{key}")
+        # 初始化Embedding库
+        embed_manager = EmbeddingManager()
+        logger.info("正在从文件加载Embedding库")
+        try:
+            embed_manager.load_from_file()
+        except Exception as e:
+            logger.warning(f"此消息不会影响正常使用：从文件加载Embedding库时，{e}")
+            # logger.warning("如果你是第一次导入知识，或者还未导入知识，请忽略此错误")
+        logger.info("Embedding库加载完成")
+        # 初始化KG
+        kg_manager = KGManager()
+        logger.info("正在从文件加载KG")
+        try:
+            kg_manager.load_from_file()
+        except Exception as e:
+            logger.warning(f"此消息不会影响正常使用：从文件加载KG时，{e}")
+            # logger.warning("如果你是第一次导入知识，或者还未导入知识，请忽略此错误")
+        logger.info("KG加载完成")
 
-    # 问答系统（用于知识库）
-    qa_manager = QAManager(
-        embed_manager,
-        kg_manager,
-    )
+        logger.info(f"KG节点数量：{len(kg_manager.graph.get_node_list())}")
+        logger.info(f"KG边数量：{len(kg_manager.graph.get_edge_list())}")
 
-    # # 记忆激活（用于记忆库）
-    # inspire_manager = MemoryActiveManager(
-    #     embed_manager,
-    #     llm_client_list[global_config["embedding"]["provider"]],
-    # )
-else:
-    logger.info("LPMM知识库已禁用，跳过初始化")
-    # 创建空的占位符对象，避免导入错误
+        # 数据比对：Embedding库与KG的段落hash集合
+        for pg_hash in kg_manager.stored_paragraph_hashes:
+            key = f"paragraph-{pg_hash}"
+            if key not in embed_manager.stored_pg_hashes:
+                logger.warning(f"KG中存在Embedding库中不存在的段落：{key}")
+
+        # 问答系统（用于知识库）
+        qa_manager = QAManager(
+            embed_manager,
+            kg_manager,
+        )
+
+        # # 记忆激活（用于记忆库）
+        # inspire_manager = MemoryActiveManager(
+        #     embed_manager,
+        #     llm_client_list[global_config["embedding"]["provider"]],
+        # )
+    else:
+        logger.info("LPMM知识库已禁用，跳过初始化")
+        # 创建空的占位符对象，避免导入错误
