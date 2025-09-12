@@ -1066,10 +1066,8 @@ class DefaultReplyer:
 
 **任务**: 请结合你的智慧和人设，自然地决定是否需要分段。如果需要，请在最恰当的位置插入 `[SPLIT]` 标记。
 """
-            # 在 "现在，你说：" 之前插入
-            parts = prompt_text.rsplit("现在，你说：", 1)
-            if len(parts) == 2:
-                prompt_text = f"{parts[0]}{split_instruction}\n现在，你说：{parts[1]}"
+            # 将分段指令添加到提示词顶部
+            prompt_text = f"{split_instruction}\n{prompt_text}"
 
         return prompt_text
 
