@@ -49,6 +49,7 @@ class PlanFilter:
             llm_content, _ = await self.planner_llm.generate_response_async(prompt=prompt)
 
             if llm_content:
+                logger.debug(f"LLM a原始返回: {llm_content}")
                 parsed_json = orjson.loads(repair_json(llm_content))
                 
                 if isinstance(parsed_json, dict):
@@ -56,13 +57,33 @@ class PlanFilter:
 
                 if isinstance(parsed_json, list):
                     final_actions = []
+                    reply_action_added = False
+                    # 定义回复类动作的集合，方便扩展
+                    reply_action_types = {"reply", "proactive_reply"}
+
                     for item in parsed_json:
-                        if isinstance(item, dict):
+                        if not isinstance(item, dict):
+                            continue
+
+                        # 预解析 action_type 来进行判断
+                        action_type = item.get("action", "no_action")
+
+                        if action_type in reply_action_types:
+                            if not reply_action_added:
+                                final_actions.extend(
+                                    await self._parse_single_action(
+                                        item, used_message_id_list, plan
+                                    )
+                                )
+                                reply_action_added = True
+                        else:
+                            # 非回复类动作直接添加
                             final_actions.extend(
                                 await self._parse_single_action(
                                     item, used_message_id_list, plan
                                 )
                             )
+                    
                     plan.decided_actions = self._filter_no_actions(final_actions)
 
         except Exception as e:
