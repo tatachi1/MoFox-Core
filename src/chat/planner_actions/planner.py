@@ -20,10 +20,29 @@ logger = get_logger("planner")
 
 class ActionPlanner:
     """
-    协调器，按顺序调用 Generator -> Filter -> Executor。
+    ActionPlanner 是规划系统的核心协调器。
+
+    它负责整合规划流程的三个主要阶段：
+    1.  **生成 (Generate)**: 使用 PlanGenerator 创建一个初始的行动计划。
+    2.  **筛选 (Filter)**: 使用 PlanFilter 对生成的计划进行审查和优化。
+    3.  **执行 (Execute)**: 使用 PlanExecutor 执行最终确定的行动。
+
+    Attributes:
+        chat_id (str): 当前聊天的唯一标识符。
+        action_manager (ActionManager): 用于执行具体动作的管理器。
+        generator (PlanGenerator): 负责生成初始计划。
+        filter (PlanFilter): 负责筛选和优化计划。
+        executor (PlanExecutor): 负责执行最终计划。
     """
 
     def __init__(self, chat_id: str, action_manager: ActionManager):
+        """
+        初始化 ActionPlanner。
+
+        Args:
+            chat_id (str): 当前聊天的 ID。
+            action_manager (ActionManager): 一个 ActionManager 实例。
+        """
         self.chat_id = chat_id
         self.action_manager = action_manager
         self.generator = PlanGenerator(chat_id)
@@ -34,7 +53,18 @@ class ActionPlanner:
         self, mode: ChatMode = ChatMode.FOCUS
     ) -> Tuple[List[Dict], Optional[Dict]]:
         """
-        执行完整的规划流程。
+        执行从生成到执行的完整规划流程。
+
+        这个方法按顺序协调生成、筛选和执行三个阶段。
+
+        Args:
+            mode (ChatMode): 当前的聊天模式，默认为 FOCUS。
+
+        Returns:
+            Tuple[List[Dict], Optional[Dict]]: 一个元组，包含：
+                - final_actions_dict (List[Dict]): 最终确定的动作列表（字典格式）。
+                - final_target_message_dict (Optional[Dict]): 最终的目标消息（字典格式），如果没有则为 None。
+                这与旧版 planner 的返回值保持兼容。
         """
         # 1. 生成初始 Plan
         initial_plan = await self.generator.generate(mode)

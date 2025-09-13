@@ -10,15 +10,32 @@ logger = get_logger("plan_executor")
 
 class PlanExecutor:
     """
-    执行 Plan 中最终确定的动作。
+    负责接收一个 Plan 对象，并执行其中最终确定的所有动作。
+
+    这个类是规划流程的最后一步，将规划结果转化为实际的动作执行。
+
+    Attributes:
+        action_manager (ActionManager): 用于实际执行各种动作的管理器实例。
     """
 
     def __init__(self, action_manager: ActionManager):
+        """
+        初始化 PlanExecutor。
+
+        Args:
+            action_manager (ActionManager): 一个 ActionManager 实例，用于执行动作。
+        """
         self.action_manager = action_manager
 
     async def execute(self, plan: Plan):
         """
-        读取 Plan 对象的 decided_actions 字段并执行。
+        遍历并执行 Plan 对象中 `decided_actions` 列表里的所有动作。
+
+        如果动作类型为 "no_action"，则会记录原因并跳过。
+        否则，它将调用 ActionManager 来执行相应的动作。
+
+        Args:
+            plan (Plan): 包含待执行动作列表的 Plan 对象。
         """
         if not plan.decided_actions:
             logger.info("没有需要执行的动作。")
