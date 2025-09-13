@@ -138,20 +138,6 @@ class ProactiveThinker:
         except Exception as e:
             logger.error(f"{self.context.log_prefix} 主动思考执行异常: {e}")
             logger.error(traceback.format_exc())
-
-    async def _get_reminder_context(self, message_id: str) -> str:
-        """获取提醒消息的上下文"""
-        try:
-            # 只获取那一条消息
-            message_record = await db_get(Messages, {"message_id": message_id}, single_result=True)
-            if message_record:
-                # 使用 build_readable_messages_with_id 来格式化单条消息
-                chat_context_block, _ = build_readable_messages_with_id(messages=[message_record])
-                return chat_context_block
-            return "无法加载相关的聊天记录。"
-        except Exception as e:
-            logger.error(f"{self.context.log_prefix} 获取提醒上下文失败: {e}")
-            return "无法加载相关的聊天记录。"
     
 
     async def _generate_proactive_content_and_send(self, action_result: Dict[str, Any], trigger_event: ProactiveTriggerEvent):
