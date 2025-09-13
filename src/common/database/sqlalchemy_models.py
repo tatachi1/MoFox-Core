@@ -53,6 +53,7 @@ class ChatStreams(Base):
     user_cardname = Column(Text, nullable=True)
     energy_value = Column(Float, nullable=True, default=5.0)
     sleep_pressure = Column(Float, nullable=True, default=0.0)
+    focus_energy = Column(Float, nullable=True, default=1.0)
 
     __table_args__ = (
         Index("idx_chatstreams_stream_id", "stream_id"),
