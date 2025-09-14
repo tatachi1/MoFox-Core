@@ -242,48 +242,50 @@ class ImageManager:
                 logger.warning(f"虽然生成了描述，但是找到缓存表情包描述: {cached_description}")
                 return f"[表情包：{cached_description}]"
 
-            # 保存表情包文件和元数据（用于可能的后续分析）
-            logger.debug(f"保存表情包: {image_hash}")
-            current_timestamp = time.time()
-            filename = f"{int(current_timestamp)}_{image_hash[:8]}.{image_format}"
-            emoji_dir = os.path.join(self.IMAGE_DIR, "emoji")
-            os.makedirs(emoji_dir, exist_ok=True)
-            file_path = os.path.join(emoji_dir, filename)
+            # 只有在开启“偷表情包”功能时，才将接收到的表情包保存到待注册目录
+            if global_config.emoji.steal_emoji:
+                logger.debug(f"偷取表情包功能已开启，保存表情包: {image_hash}")
+                current_timestamp = time.time()
+                filename = f"{int(current_timestamp)}_{image_hash[:8]}.{image_format}"
+                emoji_dir = os.path.join(self.IMAGE_DIR, "emoji")
+                os.makedirs(emoji_dir, exist_ok=True)
+                file_path = os.path.join(emoji_dir, filename)
 
-            try:
-                # 保存文件
-                with open(file_path, "wb") as f:
-                    f.write(image_bytes)
-
-                # 保存到数据库 (Images表) - 包含详细描述用于可能的注册流程
                 try:
-                    from src.common.database.sqlalchemy_models import get_db_session
+                    # 保存文件
+                    with open(file_path, "wb") as f:
+                        f.write(image_bytes)
 
-                    with get_db_session() as session:
-                        existing_img = session.execute(
-                            select(Images).where(and_(Images.emoji_hash == image_hash, Images.type == "emoji"))
-                        ).scalar()
+                    # 保存到数据库 (Images表) - 包含详细描述用于可能的注册流程
+                    try:
+                        from src.common.database.sqlalchemy_models import get_db_session
 
-                        if existing_img:
-                            existing_img.path = file_path
-                            existing_img.description = detailed_description  # 保存详细描述
-                            existing_img.timestamp = current_timestamp
-                        else:
-                            new_img = Images(
-                                emoji_hash=image_hash,
-                                path=file_path,
-                                type="emoji",
-                                description=detailed_description,  # 保存详细描述
-                                timestamp=current_timestamp,
-                            )
-                            session.add(new_img)
-                            session.commit()
-                        #  会在上下文管理器中自动调用
+                        with get_db_session() as session:
+                            existing_img = session.execute(
+                                select(Images).where(and_(Images.emoji_hash == image_hash, Images.type == "emoji"))
+                            ).scalar()
+
+                            if existing_img:
+                                existing_img.path = file_path
+                                existing_img.description = detailed_description  # 保存详细描述
+                                existing_img.timestamp = current_timestamp
+                            else:
+                                new_img = Images(
+                                    emoji_hash=image_hash,
+                                    path=file_path,
+                                    type="emoji",
+                                    description=detailed_description,  # 保存详细描述
+                                    timestamp=current_timestamp,
+                                )
+                                session.add(new_img)
+                                session.commit()
+                    except Exception as e:
+                        logger.error(f"保存到Images表失败: {str(e)}")
+
                 except Exception as e:
-                    logger.error(f"保存到Images表失败: {str(e)}")
-
-            except Exception as e:
-                logger.error(f"保存表情包文件或元数据失败: {str(e)}")
+                    logger.error(f"保存表情包文件或元数据失败: {str(e)}")
+            else:
+                logger.debug("偷取表情包功能已关闭，跳过保存。")
 
             # 保存最终的情感标签到缓存 (ImageDescriptions表)
             self._save_description_to_db(image_hash, final_emotion, "emoji")

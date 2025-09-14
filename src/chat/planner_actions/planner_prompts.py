@@ -18,7 +18,6 @@ def init_prompts():
     # 并要求模型以 JSON 格式输出一个或多个动作组合。
     Prompt(
         """
-{schedule_block}
 {mood_block}
 {time_block}
 {identity_block}
@@ -83,9 +82,12 @@ def init_prompts():
     {{
         "action": "emoji",
         "target_message_id": "m123",
-        "reason": "用一个可爱的表情来缓和气氛"
+        "reason": "根据我将要回复的文本内容，选择一个最匹配的表情包来增强表达效果。回复的文本是：<TEXT>"
     }}
 ]
+
+**重要规则：**
+当 `reply` 和 `emoji` 动作同时被选择时，`emoji` 动作的 `reason` 字段必须包含 `reply` 动作最终生成的回复文本内容。你需要将 `<TEXT>` 占位符替换为 `reply` 动作的 `reason` 字段内容，以确保表情包的选择与回复文本高度相关。
 
 不要输出markdown格式```json等内容，直接输出且仅包含 JSON 列表内容：
 """,
@@ -101,7 +103,6 @@ def init_prompts():
 ## 你的内部状态
 {time_block}
 {identity_block}
-{schedule_block}
 {mood_block}
 
 ## 长期记忆摘要
@@ -115,6 +116,7 @@ def init_prompts():
 
 ## 任务
 你现在要决定是否主动说些什么。就像一个真实的人一样，有时候会突然想起之前聊到的话题，或者对朋友的近况感到好奇，想主动询问或关心一下。
+**重要提示**：你的日程安排仅供你个人参考，不应作为主动聊天话题的主要来源。请更多地从聊天内容和朋友的动态中寻找灵感。
 
 请基于聊天内容，用你的判断力来决定是否要主动发言。不要按照固定规则，而是像人类一样自然地思考：
 - 是否想起了什么之前提到的事情，想问问后来怎么样了？

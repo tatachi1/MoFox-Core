@@ -362,7 +362,7 @@ class EmojiConfig(ValidatedConfigBase):
     emoji_activate_type: str = Field(default="random", description="表情包激活类型")
     max_reg_num: int = Field(default=200, description="最大表情包数量")
     do_replace: bool = Field(default=True, description="是否替换表情包")
-    check_interval: int = Field(default=120, description="检查间隔")
+    check_interval: float = Field(default=1.0, ge=0.01, description="检查间隔")
     steal_emoji: bool = Field(default=True, description="是否偷取表情包")
     content_filtration: bool = Field(default=False, description="内容过滤")
     filtration_prompt: str = Field(default="符合公序良俗", description="过滤提示")

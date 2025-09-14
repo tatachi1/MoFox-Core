@@ -439,104 +439,102 @@ class EmojiManager:
             logger.error(f"记录表情使用失败: {str(e)}")
 
     async def get_emoji_for_text(self, text_emotion: str) -> Optional[Tuple[str, str, str]]:
-        """根据文本内容获取相关表情包
+        """
+        根据文本内容，使用LLM选择一个合适的表情包。
+
         Args:
-            text_emotion: 输入的情感描述文本
+            text_emotion (str): LLM希望表达的情感或意图的文本描述。
+
         Returns:
-            Optional[Tuple[str, str]]: (表情包完整文件路径, 表情包描述)，如果没有找到则返回None
+            Optional[Tuple[str, str, str]]: 返回一个元组，包含所选表情包的 (文件路径, 描述, 匹配的情感描述)，
+                                            如果未找到合适的表情包，则返回 None。
         """
         try:
             _time_start = time.time()
 
-            # 获取所有表情包 (从内存缓存中获取)
-            all_emojis = self.emoji_objects
-
+            # 1. 从内存中获取所有可用的表情包对象
+            all_emojis = [emoji for emoji in self.emoji_objects if not emoji.is_deleted and emoji.description]
             if not all_emojis:
-                logger.warning("内存中没有任何表情包对象")
+                logger.warning("内存中没有任何可用的表情包对象")
                 return None
 
-            # 计算每个表情包与输入文本的最大情感相似度
-            emoji_similarities = []
-            for emoji in all_emojis:
-                # 跳过已标记为删除的对象
-                if emoji.is_deleted:
-                    continue
+            # 2. 根据全局配置决定候选表情包的数量
+            max_candidates = global_config.emoji.max_emoji_for_llm_select
 
-                emotions = emoji.emotion
-                if not emotions:
-                    continue
+            # 如果配置为0或者大于等于总数，则选择所有表情包
+            if max_candidates <= 0 or max_candidates >= len(all_emojis):
+                candidate_emojis = all_emojis
+            else:
+                # 否则，从所有表情包中随机抽取指定数量
+                candidate_emojis = random.sample(all_emojis, max_candidates)
 
-                # 计算与每个emotion标签的相似度，取最大值
-                max_similarity = 0
-                best_matching_emotion = ""
-                for emotion in emotions:
-                    # 使用编辑距离计算相似度
-                    distance = self._levenshtein_distance(text_emotion, emotion)
-                    max_len = max(len(text_emotion), len(emotion))
-                    similarity = 1 - (distance / max_len if max_len > 0 else 0)
-                    if similarity > max_similarity:
-                        max_similarity = similarity
-                        best_matching_emotion = emotion
-
-                if best_matching_emotion:
-                    emoji_similarities.append((emoji, max_similarity, best_matching_emotion))
-
-            # 按相似度降序排序
-            emoji_similarities.sort(key=lambda x: x[1], reverse=True)
-
-            # 获取前10个最相似的表情包
-            top_emojis = emoji_similarities[:10] if len(emoji_similarities) > 10 else emoji_similarities
-
-            if not top_emojis:
-                logger.warning("未找到匹配的表情包")
+            # 确保候选列表不为空
+            if not candidate_emojis:
+                logger.warning("未能选出任何候选表情包")
                 return None
 
-            # 从前几个中随机选择一个
-            selected_emoji, similarity, matched_emotion = random.choice(top_emojis)
+            # 3. 构建用于LLM决策的prompt
+            emoji_options_str = ""
+            for i, emoji in enumerate(candidate_emojis):
+                # 为每个表情包创建一个编号和它的详细描述
+                emoji_options_str += f"编号: {i+1}\n描述: {emoji.description}\n\n"
 
-            # 更新使用次数
+            # 精心设计的prompt，引导LLM做出选择
+            prompt = f"""
+            你是一个聊天机器人，你需要根据你想要表达的情感，从一个表情包列表中选择最合适的一个。
+
+            # 你的任务
+            根据下面提供的“你想表达的描述”，在“表情包选项”中选择一个最符合该描述的表情包。
+
+            # 你想表达的描述
+            {text_emotion}
+
+            # 表情包选项
+            {emoji_options_str}
+
+            # 规则
+            1.  仔细阅读“你想表达的描述”和每一个“表情包选项”的详细描述。
+            2.  选择一个编号，该编号对应的表情包必须最贴切地反映出你想表达的情感、内容或网络文化梗。
+            3.  你的回答必须且只能是一个格式为 "选择编号：X" 的字符串，其中X是你选择的表情包编号。
+            4.  不要输出任何其他解释或无关内容。
+
+            现在，请做出你的选择：
+            """
+
+            # 4. 调用LLM进行决策
+            decision, _ = await self.llm_emotion_judge.generate_response_async(prompt, temperature=0.5, max_tokens=20)
+            logger.info(f"LLM选择的描述: {text_emotion}")
+            logger.info(f"LLM决策结果: {decision}")
+
+            # 5. 解析LLM的决策结果
+            match = re.search(r"(\d+)", decision)
+            if not match:
+                logger.error(f"无法从LLM的决策中解析出编号: {decision}")
+                return None
+
+            selected_index = int(match.group(1)) - 1
+
+            # 6. 验证选择的编号是否有效
+            if not (0 <= selected_index < len(candidate_emojis)):
+                logger.error(f"LLM返回了无效的表情包编号: {selected_index + 1}")
+                return None
+
+            # 7. 获取选中的表情包并更新使用记录
+            selected_emoji = candidate_emojis[selected_index]
             self.record_usage(selected_emoji.hash)
-
             _time_end = time.time()
 
             logger.info(
-                f"为[{text_emotion}]找到表情包: {matched_emotion} ({selected_emoji.filename}), Similarity: {similarity:.4f}"
+                f"找到匹配描述的表情包: {selected_emoji.description}, 耗时: {(_time_end - _time_start):.2f}s"
             )
-            # 返回完整文件路径和描述
-            return selected_emoji.full_path, f"[ {selected_emoji.description} ]", matched_emotion
+            
+            # 8. 返回选中的表情包信息
+            return selected_emoji.full_path, f"[表情包：{selected_emoji.description}]", text_emotion
 
         except Exception as e:
-            logger.error(f"[错误] 获取表情包失败: {str(e)}")
+            logger.error(f"使用LLM获取表情包时发生错误: {str(e)}")
+            logger.error(traceback.format_exc())
             return None
-
-    def _levenshtein_distance(self, s1: str, s2: str) -> int:
-        # sourcery skip: simplify-empty-collection-comparison, simplify-len-comparison, simplify-str-len-comparison
-        """计算两个字符串的编辑距离
-
-        Args:
-            s1: 第一个字符串
-            s2: 第二个字符串
-
-        Returns:
-            int: 编辑距离
-        """
-        if len(s1) < len(s2):
-            return self._levenshtein_distance(s2, s1)
-
-        if len(s2) == 0:
-            return len(s1)
-
-        previous_row = range(len(s2) + 1)
-        for i, c1 in enumerate(s1):
-            current_row = [i + 1]
-            for j, c2 in enumerate(s2):
-                insertions = previous_row[j + 1] + 1
-                deletions = current_row[j] + 1
-                substitutions = previous_row[j] + (c1 != c2)
-                current_row.append(min(insertions, deletions, substitutions))
-            previous_row = current_row
-
-        return previous_row[-1]
 
     async def check_emoji_file_integrity(self) -> None:
         """检查表情包文件完整性
@@ -627,11 +625,10 @@ class EmojiManager:
                 await asyncio.sleep(global_config.emoji.check_interval * 60)
                 continue
 
-            # 检查是否需要处理表情包(数量超过最大值或不足)
-            if global_config.emoji.steal_emoji and (
-                (self.emoji_num > self.emoji_num_max and global_config.emoji.do_replace)
-                or (self.emoji_num < self.emoji_num_max)
-            ):
+            # 无论steal_emoji是否开启，都检查emoji文件夹以支持手动注册
+            # 只有在需要腾出空间或填充表情库时，才真正执行注册
+            if (self.emoji_num > self.emoji_num_max and global_config.emoji.do_replace) or \
+               (self.emoji_num < self.emoji_num_max):
                 try:
                     # 获取目录下所有图片文件
                     files_to_process = [
@@ -646,7 +643,7 @@ class EmojiManager:
                         # 尝试注册表情包
                         success = await self.register_emoji_by_filename(filename)
                         if success:
-                            # 注册成功则跳出循环
+                            # 注册成功则跳出循环，等待下一个检查周期
                             break
 
                         # 注册失败则删除对应文件
@@ -914,110 +911,114 @@ class EmojiManager:
             return False
 
     async def build_emoji_description(self, image_base64: str) -> Tuple[str, List[str]]:
-        """获取表情包描述和情感列表，优化复用已有描述
+        """
+        获取表情包的详细描述和情感关键词列表。
+
+        该函数首先使用VLM（视觉语言模型）对图片进行深入分析，生成一份包含文化、Meme内涵的详细描述。
+        然后，它会调用另一个LLM，基于这份详细描述，提炼出几个核心的、简洁的情感关键词。
+        最终返回详细描述和关键词列表，为后续的表情包选择提供丰富且精准的信息。
 
         Args:
-            image_base64: 图片的base64编码
+            image_base64 (str): 图片的Base64编码字符串。
 
         Returns:
-            Tuple[str, list]: 返回表情包描述和情感列表
+            Tuple[str, List[str]]: 返回一个元组，第一个元素是详细描述，第二个元素是情感关键词列表。
+                                   如果处理失败，则返回空的描述和列表。
         """
         try:
-            # 解码图片并获取格式
-            # 确保base64字符串只包含ASCII字符
+            # 1. 解码图片，计算哈希值，并获取格式
             if isinstance(image_base64, str):
                 image_base64 = image_base64.encode("ascii", errors="ignore").decode("ascii")
             image_bytes = base64.b64decode(image_base64)
             image_hash = hashlib.md5(image_bytes).hexdigest()
-            image_format = Image.open(io.BytesIO(image_bytes)).format.lower()  # type: ignore
+            image_format = Image.open(io.BytesIO(image_bytes)).format.lower() if Image.open(io.BytesIO(image_bytes)).format else "jpeg"
 
-            # 尝试从Images表获取已有的详细描述（可能在收到表情包时已生成）
+
+            # 2. 检查数据库中是否已存在该表情包的描述，实现复用
             existing_description = None
             try:
                 with get_db_session() as session:
-                    # from src.common.database.database_model_compat import Images
-
-                    existing_image = (
-                        session.query(Images)
-                        .filter((Images.emoji_hash == image_hash) & (Images.type == "emoji"))
-                        .one_or_none()
-                    )
+                    existing_image = session.query(Images).filter(
+                        (Images.emoji_hash == image_hash) & (Images.type == "emoji")
+                    ).one_or_none()
                     if existing_image and existing_image.description:
                         existing_description = existing_image.description
                         logger.info(f"[复用描述] 找到已有详细描述: {existing_description[:50]}...")
             except Exception as e:
-                logger.debug(f"查询已有描述时出错: {e}")
+                logger.debug(f"查询已有表情包描述时出错: {e}")
 
-            # 第一步：VLM视觉分析（如果没有已有描述才调用）
+            # 3. 如果没有现有描述，则调用VLM生成新的详细描述
             if existing_description:
                 description = existing_description
                 logger.info("[优化] 复用已有的详细描述，跳过VLM调用")
             else:
-                logger.info("[VLM分析] 生成新的详细描述")
+                logger.info("[VLM分析] 开始为新表情包生成详细描述")
+                # 为动态图（GIF）和静态图构建不同的、要求简洁的prompt
                 if image_format in ["gif", "GIF"]:
-                    image_base64 = get_image_manager().transform_gif(image_base64)  # type: ignore
-                    if not image_base64:
+                    image_base64_frames = get_image_manager().transform_gif(image_base64)
+                    if not image_base64_frames:
                         raise RuntimeError("GIF表情包转换失败")
-                    prompt = "这是一个动态图表情包，每一张图代表了动态图的某一帧，黑色背景代表透明，描述一下表情包表达的情感和内容，描述细节，从互联网梗,meme的角度去分析"
+                    prompt = "这是一个GIF动图表情包的关键帧。请用不超过250字，详细描述它的核心内容：1. 动态画面展现了什么变化？2. 它传达了什么核心情绪或玩的是什么梗？3. 通常在什么场景下使用？请确保描述既包含关键信息，又能充分展现其内涵。"
                     description, _ = await self.vlm.generate_response_for_image(
-                        prompt, image_base64, "jpeg", temperature=0.3, max_tokens=1000
+                        prompt, image_base64_frames, "jpeg", temperature=0.3, max_tokens=600
                     )
                 else:
-                    prompt = (
-                        "这是一个表情包，请详细描述一下表情包所表达的情感和内容，描述细节，从互联网梗,meme的角度去分析"
-                    )
+                    prompt = "这是一个表情包。请用不超过250字，详细描述它的核心内容：1. 画面描绘了什么？2. 它传达了什么核心情绪或玩的是什么梗？3. 通常在什么场景下使用？请确保描述既包含关键信息，又能充分展现其内涵。"
                     description, _ = await self.vlm.generate_response_for_image(
-                        prompt, image_base64, image_format, temperature=0.3, max_tokens=1000
+                        prompt, image_base64, image_format, temperature=0.3, max_tokens=600
                     )
 
-            # 审核表情包
+            # 4. 内容审核，确保表情包符合规定
             if global_config.emoji.content_filtration:
                 prompt = f'''
-                    这是一个表情包，请对这个表情包进行审核，标准如下：
-                    1. 必须符合"{global_config.emoji.filtration_prompt}"的要求
-                    2. 不能是色情、暴力、等违法违规内容，必须符合公序良俗
-                    3. 不能是任何形式的截图，聊天记录或视频截图
-                    4. 不要出现5个以上文字
-                    请回答这个表情包是否满足上述要求，是则回答是，否则回答否，不要出现任何其他内容
+                    请根据以下标准审核这个表情包：
+                    1. 主题必须符合："{global_config.emoji.filtration_prompt}"。
+                    2. 内容健康，不含色情、暴力、政治敏感等元素。
+                    3. 必须是表情包，而不是普通的聊天截图或视频截图。
+                    4. 表情包中的文字数量（如果有）不能超过5个。
+                    这个表情包是否完全满足以上所有要求？请只回答“是”或“否”。
                 '''
                 content, _ = await self.vlm.generate_response_for_image(
-                    prompt, image_base64, image_format, temperature=0.3, max_tokens=1000
+                    prompt, image_base64, image_format, temperature=0.1, max_tokens=10
                 )
-                if content == "否":
+                if "否" in content:
+                    logger.warning(f"表情包审核未通过，内容: {description[:50]}...")
                     return "", []
 
-            # 第二步：LLM情感分析 - 基于详细描述生成情感标签列表（可选）
+            # 5. 基于VLM的详细描述，调用LLM提炼情感关键词
             emotions = []
             if global_config.emoji.enable_emotion_analysis:
-                logger.info("[情感分析] 启用表情包感情关键词二次识别")
+                logger.info("[情感分析] 开始提炼表情包的情感关键词")
                 emotion_prompt = f"""
-                请你识别这个表情包的含义和适用场景，给我简短的描述，每个描述不要超过15个字
-                这是一个基于这个表情包的描述：'{description}'
-                你可以关注其幽默和讽刺意味，动用贴吧，微博，小红书的知识，必须从互联网梗,meme的角度去分析
-                请直接输出描述，不要出现任何其他内容，如果有多个描述，可以用逗号分隔
+                你是一个互联网“梗”学家和情感分析师。
+                这里有一份关于某个表情包的详细描述：
+                ---
+                {description}
+                ---
+                请你基于这份描述，提炼出这个表情包最核心的含义和适用场景。
+
+                你的任务是：
+                1.  分析并总结出3到5个最能代表这个表情包的关键词或短语。
+                2.  这些关键词应该非常凝练，比如“表达无语”、“有点小得意”、“求夸奖”、“猫猫疑惑”等。
+                3.  每个关键词不要超过15个字。
+                4.  请直接输出这些关键词，并用逗号分隔，不要添加任何其他解释。
                 """
                 emotions_text, _ = await self.llm_emotion_judge.generate_response_async(
-                    emotion_prompt, temperature=0.7, max_tokens=600
+                    emotion_prompt, temperature=0.6, max_tokens=150
                 )
-
-                # 处理情感列表
                 emotions = [e.strip() for e in emotions_text.split(",") if e.strip()]
-
-                # 根据情感标签数量随机选择 - 超过5个选3个，超过2个选2个
-                if len(emotions) > 5:
-                    emotions = random.sample(emotions, 3)
-                elif len(emotions) > 2:
-                    emotions = random.sample(emotions, 2)
             else:
-                logger.info("[情感分析] 表情包感情关键词二次识别已禁用")
-                emotions = []
+                logger.info("[情感分析] 表情包感情关键词二次识别已禁用，跳过此步骤")
 
-            logger.info(f"[注册分析] 详细描述: {description[:50]}... -> 情感标签: {emotions}")
+            # 6. 格式化最终的描述，并返回结果
+            final_description = f"表情包，关键词：[{'，'.join(emotions)}]。详细描述：{description}"
+            logger.info(f"[注册分析] VLM描述: {description} -> 提炼出的情感标签: {emotions}")
 
-            return f"[表情包：{description}]", emotions
+            return final_description, emotions
 
         except Exception as e:
-            logger.error(f"获取表情包描述失败: {str(e)}")
+            logger.error(f"构建表情包描述时发生严重错误: {str(e)}")
+            logger.error(traceback.format_exc())
             return "", []
 
     async def register_emoji_by_filename(self, filename: str) -> bool:
