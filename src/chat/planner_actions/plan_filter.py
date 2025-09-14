@@ -42,18 +42,18 @@ class PlanFilter:
         """
         执行筛选逻辑，并填充 Plan 对象的 decided_actions 字段。
         """
-        logger.info(f"墨墨在这里加了日志 -> filter 入口 plan: {plan}")
+        logger.debug(f"墨墨在这里加了日志 -> filter 入口 plan: {plan}")
         try:
             prompt, used_message_id_list = await self._build_prompt(plan)
             plan.llm_prompt = prompt
-            logger.info(f"墨墨在这里加了日志 -> LLM prompt: {prompt}")
+            logger.debug(f"墨墨在这里加了日志 -> LLM prompt: {prompt}")
 
             llm_content, _ = await self.planner_llm.generate_response_async(prompt=prompt)
 
             if llm_content:
-                logger.warning(f"墨墨在这里加了日志 -> LLM a原始返回: {llm_content}")
+                logger.debug(f"墨墨在这里加了日志 -> LLM a原始返回: {llm_content}")
                 parsed_json = orjson.loads(repair_json(llm_content))
-                logger.info(f"墨墨在这里加了日志 -> 解析后的 JSON: {parsed_json}")
+                logger.debug(f"墨墨在这里加了日志 -> 解析后的 JSON: {parsed_json}")
                 
                 if isinstance(parsed_json, dict):
                     parsed_json = [parsed_json]
@@ -95,7 +95,7 @@ class PlanFilter:
                 ActionPlannerInfo(action_type="no_action", reasoning=f"筛选时出错: {e}")
             ]
         
-        logger.info(f"墨墨在这里加了日志 -> filter 出口 decided_actions: {plan.decided_actions}")
+        logger.debug(f"墨墨在这里加了日志 -> filter 出口 decided_actions: {plan.decided_actions}")
         return plan
 
     async def _build_prompt(self, plan: Plan) -> tuple[str, list]:

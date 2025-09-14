@@ -201,11 +201,11 @@ class CycleProcessor:
         result = await event_manager.trigger_event(
                         EventType.ON_PLAN, permission_group="SYSTEM", stream_id=self.context.chat_stream
                     )
-        if not result.all_continue_process():
+        if result and not result.all_continue_process():
             raise UserWarning(f"插件{result.get_summary().get('stopped_handlers', '')}于规划前中断了内容生成")
         with Timer("规划器", cycle_timers):
             actions, _ = await self.action_planner.plan(mode=mode)
-        logger.info(f"如果你探到这条日志请把它复制下来发到Q群里,如果你探到这条日志请把它复制下来发到Q群里,如果你探到这条日志请把它复制下来发到Q群里,调试内容",str(actions))
+        
         async def execute_action(action_info):
             """执行单个动作的通用函数"""
             try:
@@ -298,9 +298,12 @@ class CycleProcessor:
         if reply_actions:
             logger.info(f"{self.log_prefix} 正在执行文本回复...")
             for action in reply_actions:
-                target_user_id = action.get("action_message",{}).get("chat_info_user_id","")
-                action_message_test =action.get("action_message",{})
-                logger.info(f"如果你探到这条日志请把它复制下来发到Q群里,如果你探到这条日志请把它复制下来发到Q群里,如果你探到这条日志请把它复制下来发到Q群里,调试内容:{action_message_test}")
+                action_message = action.get("action_message")
+                if not action_message:
+                    logger.warning(f"{self.log_prefix} reply 动作缺少 action_message，跳过")
+                    continue
+
+                target_user_id = action_message.get("chat_info_user_id","")
                 if target_user_id == global_config.bot.qq_account and not global_config.chat.allow_reply_self:
                     logger.warning("选取的reply的目标为bot自己，跳过reply action")
                     continue
