@@ -263,8 +263,7 @@ class PlanFilter:
                     target_message_dict = self._get_latest_message(message_id_list)
 
                 if target_message_dict:
-                    from src.common.data_models.database_data_model import DatabaseMessages
-                    target_message_obj = DatabaseMessages(**target_message_dict)
+                    target_message_obj = target_message_dict
 
             available_action_names = list(plan.available_actions.keys())
             if action not in ["no_action", "no_reply", "reply", "do_nothing", "proactive_reply"] and action not in available_action_names:

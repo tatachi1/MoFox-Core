@@ -21,7 +21,7 @@ class ActionPlannerInfo(BaseDataModel):
     action_type: str = field(default_factory=str)
     reasoning: Optional[str] = None
     action_data: Optional[Dict] = None
-    action_message: Optional["DatabaseMessages"] = None
+    action_message: Optional[Dict] = None
     available_actions: Optional[Dict[str, "ActionInfo"]] = None
 
 
