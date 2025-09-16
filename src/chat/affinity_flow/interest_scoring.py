@@ -50,7 +50,8 @@ class InterestScoringSystem:
     def calculate_interest_scores(self, messages: List[DatabaseMessages], bot_nickname: str) -> List[InterestScore]:
         """计算消息的兴趣度评分"""
         scores = []
-        user_messages = [msg for msg in messages if msg.role == "user"]
+        # 通过 user_id 判断是否是用户消息（非机器人发送的消息）
+        user_messages = [msg for msg in messages if str(msg.user_info.user_id) != str(global_config.bot.qq_account)]
 
         for msg in user_messages:
             score = self._calculate_single_message_score(msg, bot_nickname)
@@ -61,16 +62,16 @@ class InterestScoringSystem:
     def _calculate_single_message_score(self, message: DatabaseMessages, bot_nickname: str) -> InterestScore:
         """计算单条消息的兴趣度评分"""
         # 1. 计算兴趣匹配度
-        interest_match_score = self._calculate_interest_match_score(message.content)
+        interest_match_score = self._calculate_interest_match_score(message.processed_plain_text)
 
         # 2. 计算关系分
-        relationship_score = self._calculate_relationship_score(message.user_id)
+        relationship_score = self._calculate_relationship_score(message.user_info.user_id)
 
         # 3. 计算提及分数
-        mentioned_score = self._calculate_mentioned_score(message.content, bot_nickname)
+        mentioned_score = self._calculate_mentioned_score(message.processed_plain_text, bot_nickname)
 
         # 4. 计算时间因子
-        time_factor_score = self._calculate_time_factor_score(message.timestamp)
+        time_factor_score = self._calculate_time_factor_score(message.time)
 
         # 5. 计算总分
         total_score = (

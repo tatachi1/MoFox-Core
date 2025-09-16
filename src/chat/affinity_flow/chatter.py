@@ -54,7 +54,7 @@ class AffinityFlowChatter:
         """
         try:
             # 使用增强版规划器处理消息
-            actions, target_message = await self.planner.plan(mode=ChatMode.FOCUS, use_enhanced=True)
+            actions, target_message = await self.planner.plan(mode=ChatMode.FOCUS)
             self.stats["plans_created"] += 1
 
             # 执行动作（如果规划器返回了动作）
@@ -66,7 +66,7 @@ class AffinityFlowChatter:
             # 更新统计
             self.stats["messages_processed"] += 1
             self.stats["actions_executed"] += execution_result.get("executed_count", 0)
-            self.stats["successful_executions"] += 1  # 假设成功
+            self.stats["successful_executions"] += 1  # TODO:假设成功
             self.last_activity_time = time.time()
 
             result = {

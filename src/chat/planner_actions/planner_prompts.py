@@ -60,18 +60,6 @@ def init_prompts():
 
 {no_action_block}
 
-动作：reply
-动作描述：参与聊天回复，发送文本进行表达
-- 你想要闲聊或者随便附和
-- {mentioned_bonus}
-- 如果你刚刚进行了回复，不要对同一个话题重复回应
-- 不要回复自己发送的消息
-{{
-    "action": "reply",
-    "target_message_id": "触发action的消息id",
-    "reason": "在这里详细记录你的内心思考过程。例如：‘用户看起来很开心，我想回复一些积极的内容，分享这份喜悦。’"
-}}
-
 {action_options_text}
 
 

@@ -18,11 +18,9 @@ from src.config.config import global_config
 from src.plugin_system.base.component_types import ChatMode
 import src.chat.planner_actions.planner_prompts #noga  # noqa: F401
 # 导入提示词模块以确保其被初始化
+from src.chat.planner_actions import planner_prompts #noqa
 
 logger = get_logger("planner")
-
-
-
 
 class ActionPlanner:
     """
@@ -67,7 +65,7 @@ class ActionPlanner:
             "other_actions_executed": 0,
         }
 
-    async def plan(self, mode: ChatMode = ChatMode.FOCUS, use_enhanced: bool = True) -> Tuple[List[Dict], Optional[Dict]]:
+    async def plan(self, mode: ChatMode = ChatMode.FOCUS) -> Tuple[List[Dict], Optional[Dict]]:
         """
         执行完整的增强版规划流程。
 
@@ -83,10 +81,8 @@ class ActionPlanner:
         try:
             self.planner_stats["total_plans"] += 1
 
-            if use_enhanced:
-                return await self._enhanced_plan_flow(mode)
-            else:
-                return await self._standard_plan_flow(mode)
+            return await self._enhanced_plan_flow(mode)
+
 
         except Exception as e:
             logger.error(f"规划流程出错: {e}")
@@ -117,17 +113,19 @@ class ActionPlanner:
                         self.interest_scoring.record_reply_action(False)
                     else:
                         self.interest_scoring.record_reply_action(True)
-
             # 4. 筛选 Plan
             filtered_plan = await self.filter.filter(initial_plan)
 
-            # 5. 执行 Plan
-            await self._execute_plan_with_tracking(filtered_plan)
+            # 5. 使用 PlanExecutor 执行 Plan
+            execution_result = await self.executor.execute(filtered_plan)
 
-            # 6. 检查关系更新
+            # 6. 根据执行结果更新统计信息
+            self._update_stats_from_execution_result(execution_result)
+
+            # 7. 检查关系更新
             await self.relationship_tracker.check_and_update_relationships()
 
-            # 7. 返回结果
+            # 8. 返回结果
             return self._build_return_result(filtered_plan)
 
         except Exception as e:
@@ -135,60 +133,54 @@ class ActionPlanner:
             self.planner_stats["failed_plans"] += 1
             return [], None
 
-    async def _standard_plan_flow(self, mode: ChatMode) -> Tuple[List[Dict], Optional[Dict]]:
-        """执行标准规划流程"""
-        try:
-            # 1. 生成初始 Plan
-            initial_plan = await self.generator.generate(mode)
-
-            # 2. 筛选 Plan
-            filtered_plan = await self.filter.filter(initial_plan)
-
-            # 3. 执行 Plan
-            await self._execute_plan_with_tracking(filtered_plan)
-
-            # 4. 返回结果
-            return self._build_return_result(filtered_plan)
-
         except Exception as e:
-            logger.error(f"标准规划流程出错: {e}")
+            logger.error(f"增强版规划流程出错: {e}")
             self.planner_stats["failed_plans"] += 1
             return [], None
-
-    async def _execute_plan_with_tracking(self, plan: Plan):
-        """执行Plan并追踪用户关系"""
-        if not plan.decided_actions:
+        
+    def _update_stats_from_execution_result(self, execution_result: Dict[str, any]):
+        """根据执行结果更新规划器统计"""
+        if not execution_result:
             return
+            
+        executed_count = execution_result.get("executed_count", 0)
+        successful_count = execution_result.get("successful_count", 0)
+        
+        # 更新成功执行计数
+        self.planner_stats["successful_plans"] += successful_count
+        
+        # 统计回复动作和其他动作
+        reply_count = 0
+        other_count = 0
+        
+        for result in execution_result.get("results", []):
+            action_type = result.get("action_type", "")
+            if action_type in ["reply", "proactive_reply"]:
+                reply_count += 1
+            else:
+                other_count += 1
+        
+        self.planner_stats["replies_generated"] += reply_count
+        self.planner_stats["other_actions_executed"] += other_count
 
-        for action_info in plan.decided_actions:
-            if action_info.action_type in ["reply", "proactive_reply"] and action_info.action_message:
-                # 记录用户交互
-                self.relationship_tracker.add_interaction(
-                    user_id=action_info.action_message.user_id,
-                    user_name=action_info.action_message.user_nickname or action_info.action_message.user_id,
-                    user_message=action_info.action_message.content,
-                    bot_reply="Bot回复内容",  # 这里需要实际的回复内容
-                    reply_timestamp=time.time()
-                )
+    def _build_return_result(self, plan: Plan) -> Tuple[List[Dict], Optional[Dict]]:
+        """构建返回结果"""
+        final_actions = plan.decided_actions or []
+        final_target_message = next(
+            (act.action_message for act in final_actions if act.action_message), None
+        )
 
-            # 执行动作
-            try:
-                await self.action_manager.execute_action(
-                    action_name=action_info.action_type,
-                    chat_id=self.chat_id,
-                    target_message=action_info.action_message,
-                    reasoning=action_info.reasoning,
-                    action_data=action_info.action_data or {},
-                )
+        final_actions_dict = [asdict(act) for act in final_actions]
 
-                self.planner_stats["successful_plans"] += 1
-                if action_info.action_type in ["reply", "proactive_reply"]:
-                    self.planner_stats["replies_generated"] += 1
-                else:
-                    self.planner_stats["other_actions_executed"] += 1
+        if final_target_message:
+            if hasattr(final_target_message, '__dataclass_fields__'):
+                final_target_message_dict = asdict(final_target_message)
+            else:
+                final_target_message_dict = final_target_message
+        else:
+            final_target_message_dict = None
 
-            except Exception as e:
-                logger.error(f"执行动作失败: {action_info.action_type}, 错误: {e}")
+        return final_actions_dict, final_target_message_dict
 
     def _build_return_result(self, plan: Plan) -> Tuple[List[Dict], Optional[Dict]]:
         """构建返回结果"""

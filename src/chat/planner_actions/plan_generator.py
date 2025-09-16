@@ -9,7 +9,7 @@ from src.chat.utils.utils import get_chat_type_and_target_info
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.data_models.info_data_model import Plan, TargetPersonInfo
 from src.config.config import global_config
-from src.plugin_system.base.component_types import ActionInfo, ChatMode, ComponentType
+from src.plugin_system.base.component_types import ActionActivationType, ActionInfo, ChatMode, ChatType, ComponentType
 from src.plugin_system.core.component_registry import component_registry
 
 
@@ -95,6 +95,30 @@ class PlanGenerator:
             if action_name in all_registered_actions:
                 current_available_actions[action_name] = all_registered_actions[action_name]
 
+        reply_info = ActionInfo(
+            name="reply",
+            component_type=ComponentType.ACTION,
+            description="系统级动作：选择回复消息的决策",
+            action_parameters={
+                "content": "回复的文本内容",
+                "reply_to_message_id": "要回复的消息ID"
+            },
+            action_require=[
+                "你想要闲聊或者随便附和",
+                "当用户提到你或艾特你时",
+                "当需要回答用户的问题时",
+                "当你想参与对话时",
+                "当用户分享有趣的内容时"
+            ],
+            activation_type=ActionActivationType.ALWAYS,
+            activation_keywords=[],
+            associated_types=["text", "reply"],
+            plugin_name="SYSTEM",
+            enabled=True,
+            parallel_action=False,
+            mode_enable=ChatMode.ALL,
+            chat_type_allow=ChatType.ALL,
+        )
         no_reply_info = ActionInfo(
             name="no_reply",
             component_type=ComponentType.ACTION,
@@ -106,5 +130,5 @@ class PlanGenerator:
             parallel_action=False,
         )
         current_available_actions["no_reply"] = no_reply_info
-        
+        current_available_actions["reply"] = reply_info
         return current_available_actions
