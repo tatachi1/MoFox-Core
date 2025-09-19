@@ -7,7 +7,6 @@ from sqlalchemy import Column, String, Float, Integer, Boolean, Text, Index, Dat
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.pool import QueuePool
 import os
 import datetime
 import time
@@ -621,10 +620,9 @@ async def initialize_database():
     }
 
     if config.database_type == "mysql":
-        # MySQL连接池配置
+        # MySQL连接池配置 - 异步引擎使用默认连接池
         engine_kwargs.update(
             {
-                "poolclass": QueuePool,
                 "pool_size": config.connection_pool_size,
                 "max_overflow": config.connection_pool_size * 2,
                 "pool_timeout": config.connection_timeout,
@@ -640,10 +638,9 @@ async def initialize_database():
             }
         )
     else:
-        # SQLite配置 - 添加连接池设置以避免连接耗尽
+        # SQLite配置 - 异步引擎使用默认连接池
         engine_kwargs.update(
             {
-                "poolclass": QueuePool,
                 "pool_size": 20,  # 增加池大小
                 "max_overflow": 30,  # 增加溢出连接数
                 "pool_timeout": 60,  # 增加超时时间
@@ -678,6 +675,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise RuntimeError("Database session not initialized")
         session = SessionLocal()
         yield session
+        # await session.commit()
     except Exception:
         if session:
             await session.rollback()

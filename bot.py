@@ -193,9 +193,11 @@ class MaiBotMain(BaseMain):
             logger.error(f"数据库连接初始化失败: {e}")
             raise e
 
+    async def initialize_database_async(self):
+        """异步初始化数据库表结构"""
         logger.info("正在初始化数据库表结构...")
         try:
-            init_db()
+            await init_db()
             logger.info("数据库表结构初始化完成")
         except Exception as e:
             logger.error(f"数据库表结构初始化失败: {e}")
@@ -229,6 +231,8 @@ if __name__ == "__main__":
         try:
             # 执行初始化和任务调度
             loop.run_until_complete(main_system.initialize())
+            # 异步初始化数据库表结构
+            loop.run_until_complete(maibot.initialize_database_async())
             initialize_lpmm_knowledge()
             # Schedule tasks returns a future that runs forever.
             # We can run console_input_loop concurrently.

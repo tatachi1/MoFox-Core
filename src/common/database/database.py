@@ -89,7 +89,7 @@ def get_db():
     return _db
 
 
-def initialize_sql_database(database_config):
+async def initialize_sql_database(database_config):
     """
     根据配置初始化SQL数据库连接（SQLAlchemy版本）
 
@@ -119,7 +119,7 @@ def initialize_sql_database(database_config):
         # 使用SQLAlchemy初始化
         success = initialize_database_compat()
         if success:
-            _sql_engine = get_engine()
+            _sql_engine = await get_engine()
             logger.info("SQLAlchemy数据库初始化成功")
         else:
             logger.error("SQLAlchemy数据库初始化失败")
