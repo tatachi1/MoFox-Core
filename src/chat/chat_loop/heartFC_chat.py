@@ -361,7 +361,7 @@ class HeartFChatting:
         # 核心修复：在睡眠模式(包括失眠)下获取消息时，不过滤命令消息，以确保@消息能被接收
         filter_command_flag = not (is_sleeping or is_in_insomnia)
 
-        recent_messages = message_api.get_messages_by_time_in_chat(
+        recent_messages = await message_api.get_messages_by_time_in_chat(
             chat_id=self.context.stream_id,
             start_time=self.context.last_read_time,
             end_time=time.time(),

@@ -14,6 +14,11 @@ class MonthlyPlanManager:
         self.plan_manager = PlanManager()
         self.monthly_task_started = False
 
+    async def initialize(self):
+        logger.info("正在初始化月度计划管理器...")
+        await self.start_monthly_plan_generation()
+        logger.info("月度计划管理器初始化成功")
+
     async def start_monthly_plan_generation(self):
         if not self.monthly_task_started:
             logger.info(" 正在启动每月月度计划生成任务...")

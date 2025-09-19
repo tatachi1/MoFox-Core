@@ -97,12 +97,12 @@ class ActionModifier:
             for action_name, reason in chat_type_removals:
                 logger.debug(f"{self.log_prefix} - 移除 {action_name}: {reason}")
 
-        message_list_before_now_half = get_raw_msg_before_timestamp_with_chat(
+        message_list_before_now_half = await get_raw_msg_before_timestamp_with_chat(
             chat_id=self.chat_stream.stream_id,
             timestamp=time.time(),
             limit=min(int(global_config.chat.max_context_size * 0.33), 10),
         )
-        chat_content = build_readable_messages(
+        chat_content = await build_readable_messages(
             message_list_before_now_half,
             replace_bot_name=True,
             merge_messages=False,

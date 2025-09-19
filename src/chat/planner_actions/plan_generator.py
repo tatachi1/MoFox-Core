@@ -63,7 +63,7 @@ class PlanGenerator:
             timestamp=time.time(),
             limit=int(global_config.chat.max_context_size),
         )
-        chat_history = [DatabaseMessages(**msg) for msg in chat_history_raw]
+        chat_history = [DatabaseMessages(**msg) for msg in await chat_history_raw]
 
 
         plan = Plan(

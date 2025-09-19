@@ -873,7 +873,8 @@ class DefaultReplyer:
                 platform,  # type: ignore
                 reply_message.get("user_id"),  # type: ignore
             )
-            person_name = await person_info_manager.get_value(person_id, "person_name")
+            person_info = await person_info_manager.get_values(person_id, ["person_name", "user_id"])
+            person_name = person_info.get("person_name")
             
             # 如果person_name为None，使用fallback值
             if person_name is None:
@@ -884,7 +885,7 @@ class DefaultReplyer:
             
             # 检查是否是bot自己的名字，如果是则替换为"(你)"
             bot_user_id = str(global_config.bot.qq_account)
-            current_user_id = person_info_manager.get_value_sync(person_id, "user_id")
+            current_user_id = person_info.get("user_id")
             current_platform = reply_message.get("chat_info_platform")
             
             if current_user_id == bot_user_id and current_platform == global_config.bot.platform:
@@ -909,18 +910,18 @@ class DefaultReplyer:
         target = replace_user_references_sync(target, chat_stream.platform, replace_bot_name=True)
 
 
-        message_list_before_now_long = get_raw_msg_before_timestamp_with_chat(
+        message_list_before_now_long = await get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_id,
             timestamp=time.time(),
             limit=global_config.chat.max_context_size * 1,
         )
 
-        message_list_before_short = get_raw_msg_before_timestamp_with_chat(
+        message_list_before_short = await get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_id,
             timestamp=time.time(),
             limit=int(global_config.chat.max_context_size * 0.33),
         )
-        chat_talking_prompt_short = build_readable_messages(
+        chat_talking_prompt_short = await build_readable_messages(
             message_list_before_short,
             replace_bot_name=True,
             merge_messages=False,
@@ -932,7 +933,7 @@ class DefaultReplyer:
         # 获取目标用户信息，用于s4u模式
         target_user_info = None
         if sender:
-            target_user_info = await person_info_manager.get_person_info_by_name(sender)
+            target_user_info = person_info_manager.get_person_info_by_name(sender)
             
         from src.chat.utils.prompt import Prompt
         # 并行执行六个构建任务
@@ -1150,12 +1151,12 @@ class DefaultReplyer:
         else:
             mood_prompt = ""
 
-        message_list_before_now_half = get_raw_msg_before_timestamp_with_chat(
+        message_list_before_now_half = await get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_id,
             timestamp=time.time(),
             limit=min(int(global_config.chat.max_context_size * 0.33), 15),
         )
-        chat_talking_prompt_half = build_readable_messages(
+        chat_talking_prompt_half = await build_readable_messages(
             message_list_before_now_half,
             replace_bot_name=True,
             merge_messages=False,

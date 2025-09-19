@@ -28,20 +28,20 @@ class PlanManager:
         if target_month is None:
             target_month = datetime.now().strftime("%Y-%m")
 
-        if not has_active_plans(target_month):
+        if not await has_active_plans(target_month):
             logger.info(f" {target_month} 没有任何有效的月度计划，将触发同步生成。")
             generation_successful = await self._generate_monthly_plans_logic(target_month)
             return generation_successful
         else:
             logger.info(f"{target_month} 已存在有效的月度计划。")
-            plans = get_active_plans_for_month(target_month)
+            plans = await get_active_plans_for_month(target_month)
             max_plans = global_config.planning_system.max_plans_per_month
             if len(plans) > max_plans:
                 logger.warning(f"当前月度计划数量 ({len(plans)}) 超出上限 ({max_plans})，将自动删除多余的计划。")
                 plans_to_delete = plans[: len(plans) - max_plans]
                 delete_ids = [p.id for p in plans_to_delete]
-                delete_plans_by_ids(delete_ids)  # type: ignore
-                plans = get_active_plans_for_month(target_month)
+                await delete_plans_by_ids(delete_ids)  # type: ignore
+                plans = await get_active_plans_for_month(target_month)
 
             if plans:
                 plan_texts = "\n".join([f"  {i + 1}. {plan.plan_text}" for i, plan in enumerate(plans)])
@@ -64,11 +64,11 @@ class PlanManager:
                 return False
 
             last_month = self._get_previous_month(target_month)
-            archived_plans = get_archived_plans_for_month(last_month)
+            archived_plans = await get_archived_plans_for_month(last_month)
             plans = await self.llm_generator.generate_plans_with_llm(target_month, archived_plans)
 
             if plans:
-                add_new_plans(plans, target_month)
+                await add_new_plans(plans, target_month)
                 logger.info(f"成功为 {target_month} 生成并保存了 {len(plans)} 条月度计划。")
                 return True
             else:
@@ -95,11 +95,11 @@ class PlanManager:
             if target_month is None:
                 target_month = datetime.now().strftime("%Y-%m")
             logger.info(f" 开始归档 {target_month} 的活跃月度计划...")
-            archived_count = archive_active_plans_for_month(target_month)
+            archived_count = await archive_active_plans_for_month(target_month)
             logger.info(f" 成功归档了 {archived_count} 条 {target_month} 的月度计划。")
         except Exception as e:
             logger.error(f" 归档 {target_month} 月度计划时发生错误: {e}")
 
-    def get_plans_for_schedule(self, month: str, max_count: int) -> List:
+    async def get_plans_for_schedule(self, month: str, max_count: int) -> List:
         avoid_days = global_config.planning_system.avoid_repetition_days
-        return get_smart_plans_for_daily_schedule(month, max_count=max_count, avoid_days=avoid_days)
+        return await get_smart_plans_for_daily_schedule(month, max_count=max_count, avoid_days=avoid_days)

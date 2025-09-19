@@ -401,14 +401,15 @@ class PersonInfoManager:
 
         #     # 初始化时读取所有person_name
         try:
+            pass
             # 在这里获取会话
-            with get_db_session() as session:
-                for record in session.execute(
-                    select(PersonInfo.person_id, PersonInfo.person_name).where(PersonInfo.person_name.is_not(None))
-                ).fetchall():
-                    if record.person_name:
-                        self.person_name_list[record.person_id] = record.person_name
-                logger.debug(f"已加载 {len(self.person_name_list)} 个用户名称 (SQLAlchemy)")
+            # with get_db_session() as session:
+            #     for record in session.execute(
+            #         select(PersonInfo.person_id, PersonInfo.person_name).where(PersonInfo.person_name.is_not(None))
+            #     ).fetchall():
+            #         if record.person_name:
+            #             self.person_name_list[record.person_id] = record.person_name
+            #     logger.debug(f"已加载 {len(self.person_name_list)} 个用户名称 (SQLAlchemy)")
         except Exception as e:
             logger.error(f"从 SQLAlchemy 加载 person_name_list 失败: {e}")
 
@@ -430,23 +431,25 @@ class PersonInfoManager:
         """判断是否认识某人"""
         person_id = self.get_person_id(platform, user_id)
 
-        def _db_check_known_sync(p_id: str):
+        async def _db_check_known_async(p_id: str):
             # 在需要时获取会话
-            with get_db_session() as session:
-                return session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar() is not None
+            async with get_db_session() as session:
+                return (
+                    await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))
+                ).scalar() is not None
 
         try:
-            return await asyncio.to_thread(_db_check_known_sync, person_id)
+            return await _db_check_known_async(person_id)
         except Exception as e:
             logger.error(f"检查用户 {person_id} 是否已知时出错 (SQLAlchemy): {e}")
             return False
 
-    def get_person_id_by_person_name(self, person_name: str) -> str:
+    async def get_person_id_by_person_name(self, person_name: str) -> str:
         """根据用户名获取用户ID"""
         try:
             # 在需要时获取会话
-            with get_db_session() as session:
-                record = session.execute(select(PersonInfo).where(PersonInfo.person_name == person_name)).scalar()
+            async with get_db_session() as session:
+                record = (await session.execute(select(PersonInfo).where(PersonInfo.person_name == person_name))).scalar()
             return record.person_id if record else ""
         except Exception as e:
             logger.error(f"根据用户名 {person_name} 获取用户ID时出错 (SQLAlchemy): {e}")
@@ -500,19 +503,18 @@ class PersonInfoManager:
                     final_data[key] = orjson.dumps([]).decode("utf-8")
                 # If it's already a string, assume it's valid JSON or a non-JSON string field
 
-        def _db_create_sync(p_data: dict):
-            with get_db_session() as session:
+        async def _db_create_async(p_data: dict):
+            async with get_db_session() as session:
                 try:
                     new_person = PersonInfo(**p_data)
                     session.add(new_person)
-                    session.commit()
-
+                    await session.commit()
                     return True
                 except Exception as e:
                     logger.error(f"创建 PersonInfo 记录 {p_data.get('person_id')} 失败 (SQLAlchemy): {e}")
                     return False
 
-        await asyncio.to_thread(_db_create_sync, final_data)
+        await _db_create_async(final_data)
 
     async def _safe_create_person_info(self, person_id: str, data: Optional[dict] = None):
         """安全地创建用户信息，处理竞态条件"""
@@ -557,11 +559,11 @@ class PersonInfoManager:
                 elif final_data[key] is None:  # Default for lists is [], store as "[]"
                     final_data[key] = orjson.dumps([]).decode("utf-8")
 
-        def _db_safe_create_sync(p_data: dict):
-            with get_db_session() as session:
+        async def _db_safe_create_async(p_data: dict):
+            async with get_db_session() as session:
                 try:
-                    existing = session.execute(
-                        select(PersonInfo).where(PersonInfo.person_id == p_data["person_id"])
+                    existing = (
+                        await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_data["person_id"]))
                     ).scalar()
                     if existing:
                         logger.debug(f"用户 {p_data['person_id']} 已存在，跳过创建")
@@ -570,18 +572,17 @@ class PersonInfoManager:
                     # 尝试创建
                     new_person = PersonInfo(**p_data)
                     session.add(new_person)
-                    session.commit()
-
+                    await session.commit()
                     return True
                 except Exception as e:
                     if "UNIQUE constraint failed" in str(e):
                         logger.debug(f"检测到并发创建用户 {p_data.get('person_id')}，跳过错误")
-                        return True  # 其他协程已创建，视为成功
+                        return True
                     else:
                         logger.error(f"创建 PersonInfo 记录 {p_data.get('person_id')} 失败 (SQLAlchemy): {e}")
                         return False
 
-        await asyncio.to_thread(_db_safe_create_sync, final_data)
+        await _db_safe_create_async(final_data)
 
     async def update_one_field(self, person_id: str, field_name: str, value, data: Optional[Dict] = None):
         """更新某一个字段，会补全"""
@@ -598,37 +599,33 @@ class PersonInfoManager:
             elif value is None:  # Store None as "[]" for JSON list fields
                 processed_value = orjson.dumps([]).decode("utf-8")
 
-        def _db_update_sync(p_id: str, f_name: str, val_to_set):
+        async def _db_update_async(p_id: str, f_name: str, val_to_set):
             start_time = time.time()
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 try:
-                    record = session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar()
+                    record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
                     query_time = time.time()
-
                     if record:
                         setattr(record, f_name, val_to_set)
-
                         save_time = time.time()
-
                         total_time = save_time - start_time
-                        if total_time > 0.5:  # 如果超过500ms就记录日志
+                        if total_time > 0.5:
                             logger.warning(
                                 f"数据库更新操作耗时 {total_time:.3f}秒 (查询: {query_time - start_time:.3f}s, 保存: {save_time - query_time:.3f}s) person_id={p_id}, field={f_name}"
                             )
-                        session.commit()
-
-                        return True, False  # Found and updated, no creation needed
+                        await session.commit()
+                        return True, False
                     else:
                         total_time = time.time() - start_time
                         if total_time > 0.5:
                             logger.warning(f"数据库查询操作耗时 {total_time:.3f}秒 person_id={p_id}, field={f_name}")
-                        return False, True  # Not found, needs creation
+                        return False, True
                 except Exception as e:
                     total_time = time.time() - start_time
                     logger.error(f"数据库操作异常，耗时 {total_time:.3f}秒: {e}")
                     raise
 
-        found, needs_creation = await asyncio.to_thread(_db_update_sync, person_id, field_name, processed_value)
+        found, needs_creation = await _db_update_async(person_id, field_name, processed_value)
 
         if needs_creation:
             logger.info(f"{person_id} 不存在，将新建。")
@@ -666,13 +663,13 @@ class PersonInfoManager:
             logger.debug(f"检查字段'{field_name}'失败，未在 PersonInfo SQLAlchemy 模型中定义。")
             return False
 
-        def _db_has_field_sync(p_id: str, f_name: str):
-            with get_db_session() as session:
-                record = session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar()
+        async def _db_has_field_async(p_id: str, f_name: str):
+            async with get_db_session() as session:
+                record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
             return bool(record)
 
         try:
-            return await asyncio.to_thread(_db_has_field_sync, person_id, field_name)
+            return await _db_has_field_async(person_id, field_name)
         except Exception as e:
             logger.error(f"检查字段 {field_name} for {person_id} 时出错 (SQLAlchemy): {e}")
             return False
@@ -778,14 +775,14 @@ class PersonInfoManager:
                 logger.info(f"尝试给用户{user_nickname} {person_id} 取名，但是 {generated_nickname} 已存在，重试中...")
             else:
 
-                def _db_check_name_exists_sync(name_to_check):
-                    with get_db_session() as session:
+                async def _db_check_name_exists_async(name_to_check):
+                    async with get_db_session() as session:
                         return (
-                            session.execute(select(PersonInfo).where(PersonInfo.person_name == name_to_check)).scalar()
+                            (await session.execute(select(PersonInfo).where(PersonInfo.person_name == name_to_check))).scalar()
                             is not None
                         )
 
-                if await asyncio.to_thread(_db_check_name_exists_sync, generated_nickname):
+                if await _db_check_name_exists_async(generated_nickname):
                     is_duplicate = True
                     current_name_set.add(generated_nickname)
 
@@ -824,91 +821,26 @@ class PersonInfoManager:
             logger.debug("删除失败：person_id 不能为空")
             return
 
-        def _db_delete_sync(p_id: str):
+        async def _db_delete_async(p_id: str):
             try:
-                with get_db_session() as session:
-                    record = session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar()
+                async with get_db_session() as session:
+                    record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
                     if record:
-                        session.delete(record)
-                        session.commit()
-                    return 1
+                        await session.delete(record)
+                        await session.commit()
+                        return 1
                 return 0
             except Exception as e:
                 logger.error(f"删除 PersonInfo {p_id} 失败 (SQLAlchemy): {e}")
                 return 0
 
-        deleted_count = await asyncio.to_thread(_db_delete_sync, person_id)
+        deleted_count = await _db_delete_async(person_id)
 
         if deleted_count > 0:
-            logger.debug(f"删除成功：person_id={person_id} (Peewee)")
+            logger.debug(f"删除成功：person_id={person_id}")
         else:
-            logger.debug(f"删除失败：未找到 person_id={person_id} 或删除未影响行 (Peewee)")
+            logger.debug(f"删除失败：未找到 person_id={person_id} 或删除未影响行")
 
-    @staticmethod
-    async def get_value(person_id: str, field_name: str):
-        """获取指定用户指定字段的值"""
-        default_value_for_field = person_info_default.get(field_name)
-        if field_name in JSON_SERIALIZED_FIELDS and default_value_for_field is None:
-            default_value_for_field = []  # Ensure JSON fields default to [] if not in DB
-
-        def _db_get_value_sync(p_id: str, f_name: str):
-            with get_db_session() as session:
-                record = session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar()
-            if record:
-                val = getattr(record, f_name, None)
-                if f_name in JSON_SERIALIZED_FIELDS:
-                    if isinstance(val, str):
-                        try:
-                            return orjson.loads(val)
-                        except orjson.JSONDecodeError:
-                            logger.warning(f"字段 {f_name} for {p_id} 包含无效JSON: {val}. 返回默认值.")
-                            return []  # Default for JSON fields on error
-                    elif val is None:  # Field exists in DB but is None
-                        return []  # Default for JSON fields
-                    # If val is already a list/dict (e.g. if somehow set without serialization)
-                    return val  # Should ideally not happen if update_one_field is always used
-                return val
-            return None  # Record not found
-
-        try:
-            value_from_db = await asyncio.to_thread(_db_get_value_sync, person_id, field_name)
-            if value_from_db is not None:
-                return value_from_db
-            if field_name in person_info_default:
-                return default_value_for_field
-            logger.warning(f"字段 {field_name} 在 person_info_default 中未定义，且在数据库中未找到。")
-            return None  # Ultimate fallback
-        except Exception as e:
-            logger.error(f"获取字段 {field_name} for {person_id} 时出错 (Peewee): {e}")
-            # Fallback to default in case of any error during DB access
-            return default_value_for_field if field_name in person_info_default else None
-
-    @staticmethod
-    def get_value_sync(person_id: str, field_name: str):
-        """同步获取指定用户指定字段的值"""
-        default_value_for_field = person_info_default.get(field_name)
-        with get_db_session() as session:
-            if field_name in JSON_SERIALIZED_FIELDS and default_value_for_field is None:
-                default_value_for_field = []
-
-            if record := session.execute(select(PersonInfo).where(PersonInfo.person_id == person_id)).scalar():
-                val = getattr(record, field_name, None)
-                if field_name in JSON_SERIALIZED_FIELDS:
-                    if isinstance(val, str):
-                        try:
-                            return orjson.loads(val)
-                        except orjson.JSONDecodeError:
-                            logger.warning(f"字段 {field_name} for {person_id} 包含无效JSON: {val}. 返回默认值.")
-                            return []
-                    elif val is None:
-                        return []
-                    return val
-                return val
-
-            if field_name in person_info_default:
-                return default_value_for_field
-            logger.warning(f"字段 {field_name} 在 person_info_default 中未定义，且在数据库中未找到。")
-            return None
 
     @staticmethod
     async def get_values(person_id: str, field_names: list) -> dict:
@@ -919,11 +851,11 @@ class PersonInfoManager:
 
         result = {}
 
-        def _db_get_record_sync(p_id: str):
-            with get_db_session() as session:
-                return session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar()
+        async def _db_get_record_async(p_id: str):
+            async with get_db_session() as session:
+                return (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
 
-        record = await asyncio.to_thread(_db_get_record_sync, person_id)
+        record = await _db_get_record_async(person_id)
 
         # 获取 SQLAlchemy 模型的所有字段名
         model_fields = [column.name for column in PersonInfo.__table__.columns]
@@ -960,14 +892,15 @@ class PersonInfoManager:
         # 获取 SQLAlchemy 模型的所有字段名
         model_fields = [column.name for column in PersonInfo.__table__.columns]
         if field_name not in model_fields:
-            logger.error(f"字段检查失败：'{field_name}'未在 PersonInfo SQLAlchemy 模 modelo中定义")
+            logger.error(f"字段检查失败：'{field_name}'未在 PersonInfo SQLAlchemy 模型中定义")
             return {}
 
-        def _db_get_specific_sync(f_name: str):
+        async def _db_get_specific_async(f_name: str):
             found_results = {}
             try:
-                with get_db_session() as session:
-                    for record in session.execute(select(PersonInfo.person_id, getattr(PersonInfo, f_name))).fetchall():
+                async with get_db_session() as session:
+                    result = await session.execute(select(PersonInfo.person_id, getattr(PersonInfo, f_name)))
+                    for record in result.fetchall():
                         value = getattr(record, f_name)
                         if way(value):
                             found_results[record.person_id] = value
@@ -978,9 +911,9 @@ class PersonInfoManager:
             return found_results
 
         try:
-            return await asyncio.to_thread(_db_get_specific_sync, field_name)
+            return await _db_get_specific_async(field_name)
         except Exception as e:
-            logger.error(f"执行 get_specific_value_list 线程时出错: {str(e)}", exc_info=True)
+            logger.error(f"执行 get_specific_value_list 时出错: {str(e)}", exc_info=True)
             return {}
 
     async def get_or_create_person(
@@ -993,40 +926,38 @@ class PersonInfoManager:
         """
         person_id = self.get_person_id(platform, user_id)
 
-        def _db_get_or_create_sync(p_id: str, init_data: dict):
+        async def _db_get_or_create_async(p_id: str, init_data: dict):
             """原子性的获取或创建操作"""
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 首先尝试获取现有记录
-                record = session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar()
+                record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
                 if record:
                     return record, False  # 记录存在，未创建
 
-            # 记录不存在，尝试创建
-            try:
-                new_person = PersonInfo(**init_data)
-                session.add(new_person)
-                session.commit()
-
-                return session.execute(
-                    select(PersonInfo).where(PersonInfo.person_id == p_id)
-                ).scalar(), True  # 创建成功
-            except Exception as e:
-                # 如果创建失败（可能是因为竞态条件），再次尝试获取
-                if "UNIQUE constraint failed" in str(e):
-                    logger.debug(f"检测到并发创建用户 {p_id}，获取现有记录")
-                    record = session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id)).scalar()
-                    if record:
-                        return record, False  # 其他协程已创建，返回现有记录
-                # 如果仍然失败，重新抛出异常
-                raise e
-
+                # 记录不存在，尝试创建
+                try:
+                    new_person = PersonInfo(**init_data)
+                    session.add(new_person)
+                    await session.commit()
+                    await session.refresh(new_person)
+                    return new_person, True  # 创建成功
+                except Exception as e:
+                    # 如果创建失败（可能是因为竞态条件），再次尝试获取
+                    if "UNIQUE constraint failed" in str(e):
+                        logger.debug(f"检测到并发创建用户 {p_id}，获取现有记录")
+                        record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
+                        if record:
+                            return record, False  # 其他协程已创建，返回现有记录
+                    # 如果仍然失败，重新抛出异常
+                    raise e
+        
         unique_nickname = await self._generate_unique_person_name(nickname)
         initial_data = {
             "person_id": person_id,
             "platform": platform,
             "user_id": str(user_id),
             "nickname": nickname,
-            "person_name": unique_nickname,  # 使用群昵称作为person_name
+            "person_name": unique_nickname,
             "name_reason": "从群昵称获取",
             "know_times": 0,
             "know_since": int(datetime.datetime.now().timestamp()),
@@ -1036,7 +967,6 @@ class PersonInfoManager:
             "forgotten_points": [],
         }
 
-        # 序列化JSON字段
         for key in JSON_SERIALIZED_FIELDS:
             if key in initial_data:
                 if isinstance(initial_data[key], (list, dict)):
@@ -1044,15 +974,14 @@ class PersonInfoManager:
                 elif initial_data[key] is None:
                     initial_data[key] = orjson.dumps([]).decode("utf-8")
 
-        # 获取 SQLAlchemy 模odel的所有字段名
         model_fields = [column.name for column in PersonInfo.__table__.columns]
         filtered_initial_data = {k: v for k, v in initial_data.items() if v is not None and k in model_fields}
 
-        record, was_created = await asyncio.to_thread(_db_get_or_create_sync, person_id, filtered_initial_data)
+        record, was_created = await _db_get_or_create_async(person_id, filtered_initial_data)
 
         if was_created:
-            logger.info(f"用户 {platform}:{user_id} (person_id: {person_id}) 不存在，将创建新记录 (Peewee)。")
-            logger.info(f"已为 {person_id} 创建新记录，初始数据 (filtered for model): {filtered_initial_data}")
+            logger.info(f"用户 {platform}:{user_id} (person_id: {person_id}) 不存在，将创建新记录。")
+            logger.info(f"已为 {person_id} 创建新记录，初始数据: {filtered_initial_data}")
         else:
             logger.debug(f"用户 {platform}:{user_id} (person_id: {person_id}) 已存在，返回现有记录。")
 
@@ -1072,11 +1001,13 @@ class PersonInfoManager:
 
         if not found_person_id:
 
-            def _db_find_by_name_sync(p_name_to_find: str):
-                with get_db_session() as session:
-                    return session.execute(select(PersonInfo).where(PersonInfo.person_name == p_name_to_find)).scalar()
+            async def _db_find_by_name_async(p_name_to_find: str):
+                async with get_db_session() as session:
+                    return (
+                        await session.execute(select(PersonInfo).where(PersonInfo.person_name == p_name_to_find))
+                    ).scalar()
 
-            record = await asyncio.to_thread(_db_find_by_name_sync, person_name)
+            record = await _db_find_by_name_async(person_name)
             if record:
                 found_person_id = record.person_id
                 if (

@@ -42,7 +42,7 @@ class MessageStorage:
             processed_plain_text = message.processed_plain_text
 
             if processed_plain_text:
-                processed_plain_text = MessageStorage.replace_image_descriptions(processed_plain_text)
+                processed_plain_text = await MessageStorage.replace_image_descriptions(processed_plain_text)
                 filtered_processed_plain_text = re.sub(pattern, "", processed_plain_text, flags=re.DOTALL)
             else:
                 filtered_processed_plain_text = ""
@@ -129,9 +129,9 @@ class MessageStorage:
                 key_words=key_words,
                 key_words_lite=key_words_lite,
             )
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 session.add(new_message)
-                session.commit()
+                await session.commit()
 
         except Exception:
             logger.exception("存储消息失败")
@@ -174,16 +174,18 @@ class MessageStorage:
             # 使用上下文管理器确保session正确管理
             from src.common.database.sqlalchemy_models import get_db_session
 
-            with get_db_session() as session:
-                matched_message = session.execute(
-                    select(Messages).where(Messages.message_id == mmc_message_id).order_by(desc(Messages.time))
+            async with get_db_session() as session:
+                matched_message = (
+                    await session.execute(
+                        select(Messages).where(Messages.message_id == mmc_message_id).order_by(desc(Messages.time))
+                    )
                 ).scalar()
 
                 if matched_message:
-                    session.execute(
+                    await session.execute(
                         update(Messages).where(Messages.id == matched_message.id).values(message_id=qq_message_id)
                     )
-                    session.commit()
+                    await session.commit()
                     #  会在上下文管理器中自动调用
                     logger.debug(f"更新消息ID成功: {matched_message.message_id} -> {qq_message_id}")
                 else:
@@ -197,28 +199,36 @@ class MessageStorage:
             )
 
     @staticmethod
-    def replace_image_descriptions(text: str) -> str:
+    async def replace_image_descriptions(text: str) -> str:
         """将[图片：描述]替换为[picid:image_id]"""
         # 先检查文本中是否有图片标记
         pattern = r"\[图片：([^\]]+)\]"
-        matches = re.findall(pattern, text)
+        matches = list(re.finditer(pattern, text))
 
         if not matches:
             logger.debug("文本中没有图片标记，直接返回原文本")
             return text
 
-        def replace_match(match):
+        new_text = ""
+        last_end = 0
+        for match in matches:
+            new_text += text[last_end : match.start()]
             description = match.group(1).strip()
             try:
                 from src.common.database.sqlalchemy_models import get_db_session
 
-                with get_db_session() as session:
-                    image_record = session.execute(
-                        select(Images).where(Images.description == description).order_by(desc(Images.timestamp))
+                async with get_db_session() as session:
+                    image_record = (
+                        await session.execute(
+                            select(Images).where(Images.description == description).order_by(desc(Images.timestamp))
+                        )
                     ).scalar()
-                    session.commit()
-                    return f"[picid:{image_record.image_id}]" if image_record else match.group(0)
+                    if image_record:
+                        new_text += f"[picid:{image_record.image_id}]"
+                    else:
+                        new_text += match.group(0)
             except Exception:
-                return match.group(0)
-
-        return re.sub(r"\[图片：([^\]]+)\]", replace_match, text)
+                new_text += match.group(0)
+            last_end = match.end()
+        new_text += text[last_end:]
+        return new_text

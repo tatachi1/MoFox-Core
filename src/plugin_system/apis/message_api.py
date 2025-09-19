@@ -62,7 +62,7 @@ def get_messages_by_time(
     return get_raw_msg_by_timestamp(start_time, end_time, limit, limit_mode)
 
 
-def get_messages_by_time_in_chat(
+async def get_messages_by_time_in_chat(
     chat_id: str,
     start_time: float,
     end_time: float,
@@ -97,13 +97,13 @@ def get_messages_by_time_in_chat(
     if not isinstance(chat_id, str):
         raise ValueError("chat_id 必须是字符串类型")
     if filter_mai:
-        return filter_mai_messages(
-            get_raw_msg_by_timestamp_with_chat(chat_id, start_time, end_time, limit, limit_mode, filter_command)
+        return await filter_mai_messages(
+            await get_raw_msg_by_timestamp_with_chat(chat_id, start_time, end_time, limit, limit_mode, filter_command)
         )
-    return get_raw_msg_by_timestamp_with_chat(chat_id, start_time, end_time, limit, limit_mode, filter_command)
+    return await get_raw_msg_by_timestamp_with_chat(chat_id, start_time, end_time, limit, limit_mode, filter_command)
 
 
-def get_messages_by_time_in_chat_inclusive(
+async def get_messages_by_time_in_chat_inclusive(
     chat_id: str,
     start_time: float,
     end_time: float,
@@ -138,12 +138,12 @@ def get_messages_by_time_in_chat_inclusive(
     if not isinstance(chat_id, str):
         raise ValueError("chat_id 必须是字符串类型")
     if filter_mai:
-        return filter_mai_messages(
-            get_raw_msg_by_timestamp_with_chat_inclusive(
+        return await filter_mai_messages(
+            await get_raw_msg_by_timestamp_with_chat_inclusive(
                 chat_id, start_time, end_time, limit, limit_mode, filter_command
             )
         )
-    return get_raw_msg_by_timestamp_with_chat_inclusive(
+    return await get_raw_msg_by_timestamp_with_chat_inclusive(
         chat_id, start_time, end_time, limit, limit_mode, filter_command
     )
 
@@ -478,7 +478,7 @@ async def get_person_ids_from_messages(messages: List[Dict[str, Any]]) -> List[s
 # =============================================================================
 
 
-def filter_mai_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def filter_mai_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     从消息列表中移除麦麦的消息
     Args:

@@ -40,6 +40,9 @@ if not global_config.memory.enable_memory:
         def initialize(self):
             pass
 
+        async def initialize_async(self):
+            pass
+
         def get_hippocampus(self):
             return None
 
@@ -248,7 +251,7 @@ MoFox_Bot(第三方修改版)
         logger.info("聊天管理器初始化成功")
 
         # 初始化记忆系统
-        self.hippocampus_manager.initialize()
+        await self.hippocampus_manager.initialize_async()
         logger.info("记忆系统初始化成功")
 
         # 初始化LPMM知识库
@@ -283,7 +286,7 @@ MoFox_Bot(第三方修改版)
         if global_config.planning_system.monthly_plan_enable:
             logger.info("正在初始化月度计划管理器...")
             try:
-                await monthly_plan_manager.start_monthly_plan_generation()
+                await monthly_plan_manager.initialize()
                 logger.info("月度计划管理器初始化成功")
             except Exception as e:
                 logger.error(f"月度计划管理器初始化失败: {e}")
@@ -291,8 +294,7 @@ MoFox_Bot(第三方修改版)
         # 初始化日程管理器
         if global_config.planning_system.schedule_enable:
             logger.info("日程表功能已启用，正在初始化管理器...")
-            await schedule_manager.load_or_generate_today_schedule()
-            await schedule_manager.start_daily_schedule_generation()
+            await schedule_manager.initialize()
             logger.info("日程表管理器初始化成功。")
 
         try:

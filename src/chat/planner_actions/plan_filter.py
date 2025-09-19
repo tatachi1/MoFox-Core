@@ -152,7 +152,7 @@ class PlanFilter:
                 )
                 return prompt, message_id_list
 
-            chat_content_block, message_id_list = build_readable_messages_with_id(
+            chat_content_block, message_id_list = await build_readable_messages_with_id(
                 messages=[msg.flatten() for msg in plan.chat_history],
                 timestamp_mode="normal",
                 read_mark=self.last_obs_time_mark,
@@ -167,7 +167,7 @@ class PlanFilter:
                 limit=5,
             )
 
-            actions_before_now_block = build_readable_actions(actions=actions_before_now)
+            actions_before_now_block = build_readable_actions(actions=await actions_before_now)
             actions_before_now_block = f"你刚刚选择并执行过的action是：\n{actions_before_now_block}"
 
             self.last_obs_time_mark = time.time()
