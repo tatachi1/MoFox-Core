@@ -31,7 +31,7 @@ from src.chat.express.expression_selector import expression_selector
 from src.chat.memory_system.memory_activator import MemoryActivator
 from src.chat.memory_system.vector_instant_memory import VectorInstantMemoryV2
 from src.mood.mood_manager import mood_manager
-from src.person_info.person_info import Person, is_person_known
+from src.person_info.person_info import get_person_info_manager
 from src.plugin_system.base.component_types import ActionInfo, EventType
 from src.plugin_system.apis import llm_api
 
@@ -1565,8 +1565,6 @@ class DefaultReplyer:
         if not global_config.relationship.enable_relationship:
             return ""
 
-        relationship_fetcher = relationship_fetcher_manager.get_fetcher(self.chat_stream.stream_id)
-
         # 获取用户ID
         person_info_manager = get_person_info_manager()
         person_id = await person_info_manager.get_person_id_by_person_name(sender)
@@ -1574,7 +1572,48 @@ class DefaultReplyer:
             logger.warning(f"未找到用户 {sender} 的ID，跳过信息提取")
             return f"你完全不认识{sender}，不理解ta的相关信息。"
 
-        return await relationship_fetcher.build_relation_info(person_id, points_num=5)
+        # 使用AFC关系追踪器获取关系信息
+        try:
+            from src.chat.affinity_flow.relationship_integration import get_relationship_tracker
+            
+            relationship_tracker = get_relationship_tracker()
+            if relationship_tracker:
+                # 获取用户信息以获取真实的user_id
+                user_info = await person_info_manager.get_values(person_id, ["user_id", "platform"])
+                user_id = user_info.get("user_id", "unknown")
+                
+                # 从数据库获取关系数据
+                relationship_data = relationship_tracker._get_user_relationship_from_db(user_id)
+                if relationship_data:
+                    relationship_text = relationship_data.get("relationship_text", "")
+                    relationship_score = relationship_data.get("relationship_score", 0.3)
+                    
+                    # 构建丰富的关系信息描述
+                    if relationship_text:
+                        # 转换关系分数为描述性文本
+                        if relationship_score >= 0.8:
+                            relationship_level = "非常亲密的朋友"
+                        elif relationship_score >= 0.6:
+                            relationship_level = "好朋友"
+                        elif relationship_score >= 0.4:
+                            relationship_level = "普通朋友"
+                        elif relationship_score >= 0.2:
+                            relationship_level = "认识的人"
+                        else:
+                            relationship_level = "陌生人"
+                        
+                        return f"你与{sender}的关系：{relationship_level}（关系分：{relationship_score:.2f}/1.0）。{relationship_text}"
+                    else:
+                        return f"你与{sender}是初次见面，关系分：{relationship_score:.2f}/1.0。"
+                else:
+                    return f"你完全不认识{sender}，这是第一次互动。"
+            else:
+                logger.warning("AFC关系追踪器未初始化，使用默认关系信息")
+                return f"你与{sender}是普通朋友关系。"
+                
+        except Exception as e:
+            logger.error(f"获取AFC关系信息失败: {e}")
+            return f"你与{sender}是普通朋友关系。"
 
 
 def weighted_sample_no_replacement(items, weights, k) -> list:
