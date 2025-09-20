@@ -435,6 +435,13 @@ class HeartFChatting:
             # Messages should be processed
             action_type = await self.cycle_processor.observe(interest_value=interest_value)
 
+            # 尝试触发表达学习
+            if self.context.expression_learner:
+                try:
+                    await self.context.expression_learner.trigger_learning_for_chat()
+                except Exception as e:
+                    logger.error(f"{self.context.log_prefix} 表达学习触发失败: {e}")
+
             # 管理no_reply计数器
             if action_type != "no_reply":
                 self.recent_interest_records.clear()
