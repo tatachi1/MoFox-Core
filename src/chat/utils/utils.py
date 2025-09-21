@@ -352,6 +352,8 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
 
     sentences = []
     for sentence in split_sentences:
+        # 清除开头可能存在的空行
+        sentence = sentence.lstrip("\n").rstrip()
         if global_config.chinese_typo.enable and enable_chinese_typo:
             typoed_text, typo_corrections = typo_generator.create_typo_sentence(sentence)
             sentences.append(typoed_text)

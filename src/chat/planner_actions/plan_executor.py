@@ -126,7 +126,7 @@ class PlanExecutor:
         try:
             logger.info(f"执行回复动作: {action_info.action_type}, 原因: {action_info.reasoning}")
 
-            if action_info.action_message.user_info.user_id == str(global_config.bot.qq_account):
+            if action_info.action_message.get("user_id", "") == str(global_config.bot.qq_account):
                 logger.warning("尝试回复自己，跳过此动作以防止死循环。")
                 return {
                     "action_type": action_info.action_type,

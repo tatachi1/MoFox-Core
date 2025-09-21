@@ -270,14 +270,9 @@ class InterestScoringSystem:
         # 检查是否被提及
         is_mentioned = msg.is_mentioned or (bot_nickname and bot_nickname in msg.processed_plain_text)
 
-        # 检查是否为私聊（group_info为None表示私聊）
-        is_private_chat = msg.group_info is None
-
         # 如果被提及或是私聊，都视为提及了bot
-        if is_mentioned or is_private_chat:
-            logger.debug(f"🔍 提及检测 - 被提及: {is_mentioned}, 私聊: {is_private_chat}")
-            if is_private_chat and not is_mentioned:
-                logger.debug("💬 私聊消息自动视为提及bot")
+        
+        if is_mentioned or not hasattr(msg, "chat_info_group_id"):
             return global_config.affinity_flow.mention_bot_interest_score
 
         return 0.0
@@ -297,7 +292,7 @@ class InterestScoringSystem:
 
         # 如果被提及，降低阈值
         if (
-            score.mentioned_score >= global_config.affinity_flow.mention_bot_interest_score * 0.5
+            score.mentioned_score >= global_config.affinity_flow.mention_bot_adjustment_threshold
         ):  # 使用提及bot兴趣分的一半作为判断阈值
             base_threshold = self.mention_threshold
             logger.debug(f"📣 消息提及了机器人，使用降低阈值: {base_threshold:.3f}")

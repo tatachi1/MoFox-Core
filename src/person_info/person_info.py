@@ -498,7 +498,28 @@ class PersonInfoManager:
         except Exception as e:
             logger.error(f"根据用户名 {person_name} 获取用户ID时出错 (SQLAlchemy): {e}")
             return ""
-
+        
+    @staticmethod
+    async def first_knowing_some_one(platform: str, user_id: str, user_nickname: str, user_cardname: str):
+        """判断是否认识某人"""
+        person_id = PersonInfoManager.get_person_id(platform, user_id)
+        # 生成唯一的 person_name
+        person_info_manager = get_person_info_manager()
+        unique_nickname = await person_info_manager._generate_unique_person_name(user_nickname)
+        data = {
+            "platform": platform,
+            "user_id": user_id,
+            "nickname": user_nickname,
+            "konw_time": int(time.time()),
+            "person_name": unique_nickname,  # 使用唯一的 person_name
+        }
+        # 先创建用户基本信息，使用安全创建方法避免竞态条件
+        await person_info_manager._safe_create_person_info(person_id=person_id, data=data)
+        # 更新昵称
+        await person_info_manager.update_one_field(
+            person_id=person_id, field_name="nickname", value=user_nickname, data=data
+        )
+        
     @staticmethod
     async def create_person_info(person_id: str, data: Optional[dict] = None):
         """创建一个项"""
