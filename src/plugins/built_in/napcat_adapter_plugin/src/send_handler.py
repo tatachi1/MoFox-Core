@@ -301,13 +301,7 @@ class SendHandler:
             return reply_seg
 
         try:
-            # 检查是否为缓冲消息ID（格式：buffered-{original_id}-{timestamp}）
-            if id.startswith("buffered-"):
-                # 从缓冲消息ID中提取原始消息ID
-                original_id = id.split("-")[1]
-                msg_info_response = await self.send_message_to_napcat("get_msg", {"message_id": int(original_id)})
-            else:
-                msg_info_response = await self.send_message_to_napcat("get_msg", {"message_id": id})
+            msg_info_response = await self.send_message_to_napcat("get_msg", {"message_id": id})
 
             replied_user_id = None
             if msg_info_response and msg_info_response.get("status") == "ok":

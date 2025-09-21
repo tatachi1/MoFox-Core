@@ -394,26 +394,7 @@ class NapcatAdapterPlugin(BasePlugin):
             "supported_formats": ConfigField(
                 type=list, default=["mp4", "avi", "mov", "mkv", "flv", "wmv", "webm"], description="支持的视频格式"
             ),
-            # 消息缓冲设置
-            "enable_message_buffer": ConfigField(type=bool, default=True, description="是否启用消息缓冲合并功能"),
-            "message_buffer_enable_group": ConfigField(type=bool, default=True, description="是否启用群聊消息缓冲合并"),
-            "message_buffer_enable_private": ConfigField(
-                type=bool, default=True, description="是否启用私聊消息缓冲合并"
-            ),
-            "message_buffer_interval": ConfigField(
-                type=float, default=3.0, description="消息合并间隔时间（秒），在此时间内的连续消息将被合并"
-            ),
-            "message_buffer_initial_delay": ConfigField(
-                type=float, default=0.5, description="消息缓冲初始延迟（秒），收到第一条消息后等待此时间开始合并"
-            ),
-            "message_buffer_max_components": ConfigField(
-                type=int, default=50, description="单个会话最大缓冲消息组件数量，超过此数量将强制合并"
-            ),
-            "message_buffer_block_prefixes": ConfigField(
-                type=list,
-                default=["/", "!", "！", ".", "。", "#", "%"],
-                description="消息缓冲屏蔽前缀，以这些前缀开头的消息不会被缓冲",
-            ),
+            # 消息缓冲功能已移除
         },
     }
 
