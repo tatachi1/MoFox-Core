@@ -124,7 +124,10 @@ class ActionPlanner:
                 # 3. 根据兴趣度调整可用动作
                 if interest_scores:
                     latest_score = max(interest_scores, key=lambda s: s.total_score)
-                    should_reply, score = self.interest_scoring.should_reply(latest_score)
+                    latest_message = next(
+                        (msg for msg in unread_messages if msg.message_id == latest_score.message_id), None
+                    )
+                    should_reply, score = self.interest_scoring.should_reply(latest_score, latest_message)
 
                     reply_not_available = False
                     if not should_reply and "reply" in initial_plan.available_actions:

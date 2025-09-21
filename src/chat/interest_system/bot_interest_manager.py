@@ -404,8 +404,7 @@ class BotInterestManager:
         if not self.current_interests or not self._initialized:
             raise RuntimeError("❌ 兴趣标签系统未初始化")
 
-        logger.info("开始计算兴趣匹配度...")
-        logger.debug(f"消息长度: {len(message_text)}, 关键词: {len(keywords) if keywords else 0}")
+        logger.debug(f"开始计算兴趣匹配度: 消息长度={len(message_text)}, 关键词数={len(keywords) if keywords else 0}")
 
         message_id = f"msg_{datetime.now().timestamp()}"
         result = InterestMatchResult(message_id=message_id)
@@ -415,7 +414,7 @@ class BotInterestManager:
         if not active_tags:
             raise RuntimeError("没有检测到活跃的兴趣标签")
 
-        logger.info(f"正在与 {len(active_tags)} 个兴趣标签进行匹配...")
+        logger.debug(f"正在与 {len(active_tags)} 个兴趣标签进行匹配...")
 
         # 生成消息的embedding
         logger.debug("正在生成消息 embedding...")
@@ -450,9 +449,6 @@ class BotInterestManager:
                     match_count += 1
                     high_similarity_count += 1
                     result.add_match(tag.tag_name, enhanced_score, [tag.tag_name])
-                    logger.debug(
-                        f"   🏷️  '{tag.tag_name}': 相似度={similarity:.3f}, 权重={tag.weight:.2f}, 基础分数={weighted_score:.3f}, 增强分数={enhanced_score:.3f} [高匹配]"
-                    )
 
                 elif similarity > medium_threshold:
                     # 中相似度：中等加成
@@ -460,9 +456,6 @@ class BotInterestManager:
                     match_count += 1
                     medium_similarity_count += 1
                     result.add_match(tag.tag_name, enhanced_score, [tag.tag_name])
-                    logger.debug(
-                        f"   🏷️  '{tag.tag_name}': 相似度={similarity:.3f}, 权重={tag.weight:.2f}, 基础分数={weighted_score:.3f}, 增强分数={enhanced_score:.3f} [中匹配]"
-                    )
 
                 elif similarity > low_threshold:
                     # 低相似度：轻微加成
@@ -470,9 +463,6 @@ class BotInterestManager:
                     match_count += 1
                     low_similarity_count += 1
                     result.add_match(tag.tag_name, enhanced_score, [tag.tag_name])
-                    logger.debug(
-                        f"   🏷️  '{tag.tag_name}': 相似度={similarity:.3f}, 权重={tag.weight:.2f}, 基础分数={weighted_score:.3f}, 增强分数={enhanced_score:.3f} [低匹配]"
-                    )
 
         logger.info(
             f"匹配统计: {match_count}/{len(active_tags)} 个标签命中 | "

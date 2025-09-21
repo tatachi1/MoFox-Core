@@ -49,9 +49,10 @@ class InterestScoringSystem:
         self, messages: List[DatabaseMessages], bot_nickname: str
     ) -> List[InterestScore]:
         """计算消息的兴趣度评分"""
-        logger.info(f"开始为 {len(messages)} 条消息计算兴趣度...")
         user_messages = [msg for msg in messages if str(msg.user_info.user_id) != str(global_config.bot.qq_account)]
-        logger.info(f"正在处理 {len(user_messages)} 条用户消息。")
+        if not user_messages:
+            return []
+        logger.info(f"正在为 {len(user_messages)} 条用户消息计算兴趣度...")
 
         scores = []
         for i, msg in enumerate(user_messages, 1):
@@ -59,25 +60,18 @@ class InterestScoringSystem:
             score = await self._calculate_single_message_score(msg, bot_nickname)
             scores.append(score)
 
-        logger.info(f"兴趣度计算完成，共生成 {len(scores)} 个评分。")
+        logger.info(f"为 {len(scores)} 条消息生成了兴趣度评分。")
         return scores
 
     async def _calculate_single_message_score(self, message: DatabaseMessages, bot_nickname: str) -> InterestScore:
         """计算单条消息的兴趣度评分"""
-        logger.info(f"计算消息 {message.message_id} 的分数...")
-        logger.debug(f"消息长度: {len(message.processed_plain_text)} 字符")
+        message_preview = f"\033[96m{message.processed_plain_text[:30].replace('\n', ' ')}...\033[0m"
+        logger.info(f"计算消息 {message.message_id} 的分数 | 内容: {message_preview}")
 
         keywords = self._extract_keywords_from_database(message)
-        logger.debug(f"提取到 {len(keywords)} 个关键词。")
-
         interest_match_score = await self._calculate_interest_match_score(message.processed_plain_text, keywords)
-        logger.debug(f"兴趣匹配度: {interest_match_score:.3f}")
-
         relationship_score = self._calculate_relationship_score(message.user_info.user_id)
-        logger.debug(f"关系分数: {relationship_score:.3f}")
-
         mentioned_score = self._calculate_mentioned_score(message, bot_nickname)
-        logger.debug(f"提及分数: {mentioned_score:.3f}")
 
         total_score = (
             interest_match_score * self.score_weights["interest_match"]
@@ -91,9 +85,10 @@ class InterestScoringSystem:
             "mentioned": f"提及: {mentioned_score:.3f}",
         }
 
-        logger.info(f"消息 {message.message_id} 最终得分: {total_score:.3f}")
-        logger.debug(f"Score weights: {self.score_weights}")
-        logger.debug(f"Score details: {details}")
+        logger.info(
+            f"消息 {message.message_id} 得分: {total_score:.3f} "
+            f"(匹配: {interest_match_score:.2f}, 关系: {relationship_score:.2f}, 提及: {mentioned_score:.2f})"
+        )
 
         return InterestScore(
             message_id=message.message_id,
@@ -255,18 +250,19 @@ class InterestScoringSystem:
             return 0.0
 
         # 检查是否被提及
-        is_mentioned = msg.is_mentioned or (bot_nickname and bot_nickname in msg.processed_plain_text)
+        bot_aliases = [bot_nickname] + global_config.bot.alias_names
+        is_mentioned = msg.is_mentioned or any(alias in msg.processed_plain_text for alias in bot_aliases if alias)
 
         # 如果被提及或是私聊，都视为提及了bot
-        
         if is_mentioned or not hasattr(msg, "chat_info_group_id"):
             return global_config.affinity_flow.mention_bot_interest_score
 
         return 0.0
 
-    def should_reply(self, score: InterestScore) -> bool:
+    def should_reply(self, score: InterestScore, message: "DatabaseMessages") -> bool:
         """判断是否应该回复"""
-        logger.info(f"评估消息 {score.message_id} (得分: {score.total_score:.3f}) 是否回复...")
+        message_preview = f"\033[96m{(message.processed_plain_text or 'N/A')[:50].replace('\n', ' ')}\033[0m"
+        logger.info(f"评估消息 {score.message_id} (得分: {score.total_score:.3f}) | 内容: '{message_preview}...'")
         base_threshold = self.reply_threshold
 
         # 如果被提及，降低阈值
