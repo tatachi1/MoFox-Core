@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Any
 import time
 from src.plugin_system.base.base_chatter import BaseChatter
 from src.common.data_models.message_manager_data_model import StreamContext
-from src.plugins.built_in.chatter.planner import ChatterActionPlanner as ActionPlanner
+from src.plugins.built_in.affinity_flow_chatter.planner import ChatterActionPlanner as ActionPlanner
 from src.chat.planner_actions.action_manager import ChatterActionManager
 from src.plugin_system.base.component_types import ChatType, ComponentType
 from src.common.logger import get_logger

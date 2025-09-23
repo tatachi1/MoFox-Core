@@ -7,11 +7,11 @@ from dataclasses import asdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from src.plugin_system.base.component_types import ChatMode
-from src.plugins.built_in.chatter.plan_executor import ChatterPlanExecutor
-from src.plugins.built_in.chatter.plan_filter import ChatterPlanFilter
-from src.plugins.built_in.chatter.plan_generator import ChatterPlanGenerator
-from src.plugins.built_in.chatter.interest_scoring import ChatterInterestScoringSystem
-from src.plugins.built_in.chatter.relationship_tracker import ChatterRelationshipTracker
+from src.plugins.built_in.affinity_flow_chatter.plan_executor import ChatterPlanExecutor
+from src.plugins.built_in.affinity_flow_chatter.plan_filter import ChatterPlanFilter
+from src.plugins.built_in.affinity_flow_chatter.plan_generator import ChatterPlanGenerator
+from src.plugins.built_in.affinity_flow_chatter.interest_scoring import ChatterInterestScoringSystem
+from src.plugins.built_in.affinity_flow_chatter.relationship_tracker import ChatterRelationshipTracker
 
 
 from src.common.logger import get_logger

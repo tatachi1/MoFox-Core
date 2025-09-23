@@ -897,7 +897,7 @@ class DefaultReplyer:
         interest_scores = {}
 
         try:
-            from src.plugins.built_in.chatter.interest_scoring import chatter_interest_scoring_system as interest_scoring_system
+            from src.plugins.built_in.affinity_flow_chatter.interest_scoring import chatter_interest_scoring_system as interest_scoring_system
             from src.common.data_models.database_data_model import DatabaseMessages
 
             # 转换消息格式
@@ -1635,10 +1635,10 @@ class DefaultReplyer:
 
         # 使用AFC关系追踪器获取关系信息
         try:
-            from src.plugins.built_in.chatter.relationship_tracker import ChatterRelationshipTracker
+            from src.plugins.built_in.affinity_flow_chatter.relationship_tracker import ChatterRelationshipTracker
 
-                      # 创建关系追踪器实例
-            from src.plugins.built_in.chatter.interest_scoring import chatter_interest_scoring_system
+            # 创建关系追踪器实例
+            from src.plugins.built_in.affinity_flow_chatter.interest_scoring import chatter_interest_scoring_system
             relationship_tracker = ChatterRelationshipTracker(chatter_interest_scoring_system)
             if relationship_tracker:
                 # 获取用户信息以获取真实的user_id
