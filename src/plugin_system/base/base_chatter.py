@@ -5,8 +5,8 @@ from .component_types import ChatType
 from src.plugin_system.base.component_types import ChatterInfo, ComponentType
 
 if TYPE_CHECKING:
-    from src.chat.planner_actions.action_manager import ActionManager
-    from src.chat.planner_actions.planner import ActionPlanner
+    from src.chat.planner_actions.action_manager import ChatterActionManager
+    from src.plugins.built_in.chatter.planner import ChatterActionPlanner as ActionPlanner
 
 class BaseChatter(ABC):
     chatter_name: str = ""
@@ -15,7 +15,7 @@ class BaseChatter(ABC):
     """Chatter组件的描述"""
     chat_types: List[ChatType] = [ChatType.PRIVATE, ChatType.GROUP]
 
-    def __init__(self, stream_id: str, planner: 'ActionPlanner', action_manager: 'ActionManager'):
+    def __init__(self, stream_id: str, planner: 'ActionPlanner', action_manager: 'ChatterActionManager'):
         """
         初始化聊天处理器
 

@@ -9,14 +9,14 @@ import time
 from typing import Dict, List
 
 from src.config.config import global_config
-from src.chat.planner_actions.action_manager import ActionManager
+from src.chat.planner_actions.action_manager import ChatterActionManager
 from src.common.data_models.info_data_model import Plan, ActionPlannerInfo
 from src.common.logger import get_logger
 
 logger = get_logger("plan_executor")
 
 
-class PlanExecutor:
+class ChatterPlanExecutor:
     """
     增强版PlanExecutor，集成用户关系追踪机制。
 
@@ -27,12 +27,12 @@ class PlanExecutor:
     4. 提供完整的执行统计和监控
     """
 
-    def __init__(self, action_manager: ActionManager):
+    def __init__(self, action_manager: ChatterActionManager):
         """
         初始化增强版PlanExecutor。
 
         Args:
-            action_manager (ActionManager): 用于实际执行各种动作的管理器实例。
+            action_manager (ChatterActionManager): 用于实际执行各种动作的管理器实例。
         """
         self.action_manager = action_manager
 
@@ -236,7 +236,7 @@ class PlanExecutor:
                             logger.info(f"检测到戳一戳动作，目标用户: {user_name}")
                         else:
                             logger.warning("无法从戳一戳消息中获取用户ID或昵称。")
-                    
+
                     # 传递原始消息ID以支持引用
                     action_data["target_message_id"] = target_message.get("message_id")
 

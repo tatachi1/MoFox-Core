@@ -13,10 +13,10 @@ from src.chat.interest_system import bot_interest_manager
 from src.common.logger import get_logger
 from src.config.config import global_config
 
-logger = get_logger("interest_scoring")
+logger = get_logger("chatter_interest_scoring")
 
 
-class InterestScoringSystem:
+class ChatterInterestScoringSystem:
     """兴趣度评分系统"""
 
     def __init__(self):
@@ -230,9 +230,9 @@ class InterestScoringSystem:
         else:
             # 尝试从全局关系追踪器获取
             try:
-                from src.chat.affinity_flow.relationship_integration import get_relationship_tracker
+                from .relationship_tracker import ChatterRelationshipTracker
 
-                global_tracker = get_relationship_tracker()
+                global_tracker = ChatterRelationshipTracker()
                 if global_tracker:
                     relationship_score = global_tracker.get_user_relationship_score(user_id)
                     # 同时更新内存缓存
@@ -365,4 +365,4 @@ class InterestScoringSystem:
 
 
 # 创建全局兴趣评分系统实例
-interest_scoring_system = InterestScoringSystem()
+chatter_interest_scoring_system = ChatterInterestScoringSystem()

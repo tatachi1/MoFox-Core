@@ -12,7 +12,7 @@ from src.common.logger import get_logger
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.data_models.message_manager_data_model import StreamContext, MessageManagerStats, StreamStats
 from src.chat.chatter_manager import ChatterManager
-from src.chat.planner_actions.action_manager import ActionManager
+from src.chat.planner_actions.action_manager import ChatterActionManager
 
 if TYPE_CHECKING:
     from src.common.data_models.message_manager_data_model import StreamContext
@@ -33,7 +33,7 @@ class MessageManager:
         self.stats = MessageManagerStats()
 
         # 初始化chatter manager
-        self.action_manager = ActionManager()
+        self.action_manager = ChatterActionManager()
         self.chatter_manager = ChatterManager(self.action_manager)
 
     async def start(self):

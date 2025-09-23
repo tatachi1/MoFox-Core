@@ -15,10 +15,10 @@ from src.common.database.sqlalchemy_models import UserRelationships, Messages
 from sqlalchemy import select, desc
 from src.common.data_models.database_data_model import DatabaseMessages
 
-logger = get_logger("relationship_tracker")
+logger = get_logger("chatter_relationship_tracker")
 
 
-class UserRelationshipTracker:
+class ChatterRelationshipTracker:
     """用户关系追踪器"""
 
     def __init__(self, interest_scoring_system=None):

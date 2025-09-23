@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Dict, Optional
 
 from src.common.logger import get_logger
-from src.chat.affinity_flow.afc_manager import afc_manager
+# AFC manager has been moved to chatter plugin
 
 # TODO: 需要重新实现主动思考和睡眠管理功能
 from .analyzer import chat_frequency_analyzer
@@ -61,8 +61,9 @@ class FrequencyBasedTrigger:
                 #     continue
 
                 # 2. 获取所有已知的聊天ID
-                #    亲和力流系统中聊天ID直接从管理器获取
-                all_chat_ids = list(afc_manager.affinity_flow_chatters.keys())
+                #    注意：AFC管理器已移至chatter插件，此功能暂时禁用
+                # all_chat_ids = list(afc_manager.affinity_flow_chatters.keys())
+                all_chat_ids = []  # 暂时禁用此功能
                 if not all_chat_ids:
                     continue
 
@@ -77,26 +78,10 @@ class FrequencyBasedTrigger:
                     # 4. 检查当前是否是该用户的高峰聊天时间
                     if chat_frequency_analyzer.is_in_peak_time(chat_id, now):
                         # 5. 检查用户当前是否已有活跃的处理任务
-                        #    亲和力流系统不直接提供循环状态，通过检查最后活动时间来判断是否忙碌
-                        chatter = afc_manager.get_or_create_chatter(chat_id)
-                        if not chatter:
-                            logger.warning(f"无法为 {chat_id} 获取或创建亲和力聊天处理器。")
-                            continue
-
-                        # 检查是否在活跃状态（最近1分钟内有活动）
-                        current_time = time.time()
-                        if current_time - chatter.get_activity_time() < 60:
-                            logger.debug(f"用户 {chat_id} 的亲和力处理器正忙，本次不触发。")
-                            continue
-
-                        logger.info(f"检测到用户 {chat_id} 处于聊天高峰期，且处理器空闲，准备触发主动思考。")
-
-                        # 6. TODO: 亲和力流系统的主动思考机制需要另行实现
-                        #    目前先记录日志，等待后续实现
-                        logger.info(f"用户 {chat_id} 处于高峰期，但亲和力流的主动思考功能暂未实现")
-
-                        # 7. 更新触发时间，进入冷却
-                        self._last_triggered[chat_id] = time.time()
+                        #    注意：AFC管理器已移至chatter插件，此功能暂时禁用
+                        # chatter = afc_manager.get_or_create_chatter(chat_id)
+                        logger.info(f"检测到用户 {chat_id} 处于聊天高峰期，但AFC功能已移至chatter插件")
+                        continue
 
             except asyncio.CancelledError:
                 logger.info("频率触发器任务被取消。")

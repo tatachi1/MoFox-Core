@@ -8,7 +8,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.chat.message_receive.chat_stream import get_chat_manager, ChatMessageContext
-from src.chat.planner_actions.action_manager import ActionManager
+from src.chat.planner_actions.action_manager import ChatterActionManager
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
 from src.plugin_system.base.component_types import ActionInfo, ActionActivationType
 from src.plugin_system.core.global_announcement_manager import global_announcement_manager
@@ -27,7 +27,7 @@ class ActionModifier:
     支持并行判定和智能缓存优化。
     """
 
-    def __init__(self, action_manager: ActionManager, chat_id: str):
+    def __init__(self, action_manager: ChatterActionManager, chat_id: str):
         """初始化动作处理器"""
         self.chat_id = chat_id
         self.chat_stream: ChatStream = get_chat_manager().get_stream(self.chat_id)  # type: ignore

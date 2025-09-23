@@ -18,7 +18,7 @@ from src.plugin_system.apis import generator_api, database_api, send_api, messag
 logger = get_logger("action_manager")
 
 
-class ActionManager:
+class ChatterActionManager:
     """
     动作管理器，用于管理各种类型的动作
 
@@ -34,7 +34,7 @@ class ActionManager:
         # 初始化时将默认动作加载到使用中的动作
         self._using_actions = component_registry.get_default_actions()
 
-        self.log_prefix: str = "ActionManager"
+        self.log_prefix: str = "ChatterActionManager"
 
     # === 执行Action方法 ===
 
@@ -449,7 +449,7 @@ class ActionManager:
                 data = "".join(map(str, data))
             reply_text += data
 
-            # 如果是主动思考且内容为“沉默”，则不发送
+            # 如果是主动思考且内容为"沉默"，则不发送
             if is_proactive_thinking and data.strip() == "沉默":
                 logger.info(f"{self.log_prefix} 主动思考决定保持沉默，不发送消息")
                 continue

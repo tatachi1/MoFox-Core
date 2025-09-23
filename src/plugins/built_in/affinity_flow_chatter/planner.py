@@ -7,28 +7,28 @@ from dataclasses import asdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from src.plugin_system.base.component_types import ChatMode
-from src.chat.planner_actions.plan_executor import PlanExecutor
-from src.chat.planner_actions.plan_filter import PlanFilter
-from src.chat.planner_actions.plan_generator import PlanGenerator
-from src.chat.affinity_flow.interest_scoring import InterestScoringSystem
-from src.chat.affinity_flow.relationship_tracker import UserRelationshipTracker
+from src.plugins.built_in.chatter.plan_executor import ChatterPlanExecutor
+from src.plugins.built_in.chatter.plan_filter import ChatterPlanFilter
+from src.plugins.built_in.chatter.plan_generator import ChatterPlanGenerator
+from src.plugins.built_in.chatter.interest_scoring import ChatterInterestScoringSystem
+from src.plugins.built_in.chatter.relationship_tracker import ChatterRelationshipTracker
 
 
 from src.common.logger import get_logger
 from src.config.config import global_config
 
 if TYPE_CHECKING:
-    from src.chat.planner_actions.action_manager import ActionManager
     from src.common.data_models.message_manager_data_model import StreamContext
     from src.common.data_models.info_data_model import Plan
-
+    from src.chat.planner_actions.action_manager import ChatterActionManager
+    
 # 导入提示词模块以确保其被初始化
-from src.chat.planner_actions import planner_prompts  # noqa
+from src.plugins.built_in.chatter import planner_prompts  # noqa
 
 logger = get_logger("planner")
 
 
-class ActionPlanner:
+class ChatterActionPlanner:
     """
     增强版ActionPlanner，集成兴趣度评分和用户关系追踪机制。
 
@@ -39,42 +39,26 @@ class ActionPlanner:
     4. 完整的规划流程：生成→筛选→执行的完整三阶段流程
     """
 
-    def __init__(self, chat_id: str, action_manager: "ActionManager"):
+    def __init__(self, chat_id: str, action_manager: "ChatterActionManager"):
         """
         初始化增强版ActionPlanner。
 
         Args:
             chat_id (str): 当前聊天的 ID。
-            action_manager (ActionManager): 一个 ActionManager 实例。
+            action_manager (ChatterActionManager): 一个 ChatterActionManager 实例。
         """
         self.chat_id = chat_id
         self.action_manager = action_manager
-        self.generator = PlanGenerator(chat_id)
-        self.filter = PlanFilter()
-        self.executor = PlanExecutor(action_manager)
+        self.generator = ChatterPlanGenerator(chat_id)
+        self.filter = ChatterPlanFilter()
+        self.executor = ChatterPlanExecutor(action_manager)
 
         # 初始化兴趣度评分系统
-        self.interest_scoring = InterestScoringSystem()
+        self.interest_scoring = ChatterInterestScoringSystem()
 
-        # 尝试获取全局关系追踪器，如果没有则创建新的
-        try:
-            from src.chat.affinity_flow.relationship_integration import get_relationship_tracker
-
-            global_relationship_tracker = get_relationship_tracker()
-            if global_relationship_tracker:
-                # 使用全局关系追踪器
-                self.relationship_tracker = global_relationship_tracker
-                # 设置兴趣度评分系统的关系追踪器引用
-                self.interest_scoring.relationship_tracker = self.relationship_tracker
-                logger.info("使用全局关系追踪器")
-            else:
-                # 创建新的关系追踪器
-                self.relationship_tracker = UserRelationshipTracker(self.interest_scoring)
-                logger.info("创建新的关系追踪器实例")
-        except Exception as e:
-            logger.warning(f"获取全局关系追踪器失败: {e}")
-            # 创建新的关系追踪器
-            self.relationship_tracker = UserRelationshipTracker(self.interest_scoring)
+        # 创建新的关系追踪器
+        self.relationship_tracker = ChatterRelationshipTracker(self.interest_scoring)
+        logger.info("创建新的关系追踪器实例")
 
         # 设置执行器的关系追踪器
         self.executor.set_relationship_tracker(self.relationship_tracker)

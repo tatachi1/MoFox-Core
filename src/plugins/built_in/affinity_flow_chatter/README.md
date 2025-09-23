@@ -34,10 +34,10 @@
 
 ```python
 from src.chat.chatter_manager import ChatterManager
-from src.chat.planner_actions.action_manager import ActionManager
+from src.chat.planner_actions.action_manager import ChatterActionManager
 
 # 初始化
-action_manager = ActionManager()
+action_manager = ChatterActionManager()
 chatter_manager = ChatterManager(action_manager)
 
 # 处理消息流

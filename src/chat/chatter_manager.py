@@ -2,15 +2,15 @@ from typing import Dict, List, Optional, Any
 import time
 from src.plugin_system.base.base_chatter import BaseChatter
 from src.common.data_models.message_manager_data_model import StreamContext
-from src.chat.planner_actions.planner import ActionPlanner
-from src.chat.planner_actions.action_manager import ActionManager
+from src.plugins.built_in.chatter.planner import ChatterActionPlanner as ActionPlanner
+from src.chat.planner_actions.action_manager import ChatterActionManager
 from src.plugin_system.base.component_types import ChatType, ComponentType
 from src.common.logger import get_logger
 
 logger = get_logger("chatter_manager")
 
 class ChatterManager:
-    def __init__(self, action_manager: ActionManager):
+    def __init__(self, action_manager: ChatterActionManager):
         self.action_manager = action_manager
         self.chatter_classes: Dict[ChatType, List[type]] = {}
         self.instances: Dict[str, BaseChatter] = {}

@@ -80,7 +80,7 @@ class Individuality:
         full_personality = f"{personality_result}，{identity_result}"
 
         # 获取全局兴趣评分系统实例
-        from src.chat.affinity_flow.interest_scoring import interest_scoring_system
+        from src.plugins.built_in.chatter.interest_scoring import chatter_interest_scoring_system as interest_scoring_system
 
         # 初始化智能兴趣系统
         await interest_scoring_system.initialize_smart_interests(

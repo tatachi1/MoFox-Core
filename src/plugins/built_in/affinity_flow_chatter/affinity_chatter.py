@@ -11,8 +11,8 @@ from typing import Dict, Any
 from src.plugin_system.base.base_chatter import BaseChatter
 from src.plugin_system.base.component_types import ChatType, ChatMode
 from src.common.data_models.message_manager_data_model import StreamContext
-from src.chat.planner_actions.planner import ActionPlanner
-from src.chat.planner_actions.action_manager import ActionManager
+from src.plugins.built_in.chatter.planner import ChatterActionPlanner as ActionPlanner
+from src.chat.planner_actions.action_manager import ChatterActionManager
 from src.common.logger import get_logger
 
 logger = get_logger("affinity_chatter")
@@ -24,7 +24,7 @@ class AffinityChatter(BaseChatter):
     chatter_description: str = "基于亲和力模型的智能聊天处理器，支持多种聊天类型"
     chat_types: list[ChatType] = [ChatType.ALL]  # 支持所有聊天类型
 
-    def __init__(self, stream_id: str, planner: ActionPlanner, action_manager: ActionManager):
+    def __init__(self, stream_id: str, planner: ActionPlanner, action_manager: ChatterActionManager):
         """
         初始化亲和力聊天处理器
 
