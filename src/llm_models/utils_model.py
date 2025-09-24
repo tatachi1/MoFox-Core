@@ -20,6 +20,7 @@
   作为模块的统一入口（Facade），为上层业务逻辑提供了简洁的接口来发起文本、图像、语音等不同类型的LLM请求。
 """
 import re
+import inspect
 import asyncio
 import time
 import random
@@ -90,6 +91,11 @@ async def execute_concurrently(
     Raises:
         RuntimeError: 如果所有并发请求都失败。
     """
+    if not inspect.iscoroutinefunction(coro_callable):
+        err_msg = f"并发执行的函数 '{coro_callable.__name__}' 必须是协程函数 (async def)"
+        logger.error(err_msg)
+        raise TypeError(err_msg)
+        
     logger.info(f"启用并发请求模式，并发数: {concurrency_count}")
     tasks = [coro_callable(*args, **kwargs) for _ in range(concurrency_count)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -1243,7 +1249,7 @@ class LLMRequest:
                 cannot_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 连接异常，超过最大重试次数，请检查网络连接状态或URL是否正确",
             )
         elif isinstance(e, ReqAbortException):
-            logger.warning(f"任务-'{task_name}' 模型-'{model_name}': 请求被中断，详细信息-{e}")
+            logger.warning(f"任务-'{task_name}' 模型-'{model_name}': 请求被中断，详细信息-{str(e)}")
             return -1, None  # 不再重试请求该模型
         elif isinstance(e, RespNotOkException):
             return self._handle_resp_not_ok(
@@ -1257,7 +1263,7 @@ class LLMRequest:
             )
         elif isinstance(e, RespParseException):
             # 响应解析错误
-            logger.error(f"任务-'{task_name}' 模型-'{model_name}': 响应解析错误，错误信息-{e}")
+            logger.error(f"任务-'{task_name}' 模型-'{model_name}': 响应解析错误，错误信息-{str(e)}")
             logger.debug(f"附加内容: {str(e.ext_info)}")
             return -1, None  # 不再重试请求该模型
         else:
@@ -1272,7 +1278,55 @@ class LLMRequest:
         Returns:
             Optional[List[ToolOption]]: 构建好的 `ToolOption` 对象列表，如果输入为空则返回 None。
         """
-        # 如果没有提供工具，直接返回 None
+        # 响应错误
+        if e.status_code in [400, 401, 402, 403, 404]:
+            model_name = model_info.name
+            return 0, None  # 立即重试
+            # 客户端错误
+            logger.warning(
+                f"任务-'{task_name}' 模型-'{model_name}': 请求失败，错误代码-{e.status_code}，错误信息-{str(e)}"
+            )
+            return -1, None  # 不再重试请求该模型
+        elif e.status_code == 413:
+            if messages and not messages[1]:
+                # 消息列表不为空且未压缩，尝试压缩消息
+                return self._check_retry(
+                    remain_try,
+                    0,
+                    can_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 请求体过大，尝试压缩消息后重试",
+                    cannot_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 请求体过大，压缩消息后仍然过大，放弃请求",
+                    can_retry_callable=compress_messages,
+                    messages=messages[0],
+                )
+            # 没有消息可压缩
+            logger.warning(f"任务-'{task_name}' 模型-'{model_name}': 请求体过大，无法压缩消息，放弃请求。")
+            return -1, None
+        elif e.status_code == 429:
+            # 请求过于频繁
+            return self._check_retry(
+                remain_try,
+                retry_interval,
+                can_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 请求过于频繁，将于{retry_interval}秒后重试",
+                cannot_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 请求过于频繁，超过最大重试次数，放弃请求",
+            )
+        elif e.status_code >= 500:
+            # 服务器错误
+            return self._check_retry(
+                remain_try,
+                retry_interval,
+                can_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 服务器错误，将于{retry_interval}秒后重试",
+                cannot_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 服务器错误，超过最大重试次数，请稍后再试",
+            )
+        else:
+            # 未知错误
+            logger.warning(
+                f"任务-'{task_name}' 模型-'{model_name}': 未知错误，错误代码-{e.status_code}，错误信息-{str(e)}"
+            )
+            return -1, None
+
+    def _build_tool_options(self, tools: Optional[List[Dict[str, Any]]]) -> Optional[List[ToolOption]]:
+        # sourcery skip: extract-method
+        """构建工具选项列表"""
         if not tools:
             return None
         
