@@ -39,6 +39,10 @@ class SleepManager:
         """判断当前是否处于正在睡觉的状态。"""
         return self.context.current_state == SleepState.SLEEPING
 
+    def is_woken_up(self) -> bool:
+        """判断当前是否处于被吵醒的状态。"""
+        return self.context.current_state == SleepState.WOKEN_UP
+
     async def update_sleep_state(self, wakeup_manager: Optional["WakeUpManager"] = None):
         """
         更新睡眠状态的核心方法，实现状态机的主要逻辑。

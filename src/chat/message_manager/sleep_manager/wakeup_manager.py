@@ -28,6 +28,7 @@ class WakeUpManager:
         """
         self.sleep_manager = sleep_manager
         self.context = WakeUpContext()  # 使用新的上下文管理器
+        self.angry_chat_id: Optional[str] = None
         self.last_decay_time = time.time()
         self._decay_task: Optional[asyncio.Task] = None
         self.is_running = False
@@ -87,7 +88,11 @@ class WakeUpManager:
                 self.context.is_angry = False
                 # 通知情绪管理系统清除愤怒状态
                 from src.mood.mood_manager import mood_manager
-                mood_manager.clear_angry_from_wakeup("global_mood")
+                if self.angry_chat_id:
+                    mood_manager.clear_angry_from_wakeup(self.angry_chat_id)
+                    self.angry_chat_id = None
+                else:
+                    logger.warning("Angry state ended but no angry_chat_id was set.")
                 logger.info("愤怒状态结束，恢复正常")
                 self.context.save()
 
@@ -99,7 +104,7 @@ class WakeUpManager:
                     logger.debug(f"唤醒度衰减: {old_value:.1f} -> {self.context.wakeup_value:.1f}")
                     self.context.save()
 
-    def add_wakeup_value(self, is_private_chat: bool, is_mentioned: bool = False) -> bool:
+    def add_wakeup_value(self, is_private_chat: bool, is_mentioned: bool = False, chat_id: Optional[str] = None) -> bool:
         """
         增加唤醒度值
 
@@ -148,23 +153,27 @@ class WakeUpManager:
 
         # 检查是否达到唤醒阈值
         if self.context.wakeup_value >= self.wakeup_threshold:
-            self._trigger_wakeup()
+            if not chat_id:
+                logger.error("Wakeup threshold reached, but no chat_id was provided. Cannot trigger wakeup.")
+                return False
+            self._trigger_wakeup(chat_id)
             return True
 
         self.context.save()
         return False
 
-    def _trigger_wakeup(self):
+    def _trigger_wakeup(self, chat_id: str):
         """触发唤醒，进入愤怒状态"""
         self.context.is_angry = True
         self.context.angry_start_time = time.time()
         self.context.wakeup_value = 0.0  # 重置唤醒度
+        self.angry_chat_id = chat_id
 
         self.context.save()
 
         # 通知情绪管理系统进入愤怒状态
         from src.mood.mood_manager import mood_manager
-        mood_manager.set_angry_from_wakeup("global_mood")
+        mood_manager.set_angry_from_wakeup(chat_id)
 
         # 通知SleepManager重置睡眠状态
         self.sleep_manager.reset_sleep_state_after_wakeup()
@@ -185,7 +194,11 @@ class WakeUpManager:
                 self.context.is_angry = False
                 # 通知情绪管理系统清除愤怒状态
                 from src.mood.mood_manager import mood_manager
-                mood_manager.clear_angry_from_wakeup("global_mood")
+                if self.angry_chat_id:
+                    mood_manager.clear_angry_from_wakeup(self.angry_chat_id)
+                    self.angry_chat_id = None
+                else:
+                    logger.warning("Angry state expired in check, but no angry_chat_id was set.")
                 logger.info("愤怒状态自动过期")
                 return False
         return self.context.is_angry

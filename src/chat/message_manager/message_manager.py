@@ -193,8 +193,14 @@ class MessageManager:
 
                 for message in unread_messages:
                     is_mentioned = message.is_mentioned or False
+                    if not is_mentioned and not is_private:
+                        bot_names = [global_config.bot.nickname] + global_config.bot.alias_names
+                        if any(name in message.processed_plain_text for name in bot_names):
+                            is_mentioned = True
+                            logger.debug(f"通过关键词 '{next((name for name in bot_names if name in message.processed_plain_text), '')}' 匹配将消息标记为 'is_mentioned'")
+                    
                     if is_private or is_mentioned:
-                        if self.wakeup_manager.add_wakeup_value(is_private, is_mentioned):
+                        if self.wakeup_manager.add_wakeup_value(is_private, is_mentioned, chat_id=stream_id):
                             was_woken_up = True
                             break  # 一旦被吵醒，就跳出循环并处理消息
 
@@ -203,6 +209,12 @@ class MessageManager:
                     return  # 退出，不处理消息
 
                 logger.info(f"Bot被聊天流 {stream_id} 中的消息吵醒，继续处理。")
+            elif self.sleep_manager.is_woken_up():
+                angry_chat_id = self.wakeup_manager.angry_chat_id
+                if stream_id != angry_chat_id:
+                    logger.debug(f"Bot处于WOKEN_UP状态，但当前流 {stream_id} 不是触发唤醒的流 {angry_chat_id}，跳过处理。")
+                    return # 退出，不处理此流的消息
+                logger.info(f"Bot处于WOKEN_UP状态，处理触发唤醒的流 {stream_id}。")
             # --- 睡眠状态检查结束 ---
 
             logger.debug(f"开始处理聊天流 {stream_id} 的 {len(unread_messages)} 条未读消息")

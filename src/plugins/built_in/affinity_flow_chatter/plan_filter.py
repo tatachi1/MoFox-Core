@@ -151,12 +151,31 @@ class ChatterPlanFilter:
             identity_block = f"你的名字是{bot_name}{bot_nickname}，你{bot_core_personality}："
 
             schedule_block = ""
-            if global_config.planning_system.schedule_enable:
+            # 优先检查是否被吵醒
+            from src.chat.message_manager.message_manager import message_manager
+            angry_prompt_addition = ""
+            wakeup_mgr = message_manager.wakeup_manager
+
+            # 双重检查确保愤怒状态不会丢失
+            # 检查1: 直接从 wakeup_manager 获取
+            if wakeup_mgr.is_in_angry_state():
+                angry_prompt_addition = wakeup_mgr.get_angry_prompt_addition()
+            
+            # 检查2: 如果上面没获取到，再从 mood_manager 确认
+            if not angry_prompt_addition:
+                chat_mood_for_check = mood_manager.get_mood_by_chat_id(plan.chat_id)
+                if chat_mood_for_check.is_angry_from_wakeup:
+                    angry_prompt_addition = global_config.sleep_system.angry_prompt
+
+            if angry_prompt_addition:
+                schedule_block = angry_prompt_addition
+            elif global_config.planning_system.schedule_enable:
                 if current_activity := schedule_manager.get_current_activity():
                     schedule_block = f"你当前正在：{current_activity},但注意它与群聊的聊天无关。"
 
             mood_block = ""
-            if global_config.mood.enable_mood:
+            # 如果被吵醒，则心情也是愤怒的，不需要另外的情绪模块
+            if not angry_prompt_addition and global_config.mood.enable_mood:
                 chat_mood = mood_manager.get_mood_by_chat_id(plan.chat_id)
                 mood_block = f"你现在的心情是：{chat_mood.mood_state}"
 
