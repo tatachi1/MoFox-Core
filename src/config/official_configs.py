@@ -338,6 +338,7 @@ class ExpressionRule(ValidatedConfigBase):
 class ExpressionConfig(ValidatedConfigBase):
     """表达配置类"""
 
+    enable_expression: bool = Field(default=True, description="是否启用表达")
     rules: List[ExpressionRule] = Field(default_factory=list, description="表达学习规则")
 
     @staticmethod
