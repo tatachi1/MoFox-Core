@@ -162,107 +162,33 @@ class ProactiveThinker:
 
             news_block = "暂时没有获取到最新资讯。"
             if trigger_event.source != "reminder_system":
-                # 升级决策模型
-                should_search_prompt = f"""
-# 搜索决策
-
-## 任务
-分析话题“{topic}”，判断它的展开更依赖于“外部信息”还是“内部信息”，并决定是否需要进行网络搜索。
-
-## 判断原则
-- **需要搜索 (SEARCH)**：当话题的有效讨论**必须**依赖于现实世界的、客观的、可被检索的外部信息时。这包括但不限于：
-    - 新闻时事、公共事件
-    - 专业知识、科学概念
-    - 天气、股价等实时数据
-    - 对具体实体（如电影、书籍、地点）的客观描述查询
-
-- **无需搜索 (SKIP)**：当话题的展开主要依赖于**已有的对话上下文、个人情感、主观体验或社交互动**时。这包括但不限于：
-    - 延续之前的对话、追问细节
-    - 表达关心、问候或个人感受
-    - 分享主观看法或经历
-    - 纯粹的社交性互动
-
-## 你的决策
-根据以上原则，对“{topic}”这个话题进行分析，并严格输出`SEARCH`或`SKIP`。
-"""
-                from src.llm_models.utils_model import LLMRequest
-                from src.config.config import model_config
-                
-                decision_llm = LLMRequest(
-                    model_set=model_config.model_task_config.planner,
-                    request_type="planner"
-                )
-                
-                decision, _ = await decision_llm.generate_response_async(prompt=should_search_prompt)
-
-                if "SEARCH" in decision:
-                    try:
-                        if topic and topic.strip():
-                            web_search_tool = tool_api.get_tool_instance("web_search")
-                            if web_search_tool:
-                                try:
-                                    search_result_dict = await web_search_tool.execute(
-                                        function_args={"query": topic, "max_results": 10}
-                                    )
-                                    if search_result_dict and not search_result_dict.get("error"):
-                                        news_block = search_result_dict.get("content", "未能提取有效资讯。")
-                                    elif search_result_dict:
-                                        logger.warning(f"{self.context.log_prefix} 网络搜索返回错误: {search_result_dict.get('error')}")
-                                except Exception as e:
-                                    logger.error(f"{self.context.log_prefix} 网络搜索执行失败: {e}")
-                            else:
-                                logger.warning(f"{self.context.log_prefix} 未找到 web_search 工具实例。")
-                        else:
-                            logger.warning(f"{self.context.log_prefix} 主题为空，跳过网络搜索。")
-                    except Exception as e:
-                        logger.error(f"{self.context.log_prefix} 主动思考时网络搜索失败: {e}")
-                message_list = await get_raw_msg_before_timestamp_with_chat(
+                try:
+                    web_search_tool = tool_api.get_tool_instance("web_search")
+                    if web_search_tool:
+                        try:
+                            search_result_dict = await web_search_tool.execute(function_args={"keyword": topic, "max_results": 10})
+                        except TypeError:
+                            try:
+                                search_result_dict = await web_search_tool.execute(function_args={"keyword": topic, "max_results": 10})
+                            except TypeError:
+                                logger.warning(f"{self.context.log_prefix} 网络搜索工具参数不匹配，跳过搜索")
+                                news_block = "跳过网络搜索。"
+                                search_result_dict = None
+                        
+                        if search_result_dict and not search_result_dict.get("error"):
+                            news_block = search_result_dict.get("content", "未能提取有效资讯。")
+                        elif search_result_dict:
+                            logger.warning(f"{self.context.log_prefix} 网络搜索返回错误: {search_result_dict.get('error')}")
+                    else:
+                        logger.warning(f"{self.context.log_prefix} 未找到 web_search 工具实例。")
+                except Exception as e:
+                    logger.error(f"{self.context.log_prefix} 主动思考时网络搜索失败: {e}")
+                message_list = get_raw_msg_before_timestamp_with_chat(
                     chat_id=self.context.stream_id,
                     timestamp=time.time(),
                     limit=int(global_config.chat.max_context_size * 0.3),
                 )
-                chat_context_block, _ = await build_readable_messages_with_id(messages=message_list)
-
-            from src.llm_models.utils_model import LLMRequest
-            from src.config.config import model_config
-            
-            bot_name = global_config.bot.nickname
-            
-            confirmation_prompt = f"""# 主动回复二次确认
-
-## 基本信息
-你的名字是{bot_name}，准备主动发起关于"{topic}"的话题。
-
-## 最近的聊天内容
-{chat_context_block}
-
-## 合理判断标准
-请检查以下条件，如果**所有条件都合理**就可以回复：
-
-1. **回应检查**：检查你（{bot_name}）发送的最后一条消息之后，是否有其他人发言。如果没有，则大概率应该保持沉默。
-2. **话题补充**：只有当你认为准备发起的话题是对上一条无人回应消息的**有价值的补充**时，才可以在上一条消息无人回应的情况下继续发言。
-3. **时间合理性**：当前时间是否在深夜（凌晨2点-6点）这种不适合主动聊天的时段？
-4. **内容价值**：这个话题"{topic}"是否有意义，不是完全无关紧要的内容？
-5. **重复避免**：你准备说的话题是否与你自己的上一条消息明显重复？
-6. **自然性**：在当前上下文中主动提起这个话题是否自然合理？
-
-## 输出要求
-如果判断应该跳过（比如上一条消息无人回应、深夜时段、无意义话题、重复内容），输出：SKIP_PROACTIVE_REPLY
-其他情况都应该输出：PROCEED_TO_REPLY
-
-请严格按照上述格式输出，不要添加任何解释。"""
-
-            planner_llm = LLMRequest(
-                model_set=model_config.model_task_config.planner,
-                request_type="planner"
-            )
-            
-            confirmation_result, _ = await planner_llm.generate_response_async(prompt=confirmation_prompt)
-            
-            if not confirmation_result or "SKIP_PROACTIVE_REPLY" in confirmation_result:
-                logger.info(f"{self.context.log_prefix} 决策模型二次确认决定跳过主动回复")
-                return
-                
+                chat_context_block, _ = await build_readable_messages_with_id(messages=message_list)         
             bot_name = global_config.bot.nickname
             personality = global_config.personality
             identity_block = (
