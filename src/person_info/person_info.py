@@ -493,7 +493,8 @@ class PersonInfoManager:
         try:
             # 在需要时获取会话
             async with get_db_session() as session:
-                record = (await session.execute(select(PersonInfo).where(PersonInfo.person_name == person_name))).scalar()
+                record = result = await session.execute(select(PersonInfo).where(PersonInfo.person_name == person_name))
+                result.scalar()
             return record.person_id if record else ""
         except Exception as e:
             logger.error(f"根据用户名 {person_name} 获取用户ID时出错 (SQLAlchemy): {e}")
@@ -669,7 +670,8 @@ class PersonInfoManager:
             start_time = time.time()
             async with get_db_session() as session:
                 try:
-                    record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
+                    result = await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))
+                    record = result.scalar()
                     query_time = time.time()
                     if record:
                         setattr(record, f_name, val_to_set)
@@ -731,7 +733,8 @@ class PersonInfoManager:
 
         async def _db_has_field_async(p_id: str, f_name: str):
             async with get_db_session() as session:
-                record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
+                result = await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))
+                record = result.scalar()
             return bool(record)
 
         try:
@@ -843,10 +846,9 @@ class PersonInfoManager:
 
                 async def _db_check_name_exists_async(name_to_check):
                     async with get_db_session() as session:
-                        return (
-                            (await session.execute(select(PersonInfo).where(PersonInfo.person_name == name_to_check))).scalar()
-                            is not None
-                        )
+                        result = await session.execute(select(PersonInfo).where(PersonInfo.person_name == name_to_check))
+                        record = result.scalar()
+                        return record is not None
 
                 if await _db_check_name_exists_async(generated_nickname):
                     is_duplicate = True
@@ -890,7 +892,8 @@ class PersonInfoManager:
         async def _db_delete_async(p_id: str):
             try:
                 async with get_db_session() as session:
-                    record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
+                    result = await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))
+                    record = result.scalar()
                     if record:
                         await session.delete(record)
                         await session.commit()
@@ -919,7 +922,9 @@ class PersonInfoManager:
         
         async def _get_record_sync():
             async with get_db_session() as session:
-                return (await session.execute(select(PersonInfo).where(PersonInfo.person_id == person_id))).scalar()
+                result = await session.execute(select(PersonInfo).where(PersonInfo.person_id == person_id))
+                record = result.scalar()
+                return record
 
         try:
             record = asyncio.run(_get_record_sync())
@@ -958,7 +963,9 @@ class PersonInfoManager:
 
         async def _db_get_record_async(p_id: str):
             async with get_db_session() as session:
-                return (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
+                result = await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))
+                record = result.scalar()
+                return record
 
         record = await _db_get_record_async(person_id)
 
@@ -1034,7 +1041,8 @@ class PersonInfoManager:
             """原子性的获取或创建操作"""
             async with get_db_session() as session:
                 # 首先尝试获取现有记录
-                record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
+                result = await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))
+                record = result.scalar()
                 if record:
                     return record, False  # 记录存在，未创建
 
@@ -1049,9 +1057,10 @@ class PersonInfoManager:
                     # 如果创建失败（可能是因为竞态条件），再次尝试获取
                     if "UNIQUE constraint failed" in str(e):
                         logger.debug(f"检测到并发创建用户 {p_id}，获取现有记录")
-                        record = (await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))).scalar()
-                        if record:
-                            return record, False  # 其他协程已创建，返回现有记录
+                        result = await session.execute(select(PersonInfo).where(PersonInfo.person_id == p_id))
+                    record = result.scalar()
+                    if record:
+                        return record, False  # 其他协程已创建，返回现有记录
                     # 如果仍然失败，重新抛出异常
                     raise e
         

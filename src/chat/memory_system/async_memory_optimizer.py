@@ -184,6 +184,11 @@ class AsyncMemoryQueue:
                 from src.chat.memory_system.Hippocampus import hippocampus_manager
 
                 if hippocampus_manager._initialized:
+                    # 确保海马体对象已正确初始化
+                    if not hippocampus_manager._hippocampus.parahippocampal_gyrus:
+                        logger.warning("海马体对象未完全初始化，进行同步初始化")
+                        hippocampus_manager._hippocampus.initialize()
+
                     await hippocampus_manager.build_memory()
                     return True
             return False

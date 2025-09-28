@@ -287,7 +287,7 @@ class ChatterRelationshipTracker:
 
     # ===== 数据库支持方法 =====
 
-    def get_user_relationship_score(self, user_id: str) -> float:
+    async def get_user_relationship_score(self, user_id: str) -> float:
         """获取用户关系分"""
         # 先检查缓存
         if user_id in self.user_relationship_cache:
@@ -298,7 +298,7 @@ class ChatterRelationshipTracker:
                 return cache_data.get("relationship_score", global_config.affinity_flow.base_relationship_score)
 
         # 缓存过期或不存在，从数据库获取
-        relationship_data = self._get_user_relationship_from_db(user_id)
+        relationship_data = await self._get_user_relationship_from_db(user_id)
         if relationship_data:
             # 更新缓存
             self.user_relationship_cache[user_id] = {
@@ -313,37 +313,38 @@ class ChatterRelationshipTracker:
         # 数据库中也没有，返回默认值
         return global_config.affinity_flow.base_relationship_score
 
-    def _get_user_relationship_from_db(self, user_id: str) -> Optional[Dict]:
+    async def _get_user_relationship_from_db(self, user_id: str) -> Optional[Dict]:
         """从数据库获取用户关系数据"""
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 查询用户关系表
                 stmt = select(UserRelationships).where(UserRelationships.user_id == user_id)
-                result = session.execute(stmt).scalar_one_or_none()
+                result = await session.execute(stmt)
+                relationship = result.scalar_one_or_none()
 
-                if result:
+                if relationship:
                     return {
-                        "relationship_text": result.relationship_text or "",
-                        "relationship_score": float(result.relationship_score)
-                        if result.relationship_score is not None
+                        "relationship_text": relationship.relationship_text or "",
+                        "relationship_score": float(relationship.relationship_score)
+                        if relationship.relationship_score is not None
                         else 0.3,
-                        "last_updated": result.last_updated,
+                        "last_updated": relationship.last_updated,
                     }
         except Exception as e:
             logger.error(f"从数据库获取用户关系失败: {e}")
 
         return None
 
-    def _update_user_relationship_in_db(self, user_id: str, relationship_text: str, relationship_score: float):
+    async def _update_user_relationship_in_db(self, user_id: str, relationship_text: str, relationship_score: float):
         """更新数据库中的用户关系"""
         try:
             current_time = time.time()
 
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 检查是否已存在关系记录
-                existing = session.execute(
-                    select(UserRelationships).where(UserRelationships.user_id == user_id)
-                ).scalar_one_or_none()
+                stmt = select(UserRelationships).where(UserRelationships.user_id == user_id)
+                result = await session.execute(stmt)
+                existing = result.scalar_one_or_none()
 
                 if existing:
                     # 更新现有记录
@@ -362,7 +363,7 @@ class ChatterRelationshipTracker:
                     )
                     session.add(new_relationship)
 
-                session.commit()
+                await session.commit()
                 logger.info(f"已更新数据库中用户关系: {user_id} -> 分数: {relationship_score:.3f}")
 
         except Exception as e:
@@ -399,7 +400,7 @@ class ChatterRelationshipTracker:
             logger.debug(f"💬 [RelationshipTracker] 找到用户 {user_id} 在上次回复后的 {len(user_reactions)} 条反应消息")
 
             # 获取当前关系数据
-            current_relationship = self._get_user_relationship_from_db(user_id)
+            current_relationship = await self._get_user_relationship_from_db(user_id)
             current_score = (
                 current_relationship.get("relationship_score", global_config.affinity_flow.base_relationship_score)
                 if current_relationship
@@ -417,14 +418,14 @@ class ChatterRelationshipTracker:
             logger.error(f"回复后关系追踪失败: {e}")
             logger.debug("错误详情:", exc_info=True)
 
-    def _get_last_tracked_time(self, user_id: str) -> float:
+    async def _get_last_tracked_time(self, user_id: str) -> float:
         """获取上次追踪时间"""
         # 先检查缓存
         if user_id in self.user_relationship_cache:
             return self.user_relationship_cache[user_id].get("last_tracked", 0)
 
         # 从数据库获取
-        relationship_data = self._get_user_relationship_from_db(user_id)
+        relationship_data = await self._get_user_relationship_from_db(user_id)
         if relationship_data:
             return relationship_data.get("last_updated", 0)
 
@@ -433,7 +434,7 @@ class ChatterRelationshipTracker:
     async def _get_last_bot_reply_to_user(self, user_id: str) -> Optional[DatabaseMessages]:
         """获取上次bot回复该用户的消息"""
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 查询bot回复给该用户的最新消息
                 stmt = (
                     select(Messages)
@@ -443,10 +444,11 @@ class ChatterRelationshipTracker:
                     .limit(1)
                 )
 
-                result = session.execute(stmt).scalar_one_or_none()
-                if result:
+                result = await session.execute(stmt)
+                message = result.scalar_one_or_none()
+                if message:
                     # 将SQLAlchemy模型转换为DatabaseMessages对象
-                    return self._sqlalchemy_to_database_messages(result)
+                    return self._sqlalchemy_to_database_messages(message)
 
         except Exception as e:
             logger.error(f"获取上次回复消息失败: {e}")
@@ -456,7 +458,7 @@ class ChatterRelationshipTracker:
     async def _get_user_reactions_after_reply(self, user_id: str, reply_time: float) -> List[DatabaseMessages]:
         """获取用户在bot回复后的反应消息"""
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 查询用户在回复时间之后的5分钟内的消息
                 end_time = reply_time + 5 * 60  # 5分钟
 
@@ -468,9 +470,10 @@ class ChatterRelationshipTracker:
                     .order_by(Messages.time)
                 )
 
-                results = session.execute(stmt).scalars().all()
-                if results:
-                    return [self._sqlalchemy_to_database_messages(result) for result in results]
+                result = await session.execute(stmt)
+                messages = result.scalars().all()
+                if messages:
+                    return [self._sqlalchemy_to_database_messages(message) for message in messages]
 
         except Exception as e:
             logger.error(f"获取用户反应消息失败: {e}")
@@ -593,7 +596,7 @@ class ChatterRelationshipTracker:
                     quality = response_data.get("interaction_quality", "medium")
 
                     # 更新数据库
-                    self._update_user_relationship_in_db(user_id, new_text, new_score)
+                    await self._update_user_relationship_in_db(user_id, new_text,  new_score)
 
                     # 更新缓存
                     self.user_relationship_cache[user_id] = {
@@ -696,7 +699,7 @@ class ChatterRelationshipTracker:
             )
 
             # 更新数据库和缓存
-            self._update_user_relationship_in_db(user_id, new_text, new_score)
+            await self._update_user_relationship_in_db(user_id, new_text, new_score)
             self.user_relationship_cache[user_id] = {
                 "relationship_text": new_text,
                 "relationship_score": new_score,

@@ -22,9 +22,9 @@ class DatabaseProxy:
         self._session = None
 
     @staticmethod
-    def initialize(*args, **kwargs):
+    async def initialize(*args, **kwargs):
         """初始化数据库连接"""
-        return initialize_database_compat()
+        return await initialize_database_compat()
 
 
 class SQLAlchemyTransaction:
@@ -88,7 +88,7 @@ async def initialize_sql_database(database_config):
             logger.info(f"  数据库文件: {db_path}")
 
         # 使用SQLAlchemy初始化
-        success = initialize_database_compat()
+        success = await initialize_database_compat()
         if success:
             _sql_engine = await get_engine()
             logger.info("SQLAlchemy数据库初始化成功")

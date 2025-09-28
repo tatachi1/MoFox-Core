@@ -8,6 +8,7 @@ import traceback
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 import numpy as np
+from sqlalchemy import select
 
 from src.common.logger import get_logger
 from src.config.config import global_config
@@ -610,14 +611,13 @@ class BotInterestManager:
             from src.common.database.sqlalchemy_database_api import get_db_session
             import orjson
 
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 查询最新的兴趣标签配置
-                db_interests = (
-                    session.query(DBBotPersonalityInterests)
-                    .filter(DBBotPersonalityInterests.personality_id == personality_id)
+                db_interests = (await session.execute(
+                    select(DBBotPersonalityInterests)
+                    .where(DBBotPersonalityInterests.personality_id == personality_id)
                     .order_by(DBBotPersonalityInterests.version.desc(), DBBotPersonalityInterests.last_updated.desc())
-                    .first()
-                )
+                )).scalars().first()
 
                 if db_interests:
                     logger.debug(f"在数据库中找到兴趣标签配置, 版本: {db_interests.version}")
@@ -700,13 +700,12 @@ class BotInterestManager:
             # 序列化为JSON
             json_data = orjson.dumps(tags_data)
 
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 检查是否已存在相同personality_id的记录
-                existing_record = (
-                    session.query(DBBotPersonalityInterests)
-                    .filter(DBBotPersonalityInterests.personality_id == interests.personality_id)
-                    .first()
-                )
+                existing_record = (await session.execute(
+                    select(DBBotPersonalityInterests)
+                    .where(DBBotPersonalityInterests.personality_id == interests.personality_id)
+                )).scalars().first()
 
                 if existing_record:
                     # 更新现有记录
@@ -731,19 +730,17 @@ class BotInterestManager:
                         last_updated=interests.last_updated,
                     )
                     session.add(new_record)
-                    session.commit()
+                    await session.commit()
                     logger.info(f"✅ 成功创建兴趣标签配置，版本: {interests.version}")
 
             logger.info("✅ 兴趣标签已成功保存到数据库")
 
             # 验证保存是否成功
-            with get_db_session() as session:
-                saved_record = (
-                    session.query(DBBotPersonalityInterests)
-                    .filter(DBBotPersonalityInterests.personality_id == interests.personality_id)
-                    .first()
-                )
-                session.commit()
+            async with get_db_session() as session:
+                saved_record = (await session.execute(
+                    select(DBBotPersonalityInterests)
+                    .where(DBBotPersonalityInterests.personality_id == interests.personality_id)
+                )).scalars().first()
                 if saved_record:
                     logger.info(f"✅ 验证成功：数据库中存在personality_id为 {interests.personality_id} 的记录")
                     logger.info(f"   版本: {saved_record.version}")

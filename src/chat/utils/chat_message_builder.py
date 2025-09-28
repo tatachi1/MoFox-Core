@@ -829,7 +829,8 @@ async def build_pic_mapping_info(pic_id_mapping: Dict[str, str]) -> str:
         description = "[图片内容未知]"  # 默认描述
         try:
             with get_db_session() as session:
-                image = session.execute(select(Images).where(Images.image_id == pic_id)).scalar_one_or_none()
+                result = session.execute(select(Images).where(Images.image_id == pic_id))
+                image = result.scalar_one_or_none()
                 if image and image.description:  # type: ignore
                     description = image.description
         except Exception:

@@ -64,15 +64,9 @@ async def message_recv(server_connection: Server.ServerConnection):
 
             # 处理完整消息（可能是重组后的，也可能是原本就完整的）
             post_type = decoded_raw_message.get("post_type")
-
-            # 兼容没有 post_type 的普通消息
-            if not post_type and "message_type" in decoded_raw_message:
-                decoded_raw_message["post_type"] = "message"
-                post_type = "message"
-
             if post_type in ["meta_event", "message", "notice"]:
                 await message_queue.put(decoded_raw_message)
-            else:
+            elif post_type is None:
                 await put_response(decoded_raw_message)
 
         except json.JSONDecodeError as e:
@@ -428,8 +422,9 @@ class NapcatAdapterPlugin(BasePlugin):
     def get_plugin_components(self):
         self.register_events()
 
-        components = [(LauchNapcatAdapterHandler.get_handler_info(), LauchNapcatAdapterHandler),
-                      (StopNapcatAdapterHandler.get_handler_info(), StopNapcatAdapterHandler)]
+        components = []
+        components.append((LauchNapcatAdapterHandler.get_handler_info(), LauchNapcatAdapterHandler))
+        components.append((StopNapcatAdapterHandler.get_handler_info(), StopNapcatAdapterHandler))
         for handler in get_classes_in_module(event_handlers):
             if issubclass(handler, BaseEventHandler):
                 components.append((handler.get_handler_info(), handler))

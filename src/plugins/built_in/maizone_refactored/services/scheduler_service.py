@@ -13,6 +13,7 @@ from typing import Callable
 from src.common.logger import get_logger
 from src.schedule.schedule_manager import schedule_manager
 from src.common.database.sqlalchemy_database_api import get_db_session
+from sqlalchemy import select
 from src.common.database.sqlalchemy_models import MaiZoneScheduleStatus
 
 from .qzone_service import QZoneService
@@ -138,15 +139,13 @@ class SchedulerService:
         :return: 如果已处理过，返回 True，否则返回 False。
         """
         try:
-            with get_db_session() as session:
-                record = (
-                    session.query(MaiZoneScheduleStatus)
-                    .filter(
-                        MaiZoneScheduleStatus.datetime_hour == hour_str,
-                        MaiZoneScheduleStatus.is_processed == True,  # noqa: E712
-                    )
-                    .first()
+            async with get_db_session() as session:
+                stmt = select(MaiZoneScheduleStatus).where(
+                    MaiZoneScheduleStatus.datetime_hour == hour_str,
+                    MaiZoneScheduleStatus.is_processed == True,  # noqa: E712
                 )
+                result = await session.execute(stmt)
+                record = result.scalar_one_or_none()
                 return record is not None
         except Exception as e:
             logger.error(f"检查日程处理状态时发生数据库错误: {e}")
@@ -162,11 +161,11 @@ class SchedulerService:
         :param content: 最终发送的说说内容或错误信息。
         """
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 查找是否已存在该记录
-                record = (
-                    session.query(MaiZoneScheduleStatus).filter(MaiZoneScheduleStatus.datetime_hour == hour_str).first()
-                )
+                stmt = select(MaiZoneScheduleStatus).where(MaiZoneScheduleStatus.datetime_hour == hour_str)
+                result = await session.execute(stmt)
+                record = result.scalar_one_or_none()
 
                 if record:
                     # 如果存在，则更新状态
@@ -185,7 +184,7 @@ class SchedulerService:
                         send_success=success,
                     )
                     session.add(new_record)
-                session.commit()
+                await session.commit()
                 logger.info(f"已更新日程处理状态: {hour_str} - {activity} - 成功: {success}")
         except Exception as e:
             logger.error(f"更新日程处理状态时发生数据库错误: {e}")

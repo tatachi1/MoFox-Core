@@ -204,15 +204,16 @@ class MaiEmoji:
             # 2. 删除数据库记录
             try:
                 async with get_db_session() as session:
-                    will_delete_emoji = (
-                        await session.execute(select(Emoji).where(Emoji.emoji_hash == self.hash))
-                    ).scalar_one_or_none()
+                    result = await session.execute(
+                        select(Emoji).where(Emoji.emoji_hash == self.hash)
+                    )
+                    will_delete_emoji = result.scalar_one_or_none()
                     if will_delete_emoji is None:
                         logger.warning(f"[删除] 数据库中未找到哈希值为 {self.hash} 的表情包记录。")
                         result = 0
                     else:
                         await session.delete(will_delete_emoji)
-                        result = 1
+                        result = 1  # Successfully deleted one record
                         await session.commit()
             except Exception as e:
                 logger.error(f"[错误] 删除数据库记录时出错: {str(e)}")
@@ -424,19 +425,19 @@ class EmojiManager:
     #     if not self._initialized:
     #         raise RuntimeError("EmojiManager not initialized")
 
-    @staticmethod
-    async def record_usage(emoji_hash: str) -> None:
+    async def record_usage(self, emoji_hash: str) -> None:
         """记录表情使用次数"""
         try:
             async with get_db_session() as session:
-                emoji_update = (
-                    await session.execute(select(Emoji).where(Emoji.emoji_hash == emoji_hash))
-                ).scalar_one_or_none()
+                stmt = select(Emoji).where(Emoji.emoji_hash == emoji_hash)
+                result = await session.execute(stmt)
+                emoji_update = result.scalar_one_or_none()
                 if emoji_update is None:
                     logger.error(f"记录表情使用失败: 未找到 hash 为 {emoji_hash} 的表情包")
                 else:
                     emoji_update.usage_count += 1
-                    emoji_update.last_used_time = time.time()
+                emoji_update.last_used_time = time.time()  # Update last used time
+                await session.commit()
         except Exception as e:
             logger.error(f"记录表情使用失败: {str(e)}")
 
@@ -523,7 +524,7 @@ class EmojiManager:
 
             # 7. 获取选中的表情包并更新使用记录
             selected_emoji = candidate_emojis[selected_index]
-            await self.record_usage(selected_emoji.emoji_hash)
+            await self.record_usage(selected_emoji.hash)
             _time_end = time.time()
 
             logger.info(f"找到匹配描述的表情包: {selected_emoji.description}, 耗时: {(_time_end - _time_start):.2f}s")
@@ -777,9 +778,8 @@ class EmojiManager:
             # 如果内存中没有，从数据库查找
             try:
                 async with get_db_session() as session:
-                    result = await session.execute(
-                        select(Emoji).where(Emoji.emoji_hash == emoji_hash)
-                    )
+                    stmt = select(Emoji).where(Emoji.emoji_hash == emoji_hash)
+                    result = await session.execute(stmt)
                     emoji_record = result.scalar_one_or_none()
                 if emoji_record and emoji_record.description:
                     logger.info(f"[缓存命中] 从数据库获取表情包描述: {emoji_record.description[:50]}...")
@@ -946,12 +946,13 @@ class EmojiManager:
             # 2. 检查数据库中是否已存在该表情包的描述，实现复用
             existing_description = None
             try:
-                with get_db_session() as session:
-                    existing_image = (
-                        session.query(Images)
-                        .filter((Images.emoji_hash == image_hash) & (Images.type == "emoji"))
-                        .one_or_none()
+                async with get_db_session() as session:
+                    stmt = select(Images).where(
+                        Images.emoji_hash == image_hash,
+                        Images.type == "emoji"
                     )
+                    result = await session.execute(stmt)
+                    existing_image = result.scalar_one_or_none()
                     if existing_image and existing_image.description:
                         existing_description = existing_image.description
                         logger.info(f"[复用描述] 找到已有详细描述: {existing_description[:50]}...")

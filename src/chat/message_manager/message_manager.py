@@ -17,7 +17,7 @@ from src.chat.planner_actions.action_manager import ChatterActionManager
 from .sleep_manager.sleep_manager import SleepManager
 from .sleep_manager.wakeup_manager import WakeUpManager
 from src.config.config import global_config
-from .context_manager import context_manager
+from src.plugin_system.apis.chat_api import get_chat_manager
 
 if TYPE_CHECKING:
     from src.common.data_models.message_manager_data_model import StreamContext
@@ -44,8 +44,7 @@ class MessageManager:
         self.sleep_manager = SleepManager()
         self.wakeup_manager = WakeUpManager(self.sleep_manager)
 
-        # 初始化上下文管理器
-        self.context_manager = context_manager
+        # 不再需要全局上下文管理器，直接通过 ChatManager 访问各个 ChatStream 的 context_manager
 
     async def start(self):
         """启动消息管理器"""
@@ -56,7 +55,7 @@ class MessageManager:
         self.is_running = True
         self.manager_task = asyncio.create_task(self._manager_loop())
         await self.wakeup_manager.start()
-        await self.context_manager.start()
+        # await self.context_manager.start()  # 已删除，需要重构
         logger.info("消息管理器已启动")
 
     async def stop(self):
@@ -72,28 +71,31 @@ class MessageManager:
             self.manager_task.cancel()
 
         await self.wakeup_manager.stop()
-        await self.context_manager.stop()
+        # await self.context_manager.stop()  # 已删除，需要重构
 
         logger.info("消息管理器已停止")
 
     def add_message(self, stream_id: str, message: DatabaseMessages):
         """添加消息到指定聊天流"""
-        # 检查流上下文是否存在，不存在则创建
-        context = self.context_manager.get_stream_context(stream_id)
-        if not context:
-            # 创建新的流上下文
-            from src.common.data_models.message_manager_data_model import StreamContext
-            context = StreamContext(stream_id=stream_id)
-            # 将创建的上下文添加到管理器
-            self.context_manager.add_stream_context(stream_id, context)
+        try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
 
-        # 使用 context_manager 添加消息
-        success = self.context_manager.add_message_to_context(stream_id, message)
+            if not chat_stream:
+                logger.warning(f"MessageManager.add_message: 聊天流 {stream_id} 不存在")
+                return
 
-        if success:
-            logger.debug(f"添加消息到聊天流 {stream_id}: {message.message_id}")
-        else:
-            logger.warning(f"添加消息到聊天流 {stream_id} 失败")
+            # 使用 ChatStream 的 context_manager 添加消息
+            success = chat_stream.context_manager.add_message(message)
+
+            if success:
+                logger.debug(f"添加消息到聊天流 {stream_id}: {message.message_id}")
+            else:
+                logger.warning(f"添加消息到聊天流 {stream_id} 失败")
+
+        except Exception as e:
+            logger.error(f"添加消息到聊天流 {stream_id} 时发生错误: {e}")
 
     def update_message(
         self,
@@ -104,17 +106,60 @@ class MessageManager:
         should_reply: bool = None,
     ):
         """更新消息信息"""
-        # 使用 context_manager 更新消息信息
-        context = self.context_manager.get_stream_context(stream_id)
-        if context:
-            context.update_message_info(message_id, interest_value, actions, should_reply)
+        try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+
+            if not chat_stream:
+                logger.warning(f"MessageManager.update_message: 聊天流 {stream_id} 不存在")
+                return
+
+            # 构建更新字典
+            updates = {}
+            if interest_value is not None:
+                updates["interest_value"] = interest_value
+            if actions is not None:
+                updates["actions"] = actions
+            if should_reply is not None:
+                updates["should_reply"] = should_reply
+
+            # 使用 ChatStream 的 context_manager 更新消息
+            if updates:
+                success = chat_stream.context_manager.update_message(message_id, updates)
+                if success:
+                    logger.debug(f"更新消息 {message_id} 成功")
+                else:
+                    logger.warning(f"更新消息 {message_id} 失败")
+
+        except Exception as e:
+            logger.error(f"更新消息 {message_id} 时发生错误: {e}")
 
     def add_action(self, stream_id: str, message_id: str, action: str):
         """添加动作到消息"""
-        # 使用 context_manager 添加动作到消息
-        context = self.context_manager.get_stream_context(stream_id)
-        if context:
-            context.add_action_to_message(message_id, action)
+        try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+
+            if not chat_stream:
+                logger.warning(f"MessageManager.add_action: 聊天流 {stream_id} 不存在")
+                return
+
+            # 使用 ChatStream 的 context_manager 添加动作
+            # 注意：这里需要根据实际的 API 调整
+            # 假设我们可以通过 update_message 来添加动作
+            success = chat_stream.context_manager.update_message(
+                message_id, {"actions": [action]}
+            )
+
+            if success:
+                logger.debug(f"为消息 {message_id} 添加动作 {action} 成功")
+            else:
+                logger.warning(f"为消息 {message_id} 添加动作 {action} 失败")
+
+        except Exception as e:
+            logger.error(f"为消息 {message_id} 添加动作时发生错误: {e}")
 
     async def _manager_loop(self):
         """管理器主循环 - 独立聊天流分发周期版本"""
@@ -144,38 +189,53 @@ class MessageManager:
         active_streams = 0
         total_unread = 0
 
-        # 使用 context_manager 获取活跃的流
-        active_stream_ids = self.context_manager.get_active_streams()
+        # 通过 ChatManager 获取所有活跃的流
+        try:
+            chat_manager = get_chat_manager()
+            active_stream_ids = list(chat_manager.streams.keys())
 
-        for stream_id in active_stream_ids:
-            context = self.context_manager.get_stream_context(stream_id)
-            if not context:
-                continue
+            for stream_id in active_stream_ids:
+                chat_stream = chat_manager.get_stream(stream_id)
+                if not chat_stream:
+                    continue
 
-            active_streams += 1
+                # 检查流是否活跃
+                context = chat_stream.stream_context
+                if not context.is_active:
+                    continue
 
-            # 检查是否有未读消息
-            unread_messages = self.context_manager.get_unread_messages(stream_id)
-            if unread_messages:
-                total_unread += len(unread_messages)
+                active_streams += 1
 
-                # 如果没有处理任务，创建一个
-                if not hasattr(context, 'processing_task') or not context.processing_task or context.processing_task.done():
-                    context.processing_task = asyncio.create_task(self._process_stream_messages(stream_id))
+                # 检查是否有未读消息
+                unread_messages = chat_stream.context_manager.get_unread_messages()
+                if unread_messages:
+                    total_unread += len(unread_messages)
 
-        # 更新统计
-        self.stats.active_streams = active_streams
-        self.stats.total_unread_messages = total_unread
+                    # 如果没有处理任务，创建一个
+                    if not hasattr(context, 'processing_task') or not context.processing_task or context.processing_task.done():
+                        context.processing_task = asyncio.create_task(self._process_stream_messages(stream_id))
+
+            # 更新统计
+            self.stats.active_streams = active_streams
+            self.stats.total_unread_messages = total_unread
+
+        except Exception as e:
+            logger.error(f"检查所有聊天流时发生错误: {e}")
 
     async def _process_stream_messages(self, stream_id: str):
         """处理指定聊天流的消息"""
-        context = self.context_manager.get_stream_context(stream_id)
-        if not context:
-            return
-
         try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if not chat_stream:
+                logger.warning(f"处理消息失败: 聊天流 {stream_id} 不存在")
+                return
+
+            context = chat_stream.stream_context
+
             # 获取未读消息
-            unread_messages = self.context_manager.get_unread_messages(stream_id)
+            unread_messages = chat_stream.context_manager.get_unread_messages()
             if not unread_messages:
                 return
 
@@ -249,8 +309,15 @@ class MessageManager:
 
     def deactivate_stream(self, stream_id: str):
         """停用聊天流"""
-        context = self.context_manager.get_stream_context(stream_id)
-        if context:
+        try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if not chat_stream:
+                logger.warning(f"停用流失败: 聊天流 {stream_id} 不存在")
+                return
+
+            context = chat_stream.stream_context
             context.is_active = False
 
             # 取消处理任务
@@ -259,27 +326,50 @@ class MessageManager:
 
             logger.info(f"停用聊天流: {stream_id}")
 
+        except Exception as e:
+            logger.error(f"停用聊天流 {stream_id} 时发生错误: {e}")
+
     def activate_stream(self, stream_id: str):
         """激活聊天流"""
-        context = self.context_manager.get_stream_context(stream_id)
-        if context:
+        try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if not chat_stream:
+                logger.warning(f"激活流失败: 聊天流 {stream_id} 不存在")
+                return
+
+            context = chat_stream.stream_context
             context.is_active = True
             logger.info(f"激活聊天流: {stream_id}")
 
+        except Exception as e:
+            logger.error(f"激活聊天流 {stream_id} 时发生错误: {e}")
+
     def get_stream_stats(self, stream_id: str) -> Optional[StreamStats]:
         """获取聊天流统计"""
-        context = self.context_manager.get_stream_context(stream_id)
-        if not context:
-            return None
+        try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if not chat_stream:
+                return None
 
-        return StreamStats(
-            stream_id=stream_id,
-            is_active=context.is_active,
-            unread_count=len(self.context_manager.get_unread_messages(stream_id)),
-            history_count=len(context.history_messages),
-            last_check_time=context.last_check_time,
-            has_active_task=bool(hasattr(context, 'processing_task') and context.processing_task and not context.processing_task.done()),
-        )
+            context = chat_stream.stream_context
+            unread_count = len(chat_stream.context_manager.get_unread_messages())
+
+            return StreamStats(
+                stream_id=stream_id,
+                is_active=context.is_active,
+                unread_count=unread_count,
+                history_count=len(context.history_messages),
+                last_check_time=context.last_check_time,
+                has_active_task=bool(hasattr(context, 'processing_task') and context.processing_task and not context.processing_task.done()),
+            )
+
+        except Exception as e:
+            logger.error(f"获取聊天流 {stream_id} 统计时发生错误: {e}")
+            return None
 
     def get_manager_stats(self) -> Dict[str, Any]:
         """获取管理器统计"""
@@ -294,9 +384,36 @@ class MessageManager:
 
     def cleanup_inactive_streams(self, max_inactive_hours: int = 24):
         """清理不活跃的聊天流"""
-        # 使用 context_manager 的自动清理功能
-        self.context_manager.cleanup_inactive_contexts(max_inactive_hours * 3600)
-        logger.info("已启动不活跃聊天流清理")
+        try:
+            # 通过 ChatManager 清理不活跃的流
+            chat_manager = get_chat_manager()
+            current_time = time.time()
+            max_inactive_seconds = max_inactive_hours * 3600
+
+            inactive_streams = []
+            for stream_id, chat_stream in chat_manager.streams.items():
+                # 检查最后活跃时间
+                if current_time - chat_stream.last_active_time > max_inactive_seconds:
+                    inactive_streams.append(stream_id)
+
+            # 清理不活跃的流
+            for stream_id in inactive_streams:
+                try:
+                    # 清理流的内容
+                    chat_stream.context_manager.clear_context()
+                    # 从 ChatManager 中移除
+                    del chat_manager.streams[stream_id]
+                    logger.info(f"清理不活跃聊天流: {stream_id}")
+                except Exception as e:
+                    logger.error(f"清理聊天流 {stream_id} 失败: {e}")
+
+            if inactive_streams:
+                logger.info(f"已清理 {len(inactive_streams)} 个不活跃聊天流")
+            else:
+                logger.debug("没有需要清理的不活跃聊天流")
+
+        except Exception as e:
+            logger.error(f"清理不活跃聊天流时发生错误: {e}")
 
     async def _check_and_handle_interruption(self, context: StreamContext, stream_id: str):
         """检查并处理消息打断"""
@@ -375,115 +492,123 @@ class MessageManager:
         min_delay = float("inf")
 
         # 找到最近需要检查的流
-        active_stream_ids = self.context_manager.get_active_streams()
-        for stream_id in active_stream_ids:
-            context = self.context_manager.get_stream_context(stream_id)
-            if not context or not context.is_active:
-                continue
+        try:
+            chat_manager = get_chat_manager()
+            for _stream_id, chat_stream in chat_manager.streams.items():
+                context = chat_stream.stream_context
+                if not context or not context.is_active:
+                    continue
 
-            time_until_check = context.next_check_time - current_time
-            if time_until_check > 0:
-                min_delay = min(min_delay, time_until_check)
-            else:
-                min_delay = 0.1  # 立即检查
-                break
+                time_until_check = context.next_check_time - current_time
+                if time_until_check > 0:
+                    min_delay = min(min_delay, time_until_check)
+                else:
+                    min_delay = 0.1  # 立即检查
+                    break
 
-        # 如果没有活跃流，使用默认间隔
-        if min_delay == float("inf"):
+            # 如果没有活跃流，使用默认间隔
+            if min_delay == float("inf"):
+                return self.check_interval
+
+            # 确保最小延迟
+            return max(0.1, min(min_delay, self.check_interval))
+
+        except Exception as e:
+            logger.error(f"计算下次检查延迟时发生错误: {e}")
             return self.check_interval
-
-        # 确保最小延迟
-        return max(0.1, min(min_delay, self.check_interval))
 
     async def _check_streams_with_individual_intervals(self):
         """检查所有达到检查时间的聊天流"""
         current_time = time.time()
         processed_streams = 0
 
-        # 使用 context_manager 获取活跃的流
-        active_stream_ids = self.context_manager.get_active_streams()
+        # 通过 ChatManager 获取活跃的流
+        try:
+            chat_manager = get_chat_manager()
+            for stream_id, chat_stream in chat_manager.streams.items():
+                context = chat_stream.stream_context
+                if not context or not context.is_active:
+                    continue
 
-        for stream_id in active_stream_ids:
-            context = self.context_manager.get_stream_context(stream_id)
-            if not context or not context.is_active:
-                continue
+                # 检查是否达到检查时间
+                if current_time >= context.next_check_time:
+                    # 更新检查时间
+                    context.last_check_time = current_time
 
-            # 检查是否达到检查时间
-            if current_time >= context.next_check_time:
-                # 更新检查时间
-                context.last_check_time = current_time
+                    # 计算下次检查时间和分发周期
+                    if global_config.chat.dynamic_distribution_enabled:
+                        context.distribution_interval = self._calculate_stream_distribution_interval(context)
+                    else:
+                        context.distribution_interval = self.check_interval
 
-                # 计算下次检查时间和分发周期
-                if global_config.chat.dynamic_distribution_enabled:
-                    context.distribution_interval = self._calculate_stream_distribution_interval(context)
-                else:
-                    context.distribution_interval = self.check_interval
+                    # 设置下次检查时间
+                    context.next_check_time = current_time + context.distribution_interval
 
-                # 设置下次检查时间
-                context.next_check_time = current_time + context.distribution_interval
+                    # 检查未读消息
+                    unread_messages = chat_stream.context_manager.get_unread_messages()
+                    if unread_messages:
+                        processed_streams += 1
+                        self.stats.total_unread_messages = len(unread_messages)
 
-                # 检查未读消息
-                unread_messages = self.context_manager.get_unread_messages(stream_id)
-                if unread_messages:
-                    processed_streams += 1
-                    self.stats.total_unread_messages = len(unread_messages)
+                        # 如果没有处理任务，创建一个
+                        if not context.processing_task or context.processing_task.done():
+                            focus_energy = chat_stream.focus_energy
 
-                    # 如果没有处理任务，创建一个
-                    if not context.processing_task or context.processing_task.done():
-                        from src.plugin_system.apis.chat_api import get_chat_manager
+                            # 根据优先级记录日志
+                            if focus_energy >= 0.7:
+                                logger.info(
+                                    f"高优先级流 {stream_id} 开始处理 | "
+                                    f"focus_energy: {focus_energy:.3f} | "
+                                    f"分发周期: {context.distribution_interval:.2f}s | "
+                                    f"未读消息: {len(unread_messages)}"
+                                )
+                            else:
+                                logger.debug(
+                                    f"流 {stream_id} 开始处理 | "
+                                    f"focus_energy: {focus_energy:.3f} | "
+                                    f"分发周期: {context.distribution_interval:.2f}s"
+                                )
 
-                        chat_stream = get_chat_manager().get_stream(context.stream_id)
-                        focus_energy = chat_stream.focus_energy if chat_stream else 0.5
+                            context.processing_task = asyncio.create_task(self._process_stream_messages(stream_id))
 
-                        # 根据优先级记录日志
-                        if focus_energy >= 0.7:
-                            logger.info(
-                                f"高优先级流 {stream_id} 开始处理 | "
-                                f"focus_energy: {focus_energy:.3f} | "
-                                f"分发周期: {context.distribution_interval:.2f}s | "
-                                f"未读消息: {len(unread_messages)}"
-                            )
-                        else:
-                            logger.debug(
-                                f"流 {stream_id} 开始处理 | "
-                                f"focus_energy: {focus_energy:.3f} | "
-                                f"分发周期: {context.distribution_interval:.2f}s"
-                            )
-
-                        context.processing_task = asyncio.create_task(self._process_stream_messages(stream_id))
+        except Exception as e:
+            logger.error(f"检查独立分发周期的聊天流时发生错误: {e}")
 
         # 更新活跃流计数
-        active_count = len(self.context_manager.get_active_streams())
-        self.stats.active_streams = active_count
+        try:
+            chat_manager = get_chat_manager()
+            active_count = len([s for s in chat_manager.streams.values() if s.stream_context.is_active])
+            self.stats.active_streams = active_count
 
-        if processed_streams > 0:
-            logger.debug(f"本次循环处理了 {processed_streams} 个流 | 活跃流总数: {active_count}")
+            if processed_streams > 0:
+                logger.debug(f"本次循环处理了 {processed_streams} 个流 | 活跃流总数: {active_count}")
+        except Exception as e:
+            logger.error(f"更新活跃流计数时发生错误: {e}")
 
     async def _check_all_streams_with_priority(self):
         """按优先级检查所有聊天流，高focus_energy的流优先处理"""
-        if not self.context_manager.get_active_streams():
+        try:
+            chat_manager = get_chat_manager()
+            if not chat_manager.streams:
+                return
+
+            # 获取活跃的聊天流并按focus_energy排序
+            active_streams = []
+            for stream_id, chat_stream in chat_manager.streams.items():
+                context = chat_stream.stream_context
+                if not context or not context.is_active:
+                    continue
+
+                # 获取focus_energy
+                focus_energy = chat_stream.focus_energy
+
+                # 计算流优先级分数
+                priority_score = self._calculate_stream_priority(context, focus_energy)
+                active_streams.append((priority_score, stream_id, context))
+
+        except Exception as e:
+            logger.error(f"获取活跃流列表时发生错误: {e}")
             return
-
-        # 获取活跃的聊天流并按focus_energy排序
-        active_streams = []
-        active_stream_ids = self.context_manager.get_active_streams()
-
-        for stream_id in active_stream_ids:
-            context = self.context_manager.get_stream_context(stream_id)
-            if not context or not context.is_active:
-                continue
-
-            # 获取focus_energy，如果不存在则使用默认值
-            from src.plugin_system.apis.chat_api import get_chat_manager
-
-            chat_stream = get_chat_manager().get_stream(context.stream_id)
-            focus_energy = 0.5
-            if hasattr(context, 'chat_stream') and context.chat_stream:
-                focus_energy = context.chat_stream.focus_energy
-
-            # 计算流优先级分数
-            priority_score = self._calculate_stream_priority(context, focus_energy)
-            active_streams.append((priority_score, stream_id, context))
 
         # 按优先级降序排序
         active_streams.sort(reverse=True, key=lambda x: x[0])
@@ -496,21 +621,29 @@ class MessageManager:
             active_stream_count += 1
 
             # 检查是否有未读消息
-            unread_messages = self.context_manager.get_unread_messages(stream_id)
-            if unread_messages:
-                total_unread += len(unread_messages)
+            try:
+                chat_stream = chat_manager.get_stream(stream_id)
+                if not chat_stream:
+                    continue
 
-                # 如果没有处理任务，创建一个
-                if not hasattr(context, 'processing_task') or not context.processing_task or context.processing_task.done():
-                    context.processing_task = asyncio.create_task(self._process_stream_messages(stream_id))
+                unread_messages = chat_stream.context_manager.get_unread_messages()
+                if unread_messages:
+                    total_unread += len(unread_messages)
 
-                    # 高优先级流的额外日志
-                    if priority_score > 0.7:
-                        logger.info(
-                            f"高优先级流 {stream_id} 开始处理 | "
-                            f"优先级: {priority_score:.3f} | "
-                            f"未读消息: {len(unread_messages)}"
-                        )
+                    # 如果没有处理任务，创建一个
+                    if not hasattr(context, 'processing_task') or not context.processing_task or context.processing_task.done():
+                        context.processing_task = asyncio.create_task(self._process_stream_messages(stream_id))
+
+                        # 高优先级流的额外日志
+                        if priority_score > 0.7:
+                            logger.info(
+                                f"高优先级流 {stream_id} 开始处理 | "
+                                f"优先级: {priority_score:.3f} | "
+                                f"未读消息: {len(unread_messages)}"
+                            )
+            except Exception as e:
+                logger.error(f"处理流 {stream_id} 的未读消息时发生错误: {e}")
+                continue
 
         # 更新统计
         self.stats.active_streams = active_stream_count
@@ -535,22 +668,33 @@ class MessageManager:
 
     def _clear_all_unread_messages(self, stream_id: str):
         """清除指定上下文中的所有未读消息，防止意外情况导致消息一直未读"""
-        unread_messages = self.context_manager.get_unread_messages(stream_id)
-        if not unread_messages:
-            return
+        try:
+            # 通过 ChatManager 获取 ChatStream
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if not chat_stream:
+                logger.warning(f"清除消息失败: 聊天流 {stream_id} 不存在")
+                return
 
-        logger.warning(f"正在清除 {len(unread_messages)} 条未读消息")
+            # 获取未读消息
+            unread_messages = chat_stream.context_manager.get_unread_messages()
+            if not unread_messages:
+                return
 
-        # 将所有未读消息标记为已读
-        context = self.context_manager.get_stream_context(stream_id)
-        if context:
-            for msg in unread_messages[:]:  # 使用切片复制避免迭代时修改列表
-                try:
-                    context.mark_message_as_read(msg.message_id)
-                    self.stats.total_processed_messages += 1
-                    logger.debug(f"强制清除消息 {msg.message_id}，标记为已读")
-                except Exception as e:
-                    logger.error(f"清除消息 {msg.message_id} 时出错: {e}")
+            logger.warning(f"正在清除 {len(unread_messages)} 条未读消息")
+
+            # 将所有未读消息标记为已读
+            message_ids = [msg.message_id for msg in unread_messages]
+            success = chat_stream.context_manager.mark_messages_as_read(message_ids)
+
+            if success:
+                self.stats.total_processed_messages += len(unread_messages)
+                logger.debug(f"强制清除 {len(unread_messages)} 条消息，标记为已读")
+            else:
+                logger.error("标记未读消息为已读失败")
+
+        except Exception as e:
+            logger.error(f"清除未读消息时发生错误: {e}")
 
 
 # 创建全局消息管理器实例

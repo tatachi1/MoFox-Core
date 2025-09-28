@@ -122,7 +122,7 @@ async def get_random(count: Optional[int] = 1) -> List[Tuple[str, str, str]]:
             matched_emotion = random.choice(selected_emoji.emotion) if selected_emoji.emotion else "随机表情"
 
             # 记录使用次数
-            emoji_manager.record_usage(selected_emoji.hash)
+            await emoji_manager.record_usage(selected_emoji.hash)
             results.append((emoji_base64, selected_emoji.description, matched_emotion))
 
         if not results and count > 0:
@@ -180,7 +180,7 @@ async def get_by_emotion(emotion: str) -> Optional[Tuple[str, str, str]]:
             return None
 
         # 记录使用次数
-        emoji_manager.record_usage(selected_emoji.hash)
+        await emoji_manager.record_usage(selected_emoji.hash)
 
         logger.info(f"[EmojiAPI] 成功获取情感表情包: {selected_emoji.description}")
         return emoji_base64, selected_emoji.description, emotion

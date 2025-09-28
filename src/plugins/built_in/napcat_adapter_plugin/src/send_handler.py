@@ -76,7 +76,7 @@ class SendHandler:
                 processed_message = await self.handle_seg_recursive(message_segment, user_info)
         except Exception as e:
             logger.error(f"处理消息时发生错误: {e}")
-            return None
+            return
 
         if not processed_message:
             logger.critical("现在暂时不支持解析此回复！")
@@ -94,7 +94,7 @@ class SendHandler:
             id_name = "user_id"
         else:
             logger.error("无法识别的消息类型")
-            return None
+            return
         logger.info("尝试发送到napcat")
         logger.debug(f"准备发送到napcat的消息体: action='{action}', {id_name}='{target_id}', message='{processed_message}'")
         response = await self.send_message_to_napcat(
@@ -108,10 +108,8 @@ class SendHandler:
             logger.info("消息发送成功")
             qq_message_id = response.get("data", {}).get("message_id")
             await self.message_sent_back(raw_message_base, qq_message_id)
-            return None
         else:
             logger.warning(f"消息发送失败，napcat返回：{str(response)}")
-            return None
 
     async def send_command(self, raw_message_base: MessageBase) -> None:
         """
@@ -149,7 +147,7 @@ class SendHandler:
                     command, args_dict = self.handle_send_like_command(args)
                 case _:
                     logger.error(f"未知命令: {command_name}")
-                    return None
+                    return
         except Exception as e:
             logger.error(f"处理命令时发生错误: {e}")
             return None
@@ -161,10 +159,8 @@ class SendHandler:
         response = await self.send_message_to_napcat(command, args_dict)
         if response.get("status") == "ok":
             logger.info(f"命令 {command_name} 执行成功")
-            return None
         else:
             logger.warning(f"命令 {command_name} 执行失败，napcat返回：{str(response)}")
-            return None
 
     async def handle_adapter_command(self, raw_message_base: MessageBase) -> None:
         """
@@ -272,8 +268,7 @@ class SendHandler:
             new_payload = self.build_payload(payload, self.handle_file_message(file_path), False)
         return new_payload
 
-    @staticmethod
-    def build_payload(payload: list, addon: dict | list, is_reply: bool = False) -> list:
+    def build_payload(self, payload: list, addon: dict | list, is_reply: bool = False) -> list:
         # sourcery skip: for-append-to-extend, merge-list-append, simplify-generator
         """构建发送的消息体"""
         if is_reply:
@@ -339,13 +334,11 @@ class SendHandler:
         logger.info(f"最终返回的回复段: {reply_seg}")
         return reply_seg
 
-    @staticmethod
-    def handle_text_message(message: str) -> dict:
+    def handle_text_message(self, message: str) -> dict:
         """处理文本消息"""
         return {"type": "text", "data": {"text": message}}
 
-    @staticmethod
-    def handle_image_message(encoded_image: str) -> dict:
+    def handle_image_message(self, encoded_image: str) -> dict:
         """处理图片消息"""
         return {
             "type": "image",
@@ -355,8 +348,7 @@ class SendHandler:
             },
         }  # base64 编码的图片
 
-    @staticmethod
-    def handle_emoji_message(encoded_emoji: str) -> dict:
+    def handle_emoji_message(self, encoded_emoji: str) -> dict:
         """处理表情消息"""
         encoded_image = encoded_emoji
         image_format = get_image_format(encoded_emoji)
@@ -387,45 +379,39 @@ class SendHandler:
             "data": {"file": f"base64://{encoded_voice}"},
         }
 
-    @staticmethod
-    def handle_voiceurl_message(voice_url: str) -> dict:
+    def handle_voiceurl_message(self, voice_url: str) -> dict:
         """处理语音链接消息"""
         return {
             "type": "record",
             "data": {"file": voice_url},
         }
 
-    @staticmethod
-    def handle_music_message(song_id: str) -> dict:
+    def handle_music_message(self, song_id: str) -> dict:
         """处理音乐消息"""
         return {
             "type": "music",
             "data": {"type": "163", "id": song_id},
         }
 
-    @staticmethod
-    def handle_videourl_message(video_url: str) -> dict:
+    def handle_videourl_message(self, video_url: str) -> dict:
         """处理视频链接消息"""
         return {
             "type": "video",
             "data": {"file": video_url},
         }
 
-    @staticmethod
-    def handle_file_message(file_path: str) -> dict:
+    def handle_file_message(self, file_path: str) -> dict:
         """处理文件消息"""
         return {
             "type": "file",
             "data": {"file": f"file://{file_path}"},
         }
 
-    @staticmethod
-    def delete_msg_command(args: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def delete_msg_command(self, args: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         """处理删除消息命令"""
         return "delete_msg", {"message_id": args["message_id"]}
 
-    @staticmethod
-    def handle_ban_command(args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
+    def handle_ban_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
         """处理封禁命令
 
         Args:
@@ -453,8 +439,7 @@ class SendHandler:
             },
         )
 
-    @staticmethod
-    def handle_whole_ban_command(args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
+    def handle_whole_ban_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
         """处理全体禁言命令
 
         Args:
@@ -477,8 +462,7 @@ class SendHandler:
             },
         )
 
-    @staticmethod
-    def handle_kick_command(args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
+    def handle_kick_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
         """处理群成员踢出命令
 
         Args:
@@ -503,8 +487,7 @@ class SendHandler:
             },
         )
 
-    @staticmethod
-    def handle_poke_command(args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
+    def handle_poke_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
         """处理戳一戳命令
 
         Args:
@@ -531,8 +514,7 @@ class SendHandler:
             },
         )
 
-    @staticmethod
-    def handle_set_emoji_like_command(args: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def handle_set_emoji_like_command(self, args: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         """处理设置表情回应命令
 
         Args:
@@ -554,8 +536,7 @@ class SendHandler:
             {"message_id": message_id, "emoji_id": emoji_id, "set": set_like},
         )
 
-    @staticmethod
-    def handle_send_like_command(args: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def handle_send_like_command(self, args: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         """
         处理发送点赞命令的逻辑。
 
@@ -576,8 +557,7 @@ class SendHandler:
             {"user_id": user_id, "times": times},
         )
 
-    @staticmethod
-    def handle_ai_voice_send_command(args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
+    def handle_ai_voice_send_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
         """
         处理AI语音发送命令的逻辑。
         并返回 NapCat 兼容的 (action, params) 元组。
@@ -624,8 +604,7 @@ class SendHandler:
             return {"status": "error", "message": str(e)}
         return response
 
-    @staticmethod
-    async def message_sent_back(message_base: MessageBase, qq_message_id: str) -> None:
+    async def message_sent_back(self, message_base: MessageBase, qq_message_id: str) -> None:
         # 修改 additional_config，添加 echo 字段
         if message_base.message_info.additional_config is None:
             message_base.message_info.additional_config = {}
@@ -643,9 +622,8 @@ class SendHandler:
         logger.debug("已回送消息ID")
         return
 
-    @staticmethod
     async def send_adapter_command_response(
-            original_message: MessageBase, response_data: dict, request_id: str
+        self, original_message: MessageBase, response_data: dict, request_id: str
     ) -> None:
         """
         发送适配器命令响应回MaiBot
@@ -674,8 +652,7 @@ class SendHandler:
         except Exception as e:
             logger.error(f"发送适配器命令响应时出错: {e}")
 
-    @staticmethod
-    def handle_at_message_command(args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
+    def handle_at_message_command(self, args: Dict[str, Any], group_info: GroupInfo) -> Tuple[str, Dict[str, Any]]:
         """处理艾特并发送消息命令
 
         Args:

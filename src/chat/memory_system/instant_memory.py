@@ -108,7 +108,7 @@ class InstantMemory:
 
     @staticmethod
     async def store_memory(memory_item: MemoryItem):
-        with get_db_session() as session:
+        async with get_db_session() as session:
             memory = Memory(
                 memory_id=memory_item.memory_id,
                 chat_id=memory_item.chat_id,
@@ -161,20 +161,21 @@ class InstantMemory:
                 logger.info(f"start_time: {start_time}, end_time: {end_time}")
                 # 检索包含关键词的记忆
                 memories_set = set()
-                with get_db_session() as session:
+                async with get_db_session() as session:
                     if start_time and end_time:
                         start_ts = start_time.timestamp()
                         end_ts = end_time.timestamp()
 
-                        query = session.execute(
+                        query = (await session.execute(
                             select(Memory).where(
                                 (Memory.chat_id == self.chat_id)
                                 & (Memory.create_time >= start_ts)
                                 & (Memory.create_time < end_ts)
                             )
-                        ).scalars()
+                        )).scalars()
                     else:
-                        query = session.execute(select(Memory).where(Memory.chat_id == self.chat_id)).scalars()
+                        query = result = await session.execute(select(Memory).where(Memory.chat_id == self.chat_id))
+                        result.scalars()
                 for mem in query:
                     # 对每条记忆
                     mem_keywords_str = mem.keywords or "[]"

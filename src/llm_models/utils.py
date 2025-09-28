@@ -172,7 +172,7 @@ class LLMUsageRecorder:
                     prompt_tokens=model_usage.prompt_tokens or 0,
                     completion_tokens=model_usage.completion_tokens or 0,
                     total_tokens=model_usage.total_tokens or 0,
-                    cost=total_cost or 0.0,
+                    cost=1.0,
                     time_cost=round(time_cost or 0.0, 3),
                     status="success",
                     timestamp=datetime.now(),  # SQLAlchemy 会处理 DateTime 字段

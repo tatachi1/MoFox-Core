@@ -164,12 +164,13 @@ class MessageStorage:
                 logger.debug(f"消息段数据: {message.message_segment.data}")
                 return
 
+            # 使用上下文管理器确保session正确管理
+            from src.common.database.sqlalchemy_models import get_db_session
+
             async with get_db_session() as session:
-                matched_message = (
-                    await session.execute(
-                        select(Messages).where(Messages.message_id == mmc_message_id).order_by(desc(Messages.time))
-                    )
-                ).scalar()
+                matched_message = (await session.execute(
+                    select(Messages).where(Messages.message_id == mmc_message_id).order_by(desc(Messages.time))
+                )).scalar()
 
                 if matched_message:
                     await session.execute(
@@ -186,6 +187,7 @@ class MessageStorage:
                 f"segment_type={getattr(message.message_segment, 'type', 'N/A')}"
             )
 
+    @staticmethod
     async def replace_image_descriptions(text: str) -> str:
         """将[图片：描述]替换为[picid:image_id]"""
         # 先检查文本中是否有图片标记
@@ -196,20 +198,15 @@ class MessageStorage:
             logger.debug("文本中没有图片标记，直接返回原文本")
             return text
 
-        new_text = ""
-        last_end = 0
-        for match in matches:
-            new_text += text[last_end : match.start()]
+        async def replace_match(match):
             description = match.group(1).strip()
             try:
                 from src.common.database.sqlalchemy_models import get_db_session
 
                 async with get_db_session() as session:
-                    image_record = (
-                        await session.execute(
-                            select(Images).where(Images.description == description).order_by(desc(Images.timestamp))
-                        )
-                    ).scalar()
+                    image_record = (await session.execute(
+                        select(Images).where(Images.description == description).order_by(desc(Images.timestamp))
+                    )).scalar()
                     return f"[picid:{image_record.image_id}]" if image_record else match.group(0)
             except Exception:
                 return match.group(0)
@@ -267,7 +264,8 @@ class MessageStorage:
                     )
                 ).limit(50)  # 限制每次修复的数量，避免性能问题
 
-                messages_to_fix = session.execute(query).scalars().all()
+                result = session.execute(query)
+                messages_to_fix = result.scalars().all()
                 fixed_count = 0
 
                 for msg in messages_to_fix:

@@ -112,8 +112,7 @@ class MessageChunker:
             else:
                 return [{"_original_message": message}]
 
-    @staticmethod
-    def is_chunk_message(message: Union[str, Dict[str, Any]]) -> bool:
+    def is_chunk_message(self, message: Union[str, Dict[str, Any]]) -> bool:
         """判断是否是切片消息"""
         try:
             if isinstance(message, str):

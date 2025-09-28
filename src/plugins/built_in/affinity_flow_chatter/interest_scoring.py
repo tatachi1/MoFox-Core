@@ -69,7 +69,7 @@ class ChatterInterestScoringSystem:
 
         keywords = self._extract_keywords_from_database(message)
         interest_match_score = await self._calculate_interest_match_score(message.processed_plain_text, keywords)
-        relationship_score = self._calculate_relationship_score(message.user_info.user_id)
+        relationship_score = await self._calculate_relationship_score(message.user_info.user_id)
         mentioned_score = self._calculate_mentioned_score(message, bot_nickname)
 
         total_score = (
@@ -189,7 +189,7 @@ class ChatterInterestScoringSystem:
         unique_keywords = list(set(keywords))
         return unique_keywords[:10]  # 返回前10个唯一关键词
 
-    def _calculate_relationship_score(self, user_id: str) -> float:
+    async def _calculate_relationship_score(self, user_id: str) -> float:
         """计算关系分 - 从数据库获取关系分"""
         # 优先使用内存中的关系分
         if user_id in self.user_relationships:
@@ -212,7 +212,7 @@ class ChatterInterestScoringSystem:
 
                 global_tracker = ChatterRelationshipTracker()
                 if global_tracker:
-                    relationship_score = global_tracker.get_user_relationship_score(user_id)
+                    relationship_score = await global_tracker.get_user_relationship_score(user_id)
                     # 同时更新内存缓存
                     self.user_relationships[user_id] = relationship_score
                     return relationship_score

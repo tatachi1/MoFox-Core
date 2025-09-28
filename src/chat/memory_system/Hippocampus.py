@@ -970,7 +970,8 @@ class EntorhinalCortex:
 
         # 获取数据库中所有节点和内存中所有节点
         async with get_db_session() as session:
-            db_nodes = {node.concept: node for node in (await session.execute(select(GraphNodes))).scalars()}
+            result = await session.execute(select(GraphNodes))
+            db_nodes = {node.concept: node for node in result.scalars()}
             memory_nodes = list(self.memory_graph.G.nodes(data=True))
 
             # 批量准备节点数据
@@ -1067,7 +1068,8 @@ class EntorhinalCortex:
                 await session.execute(delete(GraphNodes).where(GraphNodes.concept.in_(nodes_to_delete)))
 
             # 处理边的信息
-            db_edges = list((await session.execute(select(GraphEdges))).scalars())
+            result = await session.execute(select(GraphEdges))
+            db_edges = list(result.scalars())
             memory_edges = list(self.memory_graph.G.edges(data=True))
 
             # 创建边的哈希值字典
@@ -1251,7 +1253,8 @@ class EntorhinalCortex:
 
         # 从数据库加载所有节点
         async with get_db_session() as session:
-            nodes = list((await session.execute(select(GraphNodes))).scalars())
+            result = await session.execute(select(GraphNodes))
+            nodes = list(result.scalars())
             for node in nodes:
                 concept = node.concept
                 try:
@@ -1286,7 +1289,8 @@ class EntorhinalCortex:
                     continue
 
             # 从数据库加载所有边
-            edges = list((await session.execute(select(GraphEdges))).scalars())
+            result = await session.execute(select(GraphEdges))
+            edges = list(result.scalars())
             for edge in edges:
                 source = edge.source
                 target = edge.target

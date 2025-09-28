@@ -185,12 +185,12 @@ class MaiBotMain(BaseMain):
         check_eula()
         logger.info("检查EULA和隐私条款完成")
 
-    def initialize_database(self):
+    async def initialize_database(self):
         """初始化数据库"""
 
         logger.info("正在初始化数据库连接...")
         try:
-            initialize_sql_database(global_config.database)
+            await initialize_sql_database(global_config.database)
             logger.info(f"数据库连接初始化成功，使用 {global_config.database.database_type} 数据库")
         except Exception as e:
             logger.error(f"数据库连接初始化失败: {e}")
@@ -211,11 +211,11 @@ class MaiBotMain(BaseMain):
         self.main_system = MainSystem()
         return self.main_system
 
-    def run(self):
+    async def run(self):
         """运行主程序"""
         self.setup_timezone()
         self.check_and_confirm_eula()
-        self.initialize_database()
+        await self.initialize_database()
 
         return self.create_main_system()
 
@@ -225,14 +225,14 @@ if __name__ == "__main__":
     try:
         # 创建MaiBotMain实例并获取MainSystem
         maibot = MaiBotMain()
-        main_system = maibot.run()
 
         # 创建事件循环
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
         try:
-            # 异步初始化数据库表结构
+            # 异步初始化数据库和表结构
+            main_system = loop.run_until_complete(maibot.run())
             loop.run_until_complete(maibot.initialize_database_async())
             # 执行初始化和任务调度
             loop.run_until_complete(main_system.initialize())
@@ -269,3 +269,4 @@ if __name__ == "__main__":
         # 在程序退出前暂停，让你有机会看到输出
         # input("按 Enter 键退出...")  # <--- 添加这行
         sys.exit(exit_code)  # <--- 使用记录的退出码
+    

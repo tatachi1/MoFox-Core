@@ -8,6 +8,8 @@
 import datetime
 from typing import Optional, Tuple
 
+from sqlalchemy import select
+
 from src.common.logger import get_logger
 from src.common.database.sqlalchemy_models import BanUser, get_db_session
 from ..types import DetectionResult
@@ -37,8 +39,9 @@ class UserBanManager:
             如果用户被封禁则返回拒绝结果，否则返回None
         """
         try:
-            with get_db_session() as session:
-                ban_record = session.query(BanUser).filter_by(user_id=user_id, platform=platform).first()
+            async with get_db_session() as session:
+                result = await session.execute(select(BanUser).filter_by(user_id=user_id, platform=platform))
+                ban_record = result.scalar_one_or_none()
 
                 if ban_record:
                     # 只有违规次数达到阈值时才算被封禁
@@ -70,9 +73,10 @@ class UserBanManager:
             detection_result: 检测结果
         """
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 查找或创建违规记录
-                ban_record = session.query(BanUser).filter_by(user_id=user_id, platform=platform).first()
+                result = await session.execute(select(BanUser).filter_by(user_id=user_id, platform=platform))
+                ban_record = result.scalar_one_or_none()
 
                 if ban_record:
                     ban_record.violation_num += 1

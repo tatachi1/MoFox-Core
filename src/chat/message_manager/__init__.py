@@ -4,7 +4,7 @@
 """
 
 from .message_manager import MessageManager, message_manager
-from .context_manager import StreamContextManager, context_manager
+from .context_manager import SingleStreamContextManager
 from .distribution_manager import (
     DistributionManager,
     DistributionPriority,
@@ -16,8 +16,7 @@ from .distribution_manager import (
 __all__ = [
     "MessageManager",
     "message_manager",
-    "StreamContextManager",
-    "context_manager",
+    "SingleStreamContextManager",
     "DistributionManager",
     "DistributionPriority",
     "DistributionTask",

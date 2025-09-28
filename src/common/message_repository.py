@@ -101,7 +101,8 @@ async def find_messages(
                     # 获取时间最早的 limit 条记录，已经是正序
                     query = query.order_by(Messages.time.asc()).limit(limit)
                     try:
-                        results = (await session.execute(query)).scalars().all()
+                        results = result = session.execute(query)
+                        result.scalars().all()
                     except Exception as e:
                         logger.error(f"执行earliest查询失败: {e}")
                         results = []
@@ -109,7 +110,8 @@ async def find_messages(
                     # 获取时间最晚的 limit 条记录
                     query = query.order_by(Messages.time.desc()).limit(limit)
                     try:
-                        latest_results = (await session.execute(query)).scalars().all()
+                        latest_results = result = session.execute(query)
+                        result.scalars().all()
                         # 将结果按时间正序排列
                         results = sorted(latest_results, key=lambda msg: msg.time)
                     except Exception as e:
@@ -133,7 +135,8 @@ async def find_messages(
                     if sort_terms:
                         query = query.order_by(*sort_terms)
                 try:
-                    results = (await session.execute(query)).scalars().all()
+                    results = result = session.execute(query)
+                    result.scalars().all()
                 except Exception as e:
                     logger.error(f"执行无限制查询失败: {e}")
                     results = []
@@ -207,5 +210,5 @@ async def count_messages(message_filter: dict[str, Any]) -> int:
 
 
 # 你可以在这里添加更多与 messages 集合相关的数据库操作函数，例如 find_one_message, insert_message 等。
-# 注意：对于 SQLAlchemy，插入操作通常是使用 session.add() 和 await session.commit()。
+# 注意：对于 SQLAlchemy，插入操作通常是使用 await session.add() 和 await session.commit()。
 # 查找单个消息可以使用 session.execute(select(Messages).where(...)).scalar_one_or_none()。

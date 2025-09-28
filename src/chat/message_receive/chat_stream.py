@@ -49,8 +49,16 @@ class ChatStream:
         from src.common.data_models.message_manager_data_model import StreamContext
         from src.plugin_system.base.component_types import ChatType, ChatMode
 
+        # 创建StreamContext
         self.stream_context: StreamContext = StreamContext(
             stream_id=stream_id, chat_type=ChatType.GROUP if group_info else ChatType.PRIVATE, chat_mode=ChatMode.NORMAL
+        )
+
+        # 创建单流上下文管理器
+        from src.chat.message_manager.context_manager import SingleStreamContextManager
+
+        self.context_manager: SingleStreamContextManager = SingleStreamContextManager(
+            stream_id=stream_id, context=self.stream_context
         )
 
         # 基础参数
@@ -60,6 +68,37 @@ class ChatStream:
 
         # 自动加载历史消息
         self._load_history_messages()
+
+    def __deepcopy__(self, memo):
+        """自定义深拷贝方法，避免复制不可序列化的 asyncio.Task 对象"""
+        import copy
+
+        # 创建新的实例
+        new_stream = ChatStream(
+            stream_id=self.stream_id,
+            platform=self.platform,
+            user_info=copy.deepcopy(self.user_info, memo),
+            group_info=copy.deepcopy(self.group_info, memo),
+        )
+
+        # 复制基本属性
+        new_stream.create_time = self.create_time
+        new_stream.last_active_time = self.last_active_time
+        new_stream.sleep_pressure = self.sleep_pressure
+        new_stream.saved = self.saved
+        new_stream.base_interest_energy = self.base_interest_energy
+        new_stream._focus_energy = self._focus_energy
+        new_stream.no_reply_consecutive = self.no_reply_consecutive
+
+        # 复制 stream_context，但跳过 processing_task
+        new_stream.stream_context = copy.deepcopy(self.stream_context, memo)
+        if hasattr(new_stream.stream_context, 'processing_task'):
+            new_stream.stream_context.processing_task = None
+
+        # 复制 context_manager
+        new_stream.context_manager = copy.deepcopy(self.context_manager, memo)
+
+        return new_stream
 
     def to_dict(self) -> dict:
         """转换为字典格式"""
@@ -74,10 +113,10 @@ class ChatStream:
             "focus_energy": self.focus_energy,
             # 基础兴趣度
             "base_interest_energy": self.base_interest_energy,
-            # 新增stream_context信息
+            # stream_context基本信息
             "stream_context_chat_type": self.stream_context.chat_type.value,
             "stream_context_chat_mode": self.stream_context.chat_mode.value,
-            # 新增interruption_count信息
+            # 统计信息
             "interruption_count": self.stream_context.interruption_count,
         }
 
@@ -108,6 +147,14 @@ class ChatStream:
         # 恢复interruption_count信息
         if "interruption_count" in data:
             instance.stream_context.interruption_count = data["interruption_count"]
+
+        # 确保 context_manager 已初始化
+        if not hasattr(instance, "context_manager"):
+            from src.chat.message_manager.context_manager import SingleStreamContextManager
+
+            instance.context_manager = SingleStreamContextManager(
+                stream_id=instance.stream_id, context=instance.stream_context
+            )
 
         return instance
 
@@ -195,12 +242,14 @@ class ChatStream:
         self.stream_context.priority_info = getattr(message, "priority_info", None)
 
         # 调试日志：记录数据转移情况
-        logger.debug(f"消息数据转移完成 - message_id: {db_message.message_id}, "
-                    f"chat_id: {db_message.chat_id}, "
-                    f"is_mentioned: {db_message.is_mentioned}, "
-                    f"is_emoji: {db_message.is_emoji}, "
-                    f"is_picid: {db_message.is_picid}, "
-                    f"interest_value: {db_message.interest_value}")
+        logger.debug(
+            f"消息数据转移完成 - message_id: {db_message.message_id}, "
+            f"chat_id: {db_message.chat_id}, "
+            f"is_mentioned: {db_message.is_mentioned}, "
+            f"is_emoji: {db_message.is_emoji}, "
+            f"is_picid: {db_message.is_picid}, "
+            f"interest_value: {db_message.interest_value}"
+        )
 
     def _safe_get_actions(self, message: "MessageRecv") -> Optional[list]:
         """安全获取消息的actions字段"""
@@ -213,6 +262,7 @@ class ChatStream:
             if isinstance(actions, str):
                 try:
                     import json
+
                     actions = json.loads(actions)
                 except json.JSONDecodeError:
                     logger.warning(f"无法解析actions JSON字符串: {actions}")
@@ -269,14 +319,17 @@ class ChatStream:
 
     @property
     def focus_energy(self) -> float:
-        """使用重构后的能量管理器计算focus_energy"""
-        try:
-            from src.chat.energy_system import energy_manager
+        """获取缓存的focus_energy值"""
+        if hasattr(self, "_focus_energy"):
+            return self._focus_energy
+        else:
+            return 0.5
 
-            # 获取所有消息
-            history_messages = self.stream_context.get_history_messages(limit=global_config.chat.max_context_size)
-            unread_messages = self.stream_context.get_unread_messages()
-            all_messages = history_messages + unread_messages
+    async def calculate_focus_energy(self) -> float:
+        """异步计算focus_energy"""
+        try:
+            # 使用单流上下文管理器获取消息
+            all_messages = self.context_manager.get_messages(limit=global_config.chat.max_context_size)
 
             # 获取用户ID
             user_id = None
@@ -284,10 +337,10 @@ class ChatStream:
                 user_id = str(self.user_info.user_id)
 
             # 使用能量管理器计算
-            energy = energy_manager.calculate_focus_energy(
-                stream_id=self.stream_id,
-                messages=all_messages,
-                user_id=user_id
+            from src.chat.energy_system import energy_manager
+
+            energy = await energy_manager.calculate_focus_energy(
+                stream_id=self.stream_id, messages=all_messages, user_id=user_id
             )
 
             # 更新内部存储
@@ -299,7 +352,7 @@ class ChatStream:
         except Exception as e:
             logger.error(f"获取focus_energy失败: {e}", exc_info=True)
             # 返回缓存的值或默认值
-            if hasattr(self, '_focus_energy'):
+            if hasattr(self, "_focus_energy"):
                 return self._focus_energy
             else:
                 return 0.5
@@ -309,7 +362,7 @@ class ChatStream:
         """设置focus_energy值（主要用于初始化或特殊场景）"""
         self._focus_energy = max(0.0, min(1.0, value))
 
-    def _get_user_relationship_score(self) -> float:
+    async def _get_user_relationship_score(self) -> float:
         """获取用户关系分"""
         # 使用插件内部的兴趣度评分系统
         try:
@@ -317,7 +370,7 @@ class ChatStream:
 
             if self.user_info and hasattr(self.user_info, "user_id"):
                 user_id = str(self.user_info.user_id)
-                relationship_score = chatter_interest_scoring_system._calculate_relationship_score(user_id)
+                relationship_score = await chatter_interest_scoring_system._calculate_relationship_score(user_id)
                 logger.debug(f"ChatStream {self.stream_id}: 用户关系分 = {relationship_score:.3f}")
                 return max(0.0, min(1.0, relationship_score))
 
@@ -346,7 +399,8 @@ class ChatStream:
                             .order_by(desc(Messages.time))
                             .limit(global_config.chat.max_context_size)
                         )
-                        results = session.execute(stmt).scalars().all()
+                        result = session.execute(stmt)
+                        results = result.scalars().all()
                         return results
 
                 # 在线程中执行数据库查询
@@ -404,7 +458,9 @@ class ChatStream:
                         )
 
                         # 添加调试日志：检查从数据库加载的interest_value
-                        logger.debug(f"加载历史消息 {db_message.message_id} - interest_value: {db_message.interest_value}")
+                        logger.debug(
+                            f"加载历史消息 {db_message.message_id} - interest_value: {db_message.interest_value}"
+                        )
 
                         # 标记为已读并添加到历史消息
                         db_message.is_read = True
@@ -548,7 +604,11 @@ class ChatManager:
             # 检查数据库中是否存在
             async def _db_find_stream_async(s_id: str):
                 async with get_db_session() as session:
-                    return (await session.execute(select(ChatStreams).where(ChatStreams.stream_id == s_id))).scalars().first()
+                    return (
+                        (await session.execute(select(ChatStreams).where(ChatStreams.stream_id == s_id)))
+                        .scalars()
+                        .first()
+                    )
 
             model_instance = await _db_find_stream_async(stream_id)
 
@@ -603,6 +663,15 @@ class ChatManager:
             stream.set_context(self.last_messages[stream_id])
         else:
             logger.error(f"聊天流 {stream_id} 不在最后消息列表中，可能是新创建的")
+
+        # 确保 ChatStream 有自己的 context_manager
+        if not hasattr(stream, "context_manager"):
+            # 创建新的单流上下文管理器
+            from src.chat.message_manager.context_manager import SingleStreamContextManager
+            stream.context_manager = SingleStreamContextManager(
+                stream_id=stream_id, context=stream.stream_context
+            )
+
         # 保存到内存和数据库
         self.streams[stream_id] = stream
         await self._save_stream(stream)
@@ -704,7 +773,8 @@ class ChatManager:
         async def _db_load_all_streams_async():
             loaded_streams_data = []
             async with get_db_session() as session:
-                for model_instance in (await session.execute(select(ChatStreams))).scalars().all():
+                result = await session.execute(select(ChatStreams))
+                for model_instance in result.scalars().all():
                     user_info_data = {
                         "platform": model_instance.user_platform,
                         "user_id": model_instance.user_id,
@@ -752,6 +822,13 @@ class ChatManager:
                 self.streams[stream.stream_id] = stream
                 if stream.stream_id in self.last_messages:
                     stream.set_context(self.last_messages[stream.stream_id])
+
+                # 确保 ChatStream 有自己的 context_manager
+                if not hasattr(stream, "context_manager"):
+                    from src.chat.message_manager.context_manager import SingleStreamContextManager
+                    stream.context_manager = SingleStreamContextManager(
+                        stream_id=stream.stream_id, context=stream.stream_context
+                    )
         except Exception as e:
             logger.error(f"从数据库加载所有聊天流失败 (SQLAlchemy): {e}", exc_info=True)
 

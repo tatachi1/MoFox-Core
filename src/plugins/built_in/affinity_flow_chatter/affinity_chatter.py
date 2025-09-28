@@ -65,7 +65,7 @@ class AffinityChatter(BaseChatter):
         """
         try:
             # 触发表达学习
-            learner = expression_learner_manager.get_expression_learner(self.stream_id)
+            learner = await expression_learner_manager.get_expression_learner(self.stream_id)
             asyncio.create_task(learner.trigger_learning_for_chat())
 
             unread_messages = context.get_unread_messages()

@@ -198,7 +198,7 @@ class RecencyEnergyCalculator(EnergyCalculator):
 class RelationshipEnergyCalculator(EnergyCalculator):
     """关系能量计算器"""
 
-    def calculate(self, context: Dict[str, Any]) -> float:
+    async def calculate(self, context: Dict[str, Any]) -> float:
         """基于关系计算能量"""
         user_id = context.get("user_id")
         if not user_id:
@@ -208,7 +208,7 @@ class RelationshipEnergyCalculator(EnergyCalculator):
         try:
             from src.plugins.built_in.affinity_flow_chatter.interest_scoring import chatter_interest_scoring_system
 
-            relationship_score = chatter_interest_scoring_system._calculate_relationship_score(user_id)
+            relationship_score = await chatter_interest_scoring_system._calculate_relationship_score(user_id)
             logger.debug(f"使用插件内部系统计算关系分: {relationship_score:.3f}")
             return max(0.0, min(1.0, relationship_score))
 
@@ -273,7 +273,7 @@ class EnergyManager:
         except Exception as e:
             logger.warning(f"加载AFC阈值失败，使用默认值: {e}")
 
-    def calculate_focus_energy(self, stream_id: str, messages: List[Any], user_id: Optional[str] = None) -> float:
+    async def calculate_focus_energy(self, stream_id: str, messages: List[Any], user_id: Optional[str] = None) -> float:
         """计算聊天流的focus_energy"""
         start_time = time.time()
 
@@ -303,7 +303,16 @@ class EnergyManager:
 
         for calculator in self.calculators:
             try:
-                score = calculator.calculate(context)
+                # 支持同步和异步计算器
+                if callable(calculator.calculate):
+                    import inspect
+                    if inspect.iscoroutinefunction(calculator.calculate):
+                        score = await calculator.calculate(context)
+                    else:
+                        score = calculator.calculate(context)
+                else:
+                    score = calculator.calculate(context)
+
                 weight = calculator.get_weight()
 
                 component_scores[calculator.__class__.__name__] = score

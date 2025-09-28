@@ -8,6 +8,8 @@
 import datetime
 from typing import Dict, Any
 
+from sqlalchemy import select
+
 from src.common.logger import get_logger
 from src.common.database.sqlalchemy_models import AntiInjectionStats, get_db_session
 from src.config.config import global_config
@@ -27,9 +29,11 @@ class AntiInjectionStatistics:
     async def get_or_create_stats():
         """获取或创建统计记录"""
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 获取最新的统计记录，如果没有则创建
-                stats = session.query(AntiInjectionStats).order_by(AntiInjectionStats.id.desc()).first()
+                stats = (await session.execute(
+                    select(AntiInjectionStats).order_by(AntiInjectionStats.id.desc())
+                )).scalars().first()
                 if not stats:
                     stats = AntiInjectionStats()
                     session.add(stats)
@@ -44,8 +48,10 @@ class AntiInjectionStatistics:
     async def update_stats(**kwargs):
         """更新统计数据"""
         try:
-            with get_db_session() as session:
-                stats = session.query(AntiInjectionStats).order_by(AntiInjectionStats.id.desc()).first()
+            async with get_db_session() as session:
+                stats = (await session.execute(
+                    select(AntiInjectionStats).order_by(AntiInjectionStats.id.desc())
+                )).scalars().first()
                 if not stats:
                     stats = AntiInjectionStats()
                     session.add(stats)
@@ -53,7 +59,7 @@ class AntiInjectionStatistics:
                 # 更新统计字段
                 for key, value in kwargs.items():
                     if key == "processing_time_delta":
-                        # 处理时间累加 - 确保不为None
+                        # 处理 时间累加 - 确保不为None
                         if stats.processing_time_total is None:
                             stats.processing_time_total = 0.0
                         stats.processing_time_total += value
@@ -138,9 +144,9 @@ class AntiInjectionStatistics:
     async def reset_stats():
         """重置统计信息"""
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 删除现有统计记录
-                session.query(AntiInjectionStats).delete()
+                await session.execute(select(AntiInjectionStats).delete())
                 await session.commit()
                 logger.info("统计信息已重置")
         except Exception as e:
