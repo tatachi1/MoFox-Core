@@ -9,7 +9,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional, Any, Dict, AsyncGenerator
 
-from sqlalchemy import Column, String, Float, Integer, Boolean, Text, Index, DateTime
+from sqlalchemy import Column, String, Float, Integer, Boolean, Text, Index, DateTime, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapped, mapped_column
@@ -20,6 +20,66 @@ logger = get_logger("sqlalchemy_models")
 
 # 创建基类
 Base = declarative_base()
+
+
+async def enable_sqlite_wal_mode(engine):
+    """为 SQLite 启用 WAL 模式以提高并发性能"""
+    try:
+        async with engine.begin() as conn:
+            # 启用 WAL 模式
+            await conn.execute(text("PRAGMA journal_mode = WAL"))
+            # 设置适中的同步级别，平衡性能和安全性
+            await conn.execute(text("PRAGMA synchronous = NORMAL"))
+            # 启用外键约束
+            await conn.execute(text("PRAGMA foreign_keys = ON"))
+            # 设置 busy_timeout，避免锁定错误
+            await conn.execute(text("PRAGMA busy_timeout = 60000"))  # 60秒
+
+        logger.info("[SQLite] WAL 模式已启用，并发性能已优化")
+    except Exception as e:
+        logger.warning(f"[SQLite] 启用 WAL 模式失败: {e}，将使用默认配置")
+
+
+async def maintain_sqlite_database():
+    """定期维护 SQLite 数据库性能"""
+    try:
+        engine, SessionLocal = await initialize_database()
+        if not engine:
+            return
+
+        async with engine.begin() as conn:
+            # 检查并确保 WAL 模式仍然启用
+            result = await conn.execute(text("PRAGMA journal_mode"))
+            journal_mode = result.scalar()
+
+            if journal_mode != "wal":
+                await conn.execute(text("PRAGMA journal_mode = WAL"))
+                logger.info("[SQLite] WAL 模式已重新启用")
+
+            # 优化数据库性能
+            await conn.execute(text("PRAGMA synchronous = NORMAL"))
+            await conn.execute(text("PRAGMA busy_timeout = 60000"))
+            await conn.execute(text("PRAGMA foreign_keys = ON"))
+
+            # 定期清理（可选，根据需要启用）
+            # await conn.execute(text("PRAGMA optimize"))
+
+        logger.info("[SQLite] 数据库维护完成")
+    except Exception as e:
+        logger.warning(f"[SQLite] 数据库维护失败: {e}")
+
+
+def get_sqlite_performance_config():
+    """获取 SQLite 性能优化配置"""
+    return {
+        "journal_mode": "WAL",  # 提高并发性能
+        "synchronous": "NORMAL",  # 平衡性能和安全性
+        "busy_timeout": 60000,  # 60秒超时
+        "foreign_keys": "ON",  # 启用外键约束
+        "cache_size": -10000,  # 10MB 缓存
+        "temp_store": "MEMORY",  # 临时存储使用内存
+        "mmap_size": 268435456,  # 256MB 内存映射
+    }
 
 
 # MySQL兼容的字段类型辅助函数
@@ -679,7 +739,7 @@ async def initialize_database():
             {
                 "connect_args": {
                     "check_same_thread": False,
-                    "timeout": 30,
+                    "timeout": 60,  # 增加超时时间
                 },
             }
         )
@@ -691,6 +751,10 @@ async def initialize_database():
     from src.common.database.db_migration import check_and_migrate_database
 
     await check_and_migrate_database()
+
+    # 如果是 SQLite，启用 WAL 模式以提高并发性能
+    if config.database_type == "sqlite":
+        await enable_sqlite_wal_mode(_engine)
 
     logger.info(f"SQLAlchemy异步数据库初始化成功: {config.database_type}")
     return _engine, _SessionLocal
@@ -705,6 +769,16 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         if not SessionLocal:
             raise RuntimeError("Database session not initialized")
         session = SessionLocal()
+
+        # 对于 SQLite，在会话开始时设置 PRAGMA
+        from src.config.config import global_config
+        if global_config.database.database_type == "sqlite":
+            try:
+                await session.execute(text("PRAGMA busy_timeout = 60000"))
+                await session.execute(text("PRAGMA foreign_keys = ON"))
+            except Exception as e:
+                logger.warning(f"[SQLite] 设置会话 PRAGMA 失败: {e}")
+
         yield session
     except Exception as e:
         logger.error(f"数据库会话错误: {e}")

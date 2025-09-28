@@ -194,7 +194,7 @@ async def db_query(
                 # 首先获取要更新的记录
                 result = await session.execute(query)
                 records_to_update = result.scalars().all()
-                
+
                 # 更新每个记录
                 affected_rows = 0
                 for record in records_to_update:
@@ -202,7 +202,7 @@ async def db_query(
                         if hasattr(record, field):
                             setattr(record, field, value)
                     affected_rows += 1
-                
+
                 return affected_rows
 
             elif query_type == "delete":
@@ -217,13 +217,13 @@ async def db_query(
                 # 首先获取要删除的记录
                 result = await session.execute(query)
                 records_to_delete = result.scalars().all()
-                
+
                 # 删除记录
                 affected_rows = 0
                 for record in records_to_delete:
                     session.delete(record)
                     affected_rows += 1
-                
+
                 return affected_rows
 
             elif query_type == "count":
