@@ -261,7 +261,7 @@ class AntiPromptInjector:
                 logger.warning("无法删除消息：缺少message_id")
                 return
 
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 删除对应的消息记录
                 stmt = delete(Messages).where(Messages.message_id == message_id)
                 result = session.execute(stmt)
@@ -287,7 +287,7 @@ class AntiPromptInjector:
                 logger.warning("无法更新消息：缺少message_id")
                 return
 
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 更新消息内容
                 stmt = (
                     update(Messages)

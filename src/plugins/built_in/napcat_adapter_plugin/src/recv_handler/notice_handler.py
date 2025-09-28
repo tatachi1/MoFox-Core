@@ -338,6 +338,7 @@ class NoticeHandler:
 
         like_emoji_id = raw_message.get("likes")[0].get("emoji_id")
         await event_manager.trigger_event(
+<<<<<<< HEAD
             NapcatEvent.ON_RECEIVED.EMOJI_LIEK,
             permission_group=PLUGIN_NAME,
             group_id=group_id,
@@ -349,6 +350,16 @@ class NoticeHandler:
             type="text",
             data=f"{user_name}使用Emoji表情{QQ_FACE.get(like_emoji_id, '')}回复了你的消息[{target_message_text}]",
         )
+=======
+                        NapcatEvent.ON_RECEIVED.EMOJI_LIEK, 
+                        permission_group=PLUGIN_NAME, 
+                        group_id=group_id,
+                        user_id=user_id,
+                        message_id=raw_message.get("message_id",""),
+                        emoji_id=like_emoji_id
+                        )     
+        seg_data = Seg(type="text",data=f"{user_name}使用Emoji表情{QQ_FACE.get(like_emoji_id, '')}回复了你的消息[{target_message_text}]")
+>>>>>>> 9912d7f643d347cbadcf1e3d618aa78bcbf89cc4
         return seg_data, user_info
 
     async def handle_ban_notify(self, raw_message: dict, group_id: int) -> Tuple[Seg, UserInfo] | Tuple[None, None]:

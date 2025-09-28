@@ -118,7 +118,7 @@ class QZoneService:
 
     async def read_and_process_feeds(self, target_name: str, stream_id: Optional[str]) -> Dict[str, Any]:
         """读取并处理指定好友的说说"""
-        target_person_id = person_api.get_person_id_by_name(target_name)
+        target_person_id = await person_api.get_person_id_by_name(target_name)
         if not target_person_id:
             return {"success": False, "message": f"找不到名为'{target_name}'的好友"}
         target_qq = await person_api.get_person_value(target_person_id, "user_id")

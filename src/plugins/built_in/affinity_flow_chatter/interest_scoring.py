@@ -199,7 +199,7 @@ class ChatterInterestScoringSystem:
         # 如果内存中没有，尝试从关系追踪器获取
         if hasattr(self, "relationship_tracker") and self.relationship_tracker:
             try:
-                relationship_score = self.relationship_tracker.get_user_relationship_score(user_id)
+                relationship_score = await self.relationship_tracker.get_user_relationship_score(user_id)
                 # 同时更新内存缓存
                 self.user_relationships[user_id] = relationship_score
                 return relationship_score

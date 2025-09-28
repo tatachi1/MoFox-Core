@@ -75,29 +75,23 @@ class MessageManager:
 
         logger.info("消息管理器已停止")
 
-    def add_message(self, stream_id: str, message: DatabaseMessages):
+    async def add_message(self, stream_id: str, message: DatabaseMessages):
         """添加消息到指定聊天流"""
         try:
-            # 通过 ChatManager 获取 ChatStream
             chat_manager = get_chat_manager()
             chat_stream = chat_manager.get_stream(stream_id)
-
             if not chat_stream:
                 logger.warning(f"MessageManager.add_message: 聊天流 {stream_id} 不存在")
                 return
-
-            # 使用 ChatStream 的 context_manager 添加消息
-            success = chat_stream.context_manager.add_message(message)
-
+            success = await chat_stream.context_manager.add_message(message)
             if success:
                 logger.debug(f"添加消息到聊天流 {stream_id}: {message.message_id}")
             else:
                 logger.warning(f"添加消息到聊天流 {stream_id} 失败")
-
         except Exception as e:
             logger.error(f"添加消息到聊天流 {stream_id} 时发生错误: {e}")
 
-    def update_message(
+    async def update_message(
         self,
         stream_id: str,
         message_id: str,
@@ -107,15 +101,11 @@ class MessageManager:
     ):
         """更新消息信息"""
         try:
-            # 通过 ChatManager 获取 ChatStream
             chat_manager = get_chat_manager()
             chat_stream = chat_manager.get_stream(stream_id)
-
             if not chat_stream:
                 logger.warning(f"MessageManager.update_message: 聊天流 {stream_id} 不存在")
                 return
-
-            # 构建更新字典
             updates = {}
             if interest_value is not None:
                 updates["interest_value"] = interest_value
@@ -123,41 +113,30 @@ class MessageManager:
                 updates["actions"] = actions
             if should_reply is not None:
                 updates["should_reply"] = should_reply
-
-            # 使用 ChatStream 的 context_manager 更新消息
             if updates:
-                success = chat_stream.context_manager.update_message(message_id, updates)
+                success = await chat_stream.context_manager.update_message(message_id, updates)
                 if success:
                     logger.debug(f"更新消息 {message_id} 成功")
                 else:
                     logger.warning(f"更新消息 {message_id} 失败")
-
         except Exception as e:
             logger.error(f"更新消息 {message_id} 时发生错误: {e}")
 
-    def add_action(self, stream_id: str, message_id: str, action: str):
+    async def add_action(self, stream_id: str, message_id: str, action: str):
         """添加动作到消息"""
         try:
-            # 通过 ChatManager 获取 ChatStream
             chat_manager = get_chat_manager()
             chat_stream = chat_manager.get_stream(stream_id)
-
             if not chat_stream:
                 logger.warning(f"MessageManager.add_action: 聊天流 {stream_id} 不存在")
                 return
-
-            # 使用 ChatStream 的 context_manager 添加动作
-            # 注意：这里需要根据实际的 API 调整
-            # 假设我们可以通过 update_message 来添加动作
-            success = chat_stream.context_manager.update_message(
+            success = await chat_stream.context_manager.update_message(
                 message_id, {"actions": [action]}
             )
-
             if success:
                 logger.debug(f"为消息 {message_id} 添加动作 {action} 成功")
             else:
                 logger.warning(f"为消息 {message_id} 添加动作 {action} 失败")
-
         except Exception as e:
             logger.error(f"为消息 {message_id} 添加动作时发生错误: {e}")
 
@@ -382,36 +361,27 @@ class MessageManager:
             "start_time": self.stats.start_time,
         }
 
-    def cleanup_inactive_streams(self, max_inactive_hours: int = 24):
+    async def cleanup_inactive_streams(self, max_inactive_hours: int = 24):
         """清理不活跃的聊天流"""
         try:
-            # 通过 ChatManager 清理不活跃的流
             chat_manager = get_chat_manager()
             current_time = time.time()
             max_inactive_seconds = max_inactive_hours * 3600
-
             inactive_streams = []
             for stream_id, chat_stream in chat_manager.streams.items():
-                # 检查最后活跃时间
                 if current_time - chat_stream.last_active_time > max_inactive_seconds:
                     inactive_streams.append(stream_id)
-
-            # 清理不活跃的流
             for stream_id in inactive_streams:
                 try:
-                    # 清理流的内容
-                    chat_stream.context_manager.clear_context()
-                    # 从 ChatManager 中移除
+                    await chat_stream.context_manager.clear_context()
                     del chat_manager.streams[stream_id]
                     logger.info(f"清理不活跃聊天流: {stream_id}")
                 except Exception as e:
                     logger.error(f"清理聊天流 {stream_id} 失败: {e}")
-
             if inactive_streams:
                 logger.info(f"已清理 {len(inactive_streams)} 个不活跃聊天流")
             else:
                 logger.debug("没有需要清理的不活跃聊天流")
-
         except Exception as e:
             logger.error(f"清理不活跃聊天流时发生错误: {e}")
 

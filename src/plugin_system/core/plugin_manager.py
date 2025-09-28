@@ -542,7 +542,22 @@ class PluginManager:
                 plugin_instance.on_unload()
 
             # 从组件注册表中移除插件的所有组件
-            asyncio.run(component_registry.unregister_plugin(plugin_name))
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    fut = asyncio.run_coroutine_threadsafe(
+                        component_registry.unregister_plugin(plugin_name), loop
+                    )
+                    fut.result(timeout=5)
+                else:
+                    asyncio.run(component_registry.unregister_plugin(plugin_name))
+            except Exception:
+                # 最后兜底：直接同步调用（如果 unregister_plugin 为非协程）或忽略错误
+                try:
+                    # 如果 unregister_plugin 是普通函数
+                    component_registry.unregister_plugin(plugin_name)
+                except Exception as e:
+                    logger.debug(f"卸载插件时调用 component_registry.unregister_plugin 失败: {e}")
 
             # 从已加载插件中移除
             del self.loaded_plugins[plugin_name]

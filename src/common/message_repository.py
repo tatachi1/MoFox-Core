@@ -101,8 +101,8 @@ async def find_messages(
                     # 获取时间最早的 limit 条记录，已经是正序
                     query = query.order_by(Messages.time.asc()).limit(limit)
                     try:
-                        results = result = session.execute(query)
-                        result.scalars().all()
+                        result = await session.execute(query)
+                        results = result.scalars().all()
                     except Exception as e:
                         logger.error(f"执行earliest查询失败: {e}")
                         results = []
@@ -110,8 +110,8 @@ async def find_messages(
                     # 获取时间最晚的 limit 条记录
                     query = query.order_by(Messages.time.desc()).limit(limit)
                     try:
-                        latest_results = result = session.execute(query)
-                        result.scalars().all()
+                        result = await session.execute(query)
+                        latest_results = result.scalars().all()
                         # 将结果按时间正序排列
                         results = sorted(latest_results, key=lambda msg: msg.time)
                     except Exception as e:
@@ -135,8 +135,8 @@ async def find_messages(
                     if sort_terms:
                         query = query.order_by(*sort_terms)
                 try:
-                    results = result = session.execute(query)
-                    result.scalars().all()
+                    result = await session.execute(query)
+                    results = result.scalars().all()
                 except Exception as e:
                     logger.error(f"执行无限制查询失败: {e}")
                     results = []

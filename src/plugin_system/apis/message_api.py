@@ -412,7 +412,7 @@ def count_new_messages_for_users(chat_id: str, start_time: float, end_time: floa
 # =============================================================================
 
 
-def build_readable_messages_to_str(
+async def build_readable_messages_to_str(
     messages: List[Dict[str, Any]],
     replace_bot_name: bool = True,
     merge_messages: bool = False,
@@ -436,7 +436,7 @@ def build_readable_messages_to_str(
     Returns:
         格式化后的可读字符串
     """
-    return build_readable_messages(
+    return await build_readable_messages(
         messages, replace_bot_name, merge_messages, timestamp_mode, read_mark, truncate, show_actions
     )
 

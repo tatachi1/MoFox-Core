@@ -42,7 +42,7 @@ class SingleStreamContextManager:
         self._update_access_stats()
         return self.context
 
-    def add_message(self, message: DatabaseMessages, skip_energy_update: bool = False) -> bool:
+    async def add_message(self, message: DatabaseMessages, skip_energy_update: bool = False) -> bool:
         """添加消息到上下文
 
         Args:
@@ -53,30 +53,21 @@ class SingleStreamContextManager:
             bool: 是否成功添加
         """
         try:
-            # 添加消息到上下文
             self.context.add_message(message)
-
-            # 计算消息兴趣度
-            interest_value = self._calculate_message_interest(message)
+            interest_value = await self._calculate_message_interest(message)
             message.interest_value = interest_value
-
-            # 更新统计
             self.total_messages += 1
             self.last_access_time = time.time()
-
-            # 更新能量和分发
             if not skip_energy_update:
-                self._update_stream_energy()
+                await self._update_stream_energy()
                 distribution_manager.add_stream_message(self.stream_id, 1)
-
             logger.debug(f"添加消息到单流上下文: {self.stream_id} (兴趣度: {interest_value:.3f})")
             return True
-
         except Exception as e:
             logger.error(f"添加消息到单流上下文失败 {self.stream_id}: {e}", exc_info=True)
             return False
 
-    def update_message(self, message_id: str, updates: Dict[str, Any]) -> bool:
+    async def update_message(self, message_id: str, updates: Dict[str, Any]) -> bool:
         """更新上下文中的消息
 
         Args:
@@ -87,16 +78,11 @@ class SingleStreamContextManager:
             bool: 是否成功更新
         """
         try:
-            # 更新消息信息
             self.context.update_message_info(message_id, **updates)
-
-            # 如果更新了兴趣度，重新计算能量
             if "interest_value" in updates:
-                self._update_stream_energy()
-
+                await self._update_stream_energy()
             logger.debug(f"更新单流上下文消息: {self.stream_id}/{message_id}")
             return True
-
         except Exception as e:
             logger.error(f"更新单流上下文消息失败 {self.stream_id}/{message_id}: {e}", exc_info=True)
             return False
@@ -164,16 +150,13 @@ class SingleStreamContextManager:
             logger.error(f"标记消息已读失败 {self.stream_id}: {e}", exc_info=True)
             return False
 
-    def clear_context(self) -> bool:
+    async def clear_context(self) -> bool:
         """清空上下文"""
         try:
-            # 清空消息
             if hasattr(self.context, "unread_messages"):
                 self.context.unread_messages.clear()
             if hasattr(self.context, "history_messages"):
                 self.context.history_messages.clear()
-
-            # 重置状态
             reset_attrs = ["interruption_count", "afc_threshold_adjustment", "last_check_time"]
             for attr in reset_attrs:
                 if hasattr(self.context, attr):
@@ -181,13 +164,9 @@ class SingleStreamContextManager:
                         setattr(self.context, attr, 0)
                     else:
                         setattr(self.context, attr, time.time())
-
-            # 重新计算能量
-            self._update_stream_energy()
-
+            await self._update_stream_energy()
             logger.info(f"清空单流上下文: {self.stream_id}")
             return True
-
         except Exception as e:
             logger.error(f"清空单流上下文失败 {self.stream_id}: {e}", exc_info=True)
             return False
@@ -249,38 +228,114 @@ class SingleStreamContextManager:
         self.last_access_time = time.time()
         self.access_count += 1
 
-    def _calculate_message_interest(self, message: DatabaseMessages) -> float:
-        """计算消息兴趣度"""
+    async def _calculate_message_interest(self, message: DatabaseMessages) -> float:
+        """异步实现：使用插件的异步评分器正确 await 计算兴趣度并返回分数。"""
         try:
-            # 使用插件内部的兴趣度评分系统
             try:
-                from src.plugins.built_in.affinity_flow_chatter.interest_scoring import chatter_interest_scoring_system
-
-                # 使用插件内部的兴趣度评分系统计算（同步方式）
+                from src.plugins.built_in.affinity_flow_chatter.interest_scoring import (
+                    chatter_interest_scoring_system,
+                )
                 try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
-                interest_score = loop.run_until_complete(
-                    chatter_interest_scoring_system._calculate_single_message_score(
+                    interest_score = await chatter_interest_scoring_system._calculate_single_message_score(
                         message=message, bot_nickname=global_config.bot.nickname
                     )
-                )
-                interest_value = interest_score.total_score
+                    interest_value = interest_score.total_score
+                    logger.debug(f"使用插件内部系统计算兴趣度: {interest_value:.3f}")
+                    return interest_value
+                except Exception as e:
+                    logger.warning(f"插件内部兴趣度计算失败: {e}")
+                    return 0.5
+            except Exception as e:
+                logger.warning(f"插件内部兴趣度计算加载失败，使用默认值: {e}")
+                return 0.5
+        except Exception as e:
+            logger.error(f"计算消息兴趣度失败: {e}")
+            return 0.5
 
-                logger.debug(f"使用插件内部系统计算兴趣度: {interest_value:.3f}")
+    async def _calculate_message_interest_async(self, message: DatabaseMessages) -> float:
+        """异步实现：使用插件的异步评分器正确 await 计算兴趣度并返回分数。"""
+        try:
+            try:
+                from src.plugins.built_in.affinity_flow_chatter.interest_scoring import (
+                    chatter_interest_scoring_system,
+                )
+
+                # 直接 await 插件的异步方法
+                try:
+                    interest_score = await chatter_interest_scoring_system._calculate_single_message_score(
+                        message=message, bot_nickname=global_config.bot.nickname
+                    )
+                    interest_value = interest_score.total_score
+                    logger.debug(f"使用插件内部系统计算兴趣度: {interest_value:.3f}")
+                    return interest_value
+                except Exception as e:
+                    logger.warning(f"插件内部兴趣度计算失败: {e}")
+                    return 0.5
 
             except Exception as e:
-                logger.warning(f"插件内部兴趣度计算失败，使用默认值: {e}")
-                interest_value = 0.5  # 默认中等兴趣度
-
-            return interest_value
+                logger.warning(f"插件内部兴趣度计算加载失败，使用默认值: {e}")
+                return 0.5
 
         except Exception as e:
             logger.error(f"计算消息兴趣度失败: {e}")
             return 0.5
+
+    async def add_message_async(self, message: DatabaseMessages, skip_energy_update: bool = False) -> bool:
+        """异步实现的 add_message：将消息添加到 context，并 await 能量更新与分发。"""
+        try:
+            self.context.add_message(message)
+
+            interest_value = await self._calculate_message_interest_async(message)
+            message.interest_value = interest_value
+
+            self.total_messages += 1
+            self.last_access_time = time.time()
+
+            if not skip_energy_update:
+                await self._update_stream_energy()
+                distribution_manager.add_stream_message(self.stream_id, 1)
+
+            logger.debug(f"添加消息到单流上下文(异步): {self.stream_id} (兴趣度: {interest_value:.3f})")
+            return True
+        except Exception as e:
+            logger.error(f"添加消息到单流上下文失败 (async) {self.stream_id}: {e}", exc_info=True)
+            return False
+
+    async def update_message_async(self, message_id: str, updates: Dict[str, Any]) -> bool:
+        """异步实现的 update_message：更新消息并在需要时 await 能量更新。"""
+        try:
+            self.context.update_message_info(message_id, **updates)
+            if "interest_value" in updates:
+                await self._update_stream_energy()
+
+            logger.debug(f"更新单流上下文消息(异步): {self.stream_id}/{message_id}")
+            return True
+        except Exception as e:
+            logger.error(f"更新单流上下文消息失败 (async) {self.stream_id}/{message_id}: {e}", exc_info=True)
+            return False
+
+    async def clear_context_async(self) -> bool:
+        """异步实现的 clear_context：清空消息并 await 能量重算。"""
+        try:
+            if hasattr(self.context, "unread_messages"):
+                self.context.unread_messages.clear()
+            if hasattr(self.context, "history_messages"):
+                self.context.history_messages.clear()
+
+            reset_attrs = ["interruption_count", "afc_threshold_adjustment", "last_check_time"]
+            for attr in reset_attrs:
+                if hasattr(self.context, attr):
+                    if attr in ["interruption_count", "afc_threshold_adjustment"]:
+                        setattr(self.context, attr, 0)
+                    else:
+                        setattr(self.context, attr, time.time())
+
+            await self._update_stream_energy()
+            logger.info(f"清空单流上下文(异步): {self.stream_id}")
+            return True
+        except Exception as e:
+            logger.error(f"清空单流上下文失败 (async) {self.stream_id}: {e}", exc_info=True)
+            return False
 
     async def _update_stream_energy(self):
         """更新流能量"""

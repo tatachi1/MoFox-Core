@@ -297,15 +297,12 @@ class ChatterActionManager:
                 return
 
             # 通过message_manager更新消息的动作记录并刷新focus_energy
-            if chat_stream.stream_id in message_manager.stream_contexts:
-                message_manager.add_action(
-                    stream_id=chat_stream.stream_id,
-                    message_id=target_message_id,
-                    action=action_name
-                )
-                logger.debug(f"已记录动作 {action_name} 到消息 {target_message_id} 并更新focus_energy")
-            else:
-                logger.debug(f"未找到stream_context: {chat_stream.stream_id}")
+            await message_manager.add_action(
+                stream_id=chat_stream.stream_id,
+                message_id=target_message_id,
+                action=action_name
+            )
+            logger.debug(f"已记录动作 {action_name} 到消息 {target_message_id} 并更新focus_energy")
 
         except Exception as e:
             logger.error(f"记录动作到消息失败: {e}")
@@ -315,8 +312,11 @@ class ChatterActionManager:
         """在动作执行成功后重置打断计数"""
         from src.chat.message_manager.message_manager import message_manager
         try:
-            if stream_id in message_manager.stream_contexts:
-                context = message_manager.stream_contexts[stream_id]
+            from src.plugin_system.apis.chat_api import get_chat_manager
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if chat_stream:
+                context = chat_stream.context_manager
                 if context.interruption_count > 0:
                     old_count = context.interruption_count
                     old_afc_adjustment = context.get_afc_threshold_adjustment()

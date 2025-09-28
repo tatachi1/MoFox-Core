@@ -138,7 +138,7 @@ class ChatterActionPlanner:
                         # 更新StreamContext中的消息信息并刷新focus_energy
                         if context:
                             from src.chat.message_manager.message_manager import message_manager
-                            message_manager.update_message(
+                            await message_manager.update_message(
                                 stream_id=self.chat_id,
                                 message_id=message.message_id,
                                 interest_value=message_interest,
@@ -148,7 +148,7 @@ class ChatterActionPlanner:
                         # 更新数据库中的消息记录
                         try:
                             from src.chat.message_receive.storage import MessageStorage
-                            MessageStorage.update_message_interest_value(message.message_id, message_interest)
+                            await MessageStorage.update_message_interest_value(message.message_id, message_interest)
                             logger.debug(f"已更新数据库中消息 {message.message_id} 的兴趣度为: {message_interest:.3f}")
                         except Exception as e:
                             logger.warning(f"更新数据库消息兴趣度失败: {e}")

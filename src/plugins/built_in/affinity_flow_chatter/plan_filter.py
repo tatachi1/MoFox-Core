@@ -182,7 +182,7 @@ class ChatterPlanFilter:
             if plan.mode == ChatMode.PROACTIVE:
                 long_term_memory_block = await self._get_long_term_memory_context()
 
-                chat_content_block, message_id_list = build_readable_messages_with_id(
+                chat_content_block, message_id_list = await build_readable_messages_with_id(
                     messages=[msg.flatten() for msg in plan.chat_history],
                     timestamp_mode="normal",
                     truncate=False,
@@ -216,7 +216,7 @@ class ChatterPlanFilter:
             )
 
             # 为了兼容性，保留原有的chat_content_block
-            chat_content_block, _ = build_readable_messages_with_id(
+            chat_content_block, _ = await build_readable_messages_with_id(
                 messages=[msg.flatten() for msg in plan.chat_history],
                 timestamp_mode="normal",
                 read_mark=self.last_obs_time_mark,
@@ -319,7 +319,14 @@ class ChatterPlanFilter:
             from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
 
             # 获取聊天流的上下文
-            stream_context = message_manager.stream_contexts.get(plan.chat_id)
+            from src.plugin_system.apis.chat_api import get_chat_manager
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(plan.chat_id)
+            if not chat_stream:
+                logger.warning(f"[plan_filter] 聊天流 {plan.chat_id} 不存在")
+                return "最近没有聊天内容。", "没有未读消息。", []
+
+            stream_context = chat_stream.context_manager
 
             # 获取真正的已读和未读消息
             read_messages = stream_context.history_messages  # 已读消息存储在history_messages中
@@ -338,7 +345,7 @@ class ChatterPlanFilter:
 
             # 构建已读历史消息块
             if read_messages:
-                read_content, read_ids = build_readable_messages_with_id(
+                read_content, read_ids = await build_readable_messages_with_id(
                     messages=[msg.flatten() for msg in read_messages[-50:]],  # 限制数量
                     timestamp_mode="normal_no_YMD",
                     truncate=False,

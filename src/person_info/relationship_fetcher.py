@@ -176,7 +176,7 @@ class RelationshipFetcher:
             # 查询用户关系数据
             relationships = await db_query(
                 UserRelationships,
-                filters=[UserRelationships.user_id == str(person_info_manager.get_value_sync(person_id, "user_id"))],
+                filters=[UserRelationships.user_id == str(person_info_manager.get_value(person_id, "user_id"))],
                 limit=1,
             )
 
@@ -260,7 +260,7 @@ class RelationshipFetcher:
                     # 记录信息获取请求
                     self.info_fetching_cache.append(
                         {
-                            "person_id": get_person_info_manager().get_person_id_by_person_name(person_name),
+                            "person_id": await get_person_info_manager().get_person_id_by_person_name(person_name),
                             "person_name": person_name,
                             "info_type": info_type,
                             "start_time": time.time(),

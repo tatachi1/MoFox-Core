@@ -212,7 +212,7 @@ class MessageStorage:
                 return match.group(0)
 
     @staticmethod
-    def update_message_interest_value(message_id: str, interest_value: float) -> None:
+    async def update_message_interest_value(message_id: str, interest_value: float) -> None:
         """
         更新数据库中消息的interest_value字段
 
@@ -221,11 +221,11 @@ class MessageStorage:
             interest_value: 兴趣度值
         """
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 # 更新消息的interest_value字段
                 stmt = update(Messages).where(Messages.message_id == message_id).values(interest_value=interest_value)
-                result = session.execute(stmt)
-                session.commit()
+                result = await session.execute(stmt)
+                await session.commit()
 
                 if result.rowcount > 0:
                     logger.debug(f"成功更新消息 {message_id} 的interest_value为 {interest_value}")
@@ -237,7 +237,7 @@ class MessageStorage:
             raise
 
     @staticmethod
-    def fix_zero_interest_values(chat_id: str, since_time: float) -> int:
+    async def fix_zero_interest_values(chat_id: str, since_time: float) -> int:
         """
         修复指定聊天中interest_value为0或null的历史消息记录
 
@@ -249,7 +249,7 @@ class MessageStorage:
             修复的记录数量
         """
         try:
-            with get_db_session() as session:
+            async with get_db_session() as session:
                 from sqlalchemy import select, update
                 from src.common.database.sqlalchemy_models import Messages
 
@@ -264,7 +264,7 @@ class MessageStorage:
                     )
                 ).limit(50)  # 限制每次修复的数量，避免性能问题
 
-                result = session.execute(query)
+                result = await session.execute(query)
                 messages_to_fix = result.scalars().all()
                 fixed_count = 0
 
@@ -290,12 +290,12 @@ class MessageStorage:
                         Messages.message_id == msg.message_id
                     ).values(interest_value=default_interest)
 
-                    result = session.execute(update_stmt)
+                    result = await session.execute(update_stmt)
                     if result.rowcount > 0:
                         fixed_count += 1
                         logger.debug(f"修复消息 {msg.message_id} 的interest_value为 {default_interest}")
 
-                session.commit()
+                await session.commit()
                 logger.info(f"共修复了 {fixed_count} 条历史消息的interest_value值")
                 return fixed_count
 

@@ -518,7 +518,7 @@ class ChatBot:
                     db_message.chat_info_group_platform = message.chat_stream.group_info.platform
 
                 # 添加消息到消息管理器
-                message_manager.add_message(message.chat_stream.stream_id, db_message)
+                await message_manager.add_message(message.chat_stream.stream_id, db_message)
                 logger.debug(f"消息已添加到消息管理器: {message.chat_stream.stream_id}")
 
             if template_group_name:

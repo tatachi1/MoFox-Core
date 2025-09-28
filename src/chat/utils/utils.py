@@ -1,3 +1,4 @@
+import asyncio
 import random
 import re
 import string
@@ -667,10 +668,32 @@ async def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional[Di
                     person_id = person.person_id
                     person_name = None
                     if person_id:
-                        # get_value is async, so await it directly
                         person_info_manager = get_person_info_manager()
-                        person_data = await person_info_manager.get_values(person_id, ["person_name"])
-                        person_name = person_data.get("person_name")
+                        try:
+                            # 如果没有运行的事件循环，直接 asyncio.run
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                # 如果事件循环在运行，从其他线程提交并等待结果
+                                try:
+                                    from concurrent.futures import TimeoutError
+
+                                    fut = asyncio.run_coroutine_threadsafe(
+                                        person_info_manager.get_value(person_id, "person_name"), loop
+                                    )
+                                    person_name = fut.result(timeout=2)
+                                except Exception as e:
+                                    # 无法在运行循环上安全等待，退回为 None
+                                    logger.debug(f"无法通过运行的事件循环获取 person_name: {e}")
+                                    person_name = None
+                            else:
+                                person_name = asyncio.run(person_info_manager.get_value(person_id, "person_name"))
+                        except RuntimeError:
+                            # get_event_loop 在某些上下文可能抛出 RuntimeError，退回到 asyncio.run
+                            try:
+                                person_name = asyncio.run(person_info_manager.get_value(person_id, "person_name"))
+                            except Exception as e:
+                                logger.debug(f"获取 person_name 失败: {e}")
+                                person_name = None
 
                     target_info["person_id"] = person_id
                     target_info["person_name"] = person_name

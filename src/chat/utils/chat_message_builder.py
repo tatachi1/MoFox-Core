@@ -45,7 +45,7 @@ def replace_user_references_sync(
                 return f"{global_config.bot.nickname}(你)"
             person_id = PersonInfoManager.get_person_id(platform, user_id)
             return person_info_manager.get_value(person_id, "person_name") or user_id  # type: ignore
- 
+
         name_resolver = default_resolver
 
     # 处理回复<aaa:bbb>格式
@@ -272,20 +272,19 @@ async def get_actions_by_timestamp_with_chat(
 
     async with get_db_session() as session:
         if limit > 0:
-            if limit_mode == "latest":
-                query = await session.execute(
+                result = await session.execute(
                     select(ActionRecords)
                     .where(
                         and_(
                             ActionRecords.chat_id == chat_id,
-                            ActionRecords.time > timestamp_start,
-                            ActionRecords.time < timestamp_end,
+                            ActionRecords.time >= timestamp_start,
+                            ActionRecords.time <= timestamp_end,
                         )
                     )
                     .order_by(ActionRecords.time.desc())
                     .limit(limit)
                 )
-                actions = list(query.scalars())
+                actions = list(result.scalars())
                 actions_result = []
                 for action in reversed(actions):
                     action_dict = {
@@ -302,38 +301,39 @@ async def get_actions_by_timestamp_with_chat(
                         "chat_info_platform": action.chat_info_platform,
                     }
                     actions_result.append(action_dict)
-            else:  # earliest
-                query = await session.execute(
-                    select(ActionRecords)
-                    .where(
-                        and_(
-                            ActionRecords.chat_id == chat_id,
-                            ActionRecords.time > timestamp_start,
-                            ActionRecords.time < timestamp_end,
-                        )
-                    )
-                    .order_by(ActionRecords.time.asc())
-                    .limit(limit)
-                )
-                actions = list(query.scalars())
-                actions_result = []
-                for action in actions:
-                    action_dict = {
-                        "id": action.id,
-                        "action_id": action.action_id,
-                        "time": action.time,
-                        "action_name": action.action_name,
-                        "action_data": action.action_data,
-                        "action_done": action.action_done,
-                        "action_build_into_prompt": action.action_build_into_prompt,
-                        "action_prompt_display": action.action_prompt_display,
-                        "chat_id": action.chat_id,
-                        "chat_info_stream_id": action.chat_info_stream_id,
-                        "chat_info_platform": action.chat_info_platform,
-                    }
                     actions_result.append(action_dict)
+                else:  # earliest
+                    result = await session.execute(
+                        select(ActionRecords)
+                        .where(
+                            and_(
+                                ActionRecords.chat_id == chat_id,
+                                ActionRecords.time > timestamp_start,
+                                ActionRecords.time < timestamp_end,
+                            )
+                        )
+                        .order_by(ActionRecords.time.asc())
+                        .limit(limit)
+                    )
+                    actions = list(result.scalars())
+                    actions_result = []
+                    for action in actions:
+                        action_dict = {
+                            "id": action.id,
+                            "action_id": action.action_id,
+                            "time": action.time,
+                            "action_name": action.action_name,
+                            "action_data": action.action_data,
+                            "action_done": action.action_done,
+                            "action_build_into_prompt": action.action_build_into_prompt,
+                            "action_prompt_display": action.action_prompt_display,
+                            "chat_id": action.chat_id,
+                            "chat_info_stream_id": action.chat_info_stream_id,
+                            "chat_info_platform": action.chat_info_platform,
+                        }
+                        actions_result.append(action_dict)
         else:
-            query = await session.execute(
+            result = await session.execute(
                 select(ActionRecords)
                 .where(
                     and_(
@@ -344,7 +344,7 @@ async def get_actions_by_timestamp_with_chat(
                 )
                 .order_by(ActionRecords.time.asc())
             )
-            actions = list(query.scalars())
+            actions = list(result.scalars())
             actions_result = []
             for action in actions:
                 action_dict = {
@@ -371,7 +371,7 @@ async def get_actions_by_timestamp_with_chat_inclusive(
     async with get_db_session() as session:
         if limit > 0:
             if limit_mode == "latest":
-                query = await session.execute(
+                result = await session.execute(
                     select(ActionRecords)
                     .where(
                         and_(
@@ -383,10 +383,10 @@ async def get_actions_by_timestamp_with_chat_inclusive(
                     .order_by(ActionRecords.time.desc())
                     .limit(limit)
                 )
-                actions = list(query.scalars())
+                actions = list(result.scalars())
                 return [action.__dict__ for action in reversed(actions)]
             else:  # earliest
-                query = await session.execute(
+                result = await session.execute(
                     select(ActionRecords)
                     .where(
                         and_(
@@ -626,8 +626,7 @@ async def _build_readable_messages_internal(
         if replace_bot_name and user_id == global_config.bot.qq_account:
             person_name = f"{global_config.bot.nickname}(你)"
         else:
-            person_info = await person_info_manager.get_values(person_id, ["person_name"])
-            person_name = person_info.get("person_name")  # type: ignore
+            person_name = await person_info_manager.get_value(person_id, "person_name")  # type: ignore
 
         # 如果 person_name 未设置，则使用消息中的 nickname 或默认名称
         if not person_name:
@@ -828,8 +827,8 @@ async def build_pic_mapping_info(pic_id_mapping: Dict[str, str]) -> str:
         # 从数据库中获取图片描述
         description = "[图片内容未知]"  # 默认描述
         try:
-            with get_db_session() as session:
-                result = session.execute(select(Images).where(Images.image_id == pic_id))
+            async with get_db_session() as session:
+                result = await session.execute(select(Images).where(Images.image_id == pic_id))
                 image = result.scalar_one_or_none()
                 if image and image.description:  # type: ignore
                     description = image.description
@@ -965,6 +964,12 @@ async def build_readable_messages_with_id(
         message_id_list=message_id_list,
     )
 
+    # 如果存在图片映射信息，附加之
+    if pic_mapping_info := await build_pic_mapping_info({}):
+        # 如果当前没有图片映射则不附加
+        if pic_mapping_info:
+            formatted_string = f"{pic_mapping_info}\n\n{formatted_string}"
+
     return formatted_string, message_id_list
 
 
@@ -1011,27 +1016,24 @@ async def build_readable_messages(
 
         async with get_db_session() as session:
             # 获取这个时间范围内的动作记录，并匹配chat_id
-            actions_in_range = (
-                await session.execute(
-                    select(ActionRecords)
-                    .where(
-                        and_(
-                            ActionRecords.time >= min_time, ActionRecords.time <= max_time, ActionRecords.chat_id == chat_id
-                        )
+            actions_in_range = (await session.execute(
+                select(ActionRecords)
+                .where(
+                    and_(
+                        ActionRecords.time >= min_time, ActionRecords.time <= max_time, ActionRecords.chat_id == chat_id
                     )
                     .order_by(ActionRecords.time)
                 )
-            ).scalars()
+                .order_by(ActionRecords.time)
+            )).scalars()
 
             # 获取最新消息之后的第一个动作记录
-            action_after_latest = (
-                await session.execute(
-                    select(ActionRecords)
-                    .where(and_(ActionRecords.time > max_time, ActionRecords.chat_id == chat_id))
-                    .order_by(ActionRecords.time)
-                    .limit(1)
-                )
-            ).scalars()
+            action_after_latest = (await session.execute(
+                select(ActionRecords)
+                .where(and_(ActionRecords.time > max_time, ActionRecords.chat_id == chat_id))
+                .order_by(ActionRecords.time)
+                .limit(1)
+            )).scalars()
 
             # 合并两部分动作记录，并转为 dict，避免 DetachedInstanceError
             actions = [

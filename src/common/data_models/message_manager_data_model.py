@@ -344,6 +344,39 @@ class StreamContext(BaseDataModel):
         """获取优先级信息"""
         return self.priority_info
 
+    def __deepcopy__(self, memo):
+        """自定义深拷贝，跳过不可序列化的 asyncio.Task (processing_task)。
+
+        deepcopy 在内部可能会尝试 pickle 某些对象（如 asyncio.Task），
+        这会在多线程或运行时事件循环中导致 TypeError。这里我们手动复制
+        __dict__ 中的字段，确保 processing_task 被设置为 None，其他字段使用
+        copy.deepcopy 递归复制。
+        """
+        import copy
+
+        # 如果已经复制过，直接返回缓存结果
+        obj_id = id(self)
+        if obj_id in memo:
+            return memo[obj_id]
+
+        # 创建一个未初始化的新实例，然后逐个字段深拷贝
+        cls = self.__class__
+        new = cls.__new__(cls)
+        memo[obj_id] = new
+
+        for k, v in self.__dict__.items():
+            if k == "processing_task":
+                # 不复制 asyncio.Task，避免无法 pickling
+                setattr(new, k, None)
+            else:
+                try:
+                    setattr(new, k, copy.deepcopy(v, memo))
+                except Exception:
+                    # 如果某个字段无法深拷贝，退回到原始引用（安全性谨慎）
+                    setattr(new, k, v)
+
+        return new
+
 
 @dataclass
 class MessageManagerStats(BaseDataModel):
