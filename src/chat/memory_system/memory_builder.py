@@ -277,6 +277,19 @@ class MemoryBuilder:
 3. **上下文关联** - 结合对话背景理解信息重要性
 4. **细节丰富** - 记录具体的细节和描述
 
+### 🕒 时间处理原则（重要）：
+1. **绝对时间要求** - 涉及时间的记忆必须使用绝对时间（年月日）
+2. **相对时间转换** - 将"明天"、"后天"、"下周"等相对时间转换为具体日期
+3. **时间格式规范** - 使用"YYYY-MM-DD"格式记录日期
+4. **当前时间参考** - 当前时间：{current_date}，基于此计算相对时间
+
+**相对时间转换示例：**
+- "明天" → "2024-09-30"
+- "后天" → "2024-10-01"
+- "下周" → "2024-10-07"
+- "下个月" → "2024-10-01"
+- "明年" → "2025-01-01"
+
 ### 🎯 重要性等级标准：
 - **4分 (关键)**：个人核心信息（姓名、联系方式、重要日期）
 - **3分 (高)**：重要偏好、观点、经历事件
@@ -311,6 +324,12 @@ class MemoryBuilder:
 3. 使用主谓宾结构确保信息清晰
 4. 重要性等级: 1=低, 2=一般, 3=高, 4=关键
 5. 置信度: 1=低, 2=中等, 3=高, 4=已验证
+
+## 🚨 时间处理要求（强制）：
+- **绝对时间优先**：任何涉及时间的记忆都必须使用绝对日期格式
+- **相对时间转换**：遇到"明天"、"后天"、"下周"等相对时间必须转换为具体日期
+- **时间格式**：统一使用 "YYYY-MM-DD" 格式
+- **计算依据**：基于当前时间 {current_date} 进行转换计算
 """
 
         return prompt
@@ -538,6 +557,9 @@ class MemoryBuilder:
         context: Dict[str, Any]
     ) -> MemoryChunk:
         """增强记忆块"""
+        # 时间规范化处理
+        self._normalize_time_in_memory(memory)
+
         # 添加时间上下文
         if not memory.temporal_context:
             memory.temporal_context = {
@@ -554,6 +576,58 @@ class MemoryBuilder:
         self._auto_tag_memory(memory)
 
         return memory
+
+    def _normalize_time_in_memory(self, memory: MemoryChunk):
+        """规范化记忆中的时间表达"""
+        import re
+        from datetime import datetime, timedelta
+
+        # 获取当前时间作为参考
+        current_time = datetime.fromtimestamp(memory.metadata.created_at)
+
+        # 定义相对时间映射
+        relative_time_patterns = {
+            r'今天|今日': current_time.strftime('%Y-%m-%d'),
+            r'昨天|昨日': (current_time - timedelta(days=1)).strftime('%Y-%m-%d'),
+            r'明天|明日': (current_time + timedelta(days=1)).strftime('%Y-%m-%d'),
+            r'后天': (current_time + timedelta(days=2)).strftime('%Y-%m-%d'),
+            r'大后天': (current_time + timedelta(days=3)).strftime('%Y-%m-%d'),
+            r'前天': (current_time - timedelta(days=2)).strftime('%Y-%m-%d'),
+            r'大前天': (current_time - timedelta(days=3)).strftime('%Y-%m-%d'),
+            r'本周|这周|这星期': current_time.strftime('%Y-%m-%d'),
+            r'上周|上星期': (current_time - timedelta(weeks=1)).strftime('%Y-%m-%d'),
+            r'下周|下星期': (current_time + timedelta(weeks=1)).strftime('%Y-%m-%d'),
+            r'本月|这个月': current_time.strftime('%Y-%m-01'),
+            r'上月|上个月': (current_time.replace(day=1) - timedelta(days=1)).strftime('%Y-%m-01'),
+            r'下月|下个月': (current_time.replace(day=1) + timedelta(days=32)).replace(day=1).strftime('%Y-%m-01'),
+            r'今年|今年': current_time.strftime('%Y'),
+            r'去年|上一年': str(current_time.year - 1),
+            r'明年|下一年': str(current_time.year + 1),
+        }
+
+        # 检查并替换记忆内容中的相对时间
+        memory_content = memory.content.description
+
+        # 应用时间规范化
+        for pattern, replacement in relative_time_patterns.items():
+            memory_content = re.sub(pattern, replacement, memory_content)
+
+        # 更新记忆内容
+        memory.content.description = memory_content
+
+        # 如果记忆有对象信息，也进行时间规范化
+        if hasattr(memory.content, 'object') and isinstance(memory.content.object, dict):
+            obj_str = str(memory.content.object)
+            for pattern, replacement in relative_time_patterns.items():
+                obj_str = re.sub(pattern, replacement, obj_str)
+            try:
+                # 尝试解析回字典（如果原来是字典）
+                memory.content.object = eval(obj_str) if obj_str.startswith('{') else obj_str
+            except:
+                memory.content.object = obj_str
+
+        # 记录时间规范化操作
+        logger.debug(f"记忆 {memory.memory_id} 已进行时间规范化")
 
     def _auto_tag_memory(self, memory: MemoryChunk):
         """自动为记忆添加标签"""

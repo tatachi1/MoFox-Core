@@ -497,7 +497,6 @@ class DefaultReplyer:
                         chat_id=self.chat_stream.stream_id
                     )
                 )
-
                 # 检索相关记忆
                 enhanced_memories = await recall_memories(
                     query=target,
