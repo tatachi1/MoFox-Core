@@ -211,7 +211,7 @@ class EnhancedMemorySystem:
                 last_time = self._last_memory_build_times.get(build_scope_key)
                 if last_time and (current_time - last_time) < min_interval:
                     remaining = min_interval - (current_time - last_time)
-                    logger.debug(
+                    logger.info(
                         "距离上次记忆构建间隔不足，跳过此次构建 | key=%s | 剩余%.2f秒",
                         build_scope_key,
                         remaining,
