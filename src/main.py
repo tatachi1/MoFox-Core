@@ -321,7 +321,6 @@ MoFox_Bot(第三方修改版)
             ]
 
             # 增强记忆系统不需要定时任务，已禁用原有记忆系统的定时任务
-            logger.info("原有记忆系统定时任务已禁用 - 使用增强记忆系统")
 
             await asyncio.gather(*tasks)
 
