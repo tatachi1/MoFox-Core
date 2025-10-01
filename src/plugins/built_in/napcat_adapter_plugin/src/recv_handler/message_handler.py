@@ -837,42 +837,62 @@ class MessageHandler:
                         data=f"这是一条小程序分享消息，可以根据来源，考虑使用对应解析工具\n{formatted_content}",
                     )
 
-            # 检查是否是音乐分享
-            elif nested_data.get("view") == "music" and "music" in nested_data.get("meta", {}):
-                logger.debug("检测到音乐分享消息，开始提取信息")
-                music_info = nested_data["meta"]["music"]
-                title = music_info.get("title", "未知歌曲")
-                desc = music_info.get("desc", "未知艺术家")
-                jump_url = music_info.get("jumpUrl", "")
-                preview_url = music_info.get("preview", "")
-                source = music_info.get("tag", "未知来源")
+            # 检查是否是音乐分享 (QQ音乐类型)
+            if nested_data.get("view") == "music" and "com.tencent.music" in str(nested_data.get("app", "")):
+                meta = nested_data.get("meta", {})
+                music = meta.get("music", {})
+                if music:
+                    tag = music.get("tag", "未知来源")
+                    logger.debug(f"检测到【{tag}】音乐分享消息 (music view)，开始提取信息")
+                    
+                    title = music.get("title", "未知歌曲")
+                    desc = music.get("desc", "未知艺术家")
+                    jump_url = music.get("jumpUrl", "")
+                    preview_url = music.get("preview", "")
 
-                # 优化文本结构，使其更像卡片
-                text_parts = [
-                    "--- 音乐分享 ---",
-                    f"歌曲：{title}",
-                    f"歌手：{desc}",
-                    f"来源：{source}"
-                ]
-                if jump_url:
-                    text_parts.append(f"链接：{jump_url}")
-                text_parts.append("----------------")
-                
-                text_content = "\n".join(text_parts)
+                    artist = "未知艺术家"
+                    song_title = title
 
-                # 如果有预览图，创建一个seglist包含文本和图片
-                if preview_url:
-                    try:
-                        image_base64 = await get_image_base64(preview_url)
-                        if image_base64:
-                            return Seg(type="seglist", data=[
-                                Seg(type="text", data=text_content + "\n"),
-                                Seg(type="image", data=image_base64)
-                            ])
-                    except Exception as e:
-                        logger.error(f"下载音乐预览图失败: {e}")
-                
-                return Seg(type="text", data=text_content)
+                    if "网易云音乐" in tag:
+                        artist = desc
+                    elif "QQ音乐" in tag:
+                        if " - " in title:
+                            parts = title.split(" - ", 1)
+                            song_title = parts[0]
+                            artist = parts[1]
+                        else:
+                            artist = desc
+                    
+                    formatted_content = (
+                        f"这是一张来自【{tag}】的音乐分享卡片：\n"
+                        f"歌曲: {song_title}\n"
+                        f"艺术家: {artist}\n"
+                        f"跳转链接: {jump_url}\n"
+                        f"封面图: {preview_url}"
+                    )
+                    return Seg(type="text", data=formatted_content)
+
+            # 检查是否是新闻/图文分享 (网易云音乐可能伪装成这种)
+            elif nested_data.get("view") == "news" and "com.tencent.tuwen" in str(nested_data.get("app", "")):
+                meta = nested_data.get("meta", {})
+                news = meta.get("news", {})
+                if news and "网易云音乐" in news.get("tag", ""):
+                    tag = news.get("tag")
+                    logger.debug(f"检测到【{tag}】音乐分享消息 (news view)，开始提取信息")
+                    
+                    title = news.get("title", "未知歌曲")
+                    desc = news.get("desc", "未知艺术家")
+                    jump_url = news.get("jumpUrl", "")
+                    preview_url = news.get("preview", "")
+                    
+                    formatted_content = (
+                        f"这是一张来自【{tag}】的音乐分享卡片：\n"
+                        f"标题: {title}\n"
+                        f"描述: {desc}\n"
+                        f"跳转链接: {jump_url}\n"
+                        f"封面图: {preview_url}"
+                    )
+                    return Seg(type="text", data=formatted_content)
 
             # 如果没有提取到关键信息，返回None
             return None
