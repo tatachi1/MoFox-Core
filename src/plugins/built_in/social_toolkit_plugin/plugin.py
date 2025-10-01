@@ -157,8 +157,10 @@ class PokeAction(BaseAction):
     3. **互动提醒**: 你想以一种有趣的方式提醒或与某人互动，但请确保这是对话的自然延伸，而不是无故打扰。
     4. **上下文需求**: 上下文明确需要你戳一个或多个人。
     5. **频率限制**: 如果最近已经戳过，或者用户情绪不高，请绝对不要使用。
-
-    请回答"是"或"否"。
+    6.  **核心原则**：
+        *   这是一个**强打扰**且**高消耗**的动作。
+        *   **禁止**在模糊情境下使用。
+    请严格根据上述规则，回答“是”或“否”。
     """
     associated_types = ["text"]
 
@@ -169,6 +171,8 @@ class PokeAction(BaseAction):
 
         try:
             times = int(self.action_data.get("times", 1))
+            if times > 3:
+                times = 3
         except (ValueError, TypeError):
             times = 1
 
