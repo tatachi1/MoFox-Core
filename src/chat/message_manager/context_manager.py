@@ -226,56 +226,42 @@ class SingleStreamContextManager:
         self.access_count += 1
 
     async def _calculate_message_interest(self, message: DatabaseMessages) -> float:
-        """异步实现：使用插件的异步评分器正确 await 计算兴趣度并返回分数。"""
-        try:
+        """
+        异步计算消息的兴趣度。
+        此方法通过检查当前是否存在正在运行的 asyncio 事件循环来兼容同步和异步调用。
+        """
+        # 内部异步函数，封装实际的计算逻辑
+        async def _get_score():
             try:
                 from src.plugins.built_in.affinity_flow_chatter.interest_scoring import (
                     chatter_interest_scoring_system,
                 )
-                try:
-                    interest_score = await chatter_interest_scoring_system._calculate_single_message_score(
-                        message=message, bot_nickname=global_config.bot.nickname
-                    )
-                    interest_value = interest_score.total_score
-                    logger.debug(f"使用插件内部系统计算兴趣度: {interest_value:.3f}")
-                    return interest_value
-                except Exception as e:
-                    logger.warning(f"插件内部兴趣度计算失败: {e}")
-                    return 0.5
-            except Exception as e:
-                logger.warning(f"插件内部兴趣度计算加载失败，使用默认值: {e}")
-                return 0.5
-        except Exception as e:
-            logger.error(f"计算消息兴趣度失败: {e}")
-            return 0.5
-
-    async def _calculate_message_interest_async(self, message: DatabaseMessages) -> float:
-        """异步实现：使用插件的异步评分器正确 await 计算兴趣度并返回分数。"""
-        try:
-            try:
-                from src.plugins.built_in.affinity_flow_chatter.interest_scoring import (
-                    chatter_interest_scoring_system,
+                interest_score = await chatter_interest_scoring_system._calculate_single_message_score(
+                    message=message, bot_nickname=global_config.bot.nickname
                 )
-
-                # 直接 await 插件的异步方法
-                try:
-                    interest_score = await chatter_interest_scoring_system._calculate_single_message_score(
-                        message=message, bot_nickname=global_config.bot.nickname
-                    )
-                    interest_value = interest_score.total_score
-                    logger.debug(f"使用插件内部系统计算兴趣度: {interest_value:.3f}")
-                    return interest_value
-                except Exception as e:
-                    logger.warning(f"插件内部兴趣度计算失败: {e}")
-                    return 0.5
-
+                interest_value = interest_score.total_score
+                logger.debug(f"使用插件内部系统计算兴趣度: {interest_value:.3f}")
+                return interest_value
+            except ImportError as e:
+                logger.debug(f"兴趣度计算插件加载失败，可能未启用: {e}")
+                return 0.5
             except Exception as e:
-                logger.warning(f"插件内部兴趣度计算加载失败，使用默认值: {e}")
+                # 在某些情况下（例如机器人自己的消息），没有兴趣度是正常的
+                logger.info(f"插件内部兴趣度计算失败，使用默认值: {e}")
                 return 0.5
 
-        except Exception as e:
-            logger.error(f"计算消息兴趣度失败: {e}")
-            return 0.5
+        # 检查并获取当前事件循环
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # 'RuntimeError: There is no current event loop...'
+            loop = None
+
+        if loop and loop.is_running():
+            # 如果事件循环正在运行，直接 await
+            return await _get_score()
+        else:
+            # 否则，使用 asyncio.run() 来安全执行
+            return asyncio.run(_get_score())
 
     async def add_message_async(self, message: DatabaseMessages, skip_energy_update: bool = False) -> bool:
         """异步实现的 add_message：将消息添加到 context，并 await 能量更新与分发。"""
