@@ -191,13 +191,21 @@ class PokeAction(BaseAction):
 
         display_name = user_name or user_id
 
+        # 构建戳一戳的参数
+        poke_args = {"user_id": str(user_id)}
+        if self.is_group and self.chat_stream.group_info:
+            poke_args["group_id"] = self.chat_stream.group_info.group_id
+            logger.info(f"在群聊 {poke_args['group_id']} 中执行戳一戳")
+        else:
+            logger.info("在私聊中执行戳一戳")
+
         for i in range(times):
             logger.info(f"正在向 {display_name} ({user_id}) 发送第 {i + 1}/{times} 次戳一戳...")
             await self.send_command(
-                "SEND_POKE", args={"qq_id": user_id}, display_message=f"戳了戳 {display_name} ({i + 1}/{times})"
+                "send_poke", args=poke_args, display_message=f"戳了戳 {display_name} ({i + 1}/{times})"
             )
-            # 添加一个小的延迟，以避免发送过快
-            await asyncio.sleep(0.5)
+            # 添加一个延迟，避免因发送过快导致后续戳一戳失败
+            await asyncio.sleep(1.5)
 
         success_message = f"已向 {display_name} 发送 {times} 次戳一戳。"
         await self.store_action_info(
