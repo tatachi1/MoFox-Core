@@ -51,14 +51,6 @@ from .enhanced_memory_activator import (
     enhanced_memory_activator
 )
 
-# 格式化器
-from .memory_formatter import (
-    MemoryFormatter,
-    FormatterConfig,
-    format_memories_for_llm,
-    format_memories_bracket_style
-)
-
 # 兼容性别名
 from .memory_chunk import MemoryChunk as Memory
 
@@ -98,12 +90,6 @@ __all__ = [
     "MemoryActivator",
     "memory_activator",
     "enhanced_memory_activator",  # 兼容性别名
-
-    # 格式化器
-    "MemoryFormatter",
-    "FormatterConfig",
-    "format_memories_for_llm",
-    "format_memories_bracket_style",
 ]
 
 # 版本信息

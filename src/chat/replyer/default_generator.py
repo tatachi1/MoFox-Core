@@ -18,6 +18,7 @@ from src.individuality.individuality import get_individuality
 from src.llm_models.utils_model import LLMRequest
 from src.chat.message_receive.message import UserInfo, Seg, MessageRecv, MessageSending
 from src.chat.message_receive.chat_stream import ChatStream
+from src.chat.utils.memory_mappings import get_memory_type_chinese_label
 from src.chat.message_receive.uni_message_sender import HeartFCSender
 from src.chat.utils.timer_calculator import Timer
 from src.chat.utils.utils import get_chat_type_and_target_info
@@ -639,20 +640,6 @@ class DefaultReplyer:
                 running_memories = []
                 instant_memory = ""
 
-        def _format_confidence_label(value: Optional[float]) -> str:
-            if value is None:
-                return "未知"
-            mapping = {4: "已验证", 3: "高", 2: "中等", 1: "较低"}
-            rounded = int(value)
-            return mapping.get(rounded, f"{value:.2f}")
-
-        def _format_importance_label(value: Optional[float]) -> str:
-            if value is None:
-                return "未知"
-            mapping = {4: "关键", 3: "高", 2: "一般", 1: "较低"}
-            rounded = int(value)
-            return mapping.get(rounded, f"{value:.2f}")
-
         # 构建记忆字符串，使用方括号格式
         memory_str = ""
         has_any_memory = False
@@ -680,16 +667,8 @@ class DefaultReplyer:
                     logger.debug(f"[记忆构建] 空记忆详情: {running_memory}")
                     continue
 
-                # 映射记忆类型到中文标签
-                type_mapping = {
-                    "personal_fact": "个人事实",
-                    "preference": "偏好",
-                    "event": "事件",
-                    "opinion": "观点",
-                    "relationship": "个人事实",
-                    "unknown": "未知"
-                }
-                chinese_type = type_mapping.get(memory_type, "未知")
+                # 使用全局记忆类型映射表
+                chinese_type = get_memory_type_chinese_label(memory_type)
 
                 # 提取纯净内容（如果包含旧格式的元数据）
                 clean_content = content

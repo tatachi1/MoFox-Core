@@ -24,11 +24,62 @@ import numpy as np
 from src.common.logger import get_logger
 from src.common.vector_db import vector_db_service
 from src.chat.utils.utils import get_embedding
-from src.chat.memory_system.memory_chunk import MemoryChunk
+from src.chat.memory_system.memory_chunk import MemoryChunk, ConfidenceLevel, ImportanceLevel
 from src.chat.memory_system.memory_forgetting_engine import MemoryForgettingEngine
 from src.chat.memory_system.memory_metadata_index import MemoryMetadataIndex, MemoryMetadataIndexEntry
 
 logger = get_logger(__name__)
+
+# 全局枚举映射表缓存
+_ENUM_MAPPINGS_CACHE = {}
+
+def _build_enum_mapping(enum_class: type) -> Dict[str, Any]:
+    """构建枚举类的完整映射表
+
+    Args:
+        enum_class: 枚举类
+
+    Returns:
+        Dict[str, Any]: 包含各种映射格式的字典
+    """
+    cache_key = f"{enum_class.__module__}.{enum_class.__name__}"
+
+    # 如果已经缓存过，直接返回
+    if cache_key in _ENUM_MAPPINGS_CACHE:
+        return _ENUM_MAPPINGS_CACHE[cache_key]
+
+    mapping = {
+        "name_to_enum": {},      # 枚举名称 -> 枚举实例 (HIGH -> ImportanceLevel.HIGH)
+        "value_to_enum": {},     # 整数值 -> 枚举实例 (3 -> ImportanceLevel.HIGH)
+        "value_str_to_enum": {}, # 字符串value -> 枚举实例 ("3" -> ImportanceLevel.HIGH)
+        "enum_value_to_name": {}, # 枚举实例 -> 名称映射 (反向)
+        "all_possible_strings": set(),  # 所有可能的字符串表示
+    }
+
+    for member in enum_class:
+        # 名称映射 (支持大小写)
+        mapping["name_to_enum"][member.name] = member
+        mapping["name_to_enum"][member.name.lower()] = member
+        mapping["name_to_enum"][member.name.upper()] = member
+
+        # 值映射
+        mapping["value_to_enum"][member.value] = member
+        mapping["value_str_to_enum"][str(member.value)] = member
+
+        # 反向映射
+        mapping["enum_value_to_name"][member] = member.name
+
+        # 收集所有可能的字符串表示
+        mapping["all_possible_strings"].add(member.name)
+        mapping["all_possible_strings"].add(member.name.lower())
+        mapping["all_possible_strings"].add(member.name.upper())
+        mapping["all_possible_strings"].add(str(member.value))
+
+    # 缓存结果
+    _ENUM_MAPPINGS_CACHE[cache_key] = mapping
+    logger.debug(f"构建枚举映射表: {enum_class.__name__} -> {len(mapping['name_to_enum'])} 个名称映射, {len(mapping['value_to_enum'])} 个值映射")
+
+    return mapping
 
 
 @dataclass
@@ -294,8 +345,8 @@ class VectorMemoryStorage:
                     "last_modified": metadata.get("timestamp", time.time()),
                     "access_count": metadata.get("access_count", 0),
                     "relevance_score": 0.0,
-                    "confidence": int(metadata.get("confidence", 2)),  # MEDIUM
-                    "importance": int(metadata.get("importance", 2)),  # NORMAL
+                    "confidence": self._parse_enum_value(metadata.get("confidence", 2), ConfidenceLevel, ConfidenceLevel.MEDIUM),
+                    "importance": self._parse_enum_value(metadata.get("importance", 2), ImportanceLevel, ImportanceLevel.NORMAL),
                     "source_context": None,
                 },
                 "content": {
@@ -313,12 +364,76 @@ class VectorMemoryStorage:
                 "related_memories": [],
                 "temporal_context": None
             }
-            
+
             return MemoryChunk.from_dict(memory_dict)
-            
+
         except Exception as e:
             logger.error(f"转换Vector结果到MemoryChunk失败: {e}", exc_info=True)
             return None
+
+    def _parse_enum_value(self, value: Any, enum_class: type, default: Any) -> Any:
+        """解析枚举值，支持字符串、整数和枚举实例
+
+        Args:
+            value: 要解析的值（可能是字符串、整数或枚举实例）
+            enum_class: 目标枚举类
+            default: 默认值
+
+        Returns:
+            解析后的枚举实例
+        """
+        if value is None:
+            return default
+
+        # 如果已经是枚举实例，直接返回
+        if isinstance(value, enum_class):
+            return value
+
+        # 如果是整数，尝试按value值匹配
+        if isinstance(value, int):
+            try:
+                for member in enum_class:
+                    if member.value == value:
+                        return member
+                # 如果没找到匹配的，返回默认值
+                logger.warning(f"无法找到{enum_class.__name__}中value={value}的枚举项，使用默认值")
+                return default
+            except Exception as e:
+                logger.warning(f"解析{enum_class.__name__}整数值{value}时出错: {e}，使用默认值")
+                return default
+
+        # 如果是字符串，尝试按名称或value值匹配
+        if isinstance(value, str):
+            str_value = value.strip().upper()
+
+            # 先尝试按枚举名称匹配
+            try:
+                if hasattr(enum_class, str_value):
+                    return getattr(enum_class, str_value)
+            except AttributeError:
+                pass
+
+            # 再尝试按value值匹配（如果value是字符串形式的数字）
+            try:
+                int_value = int(str_value)
+                return self._parse_enum_value(int_value, enum_class, default)
+            except ValueError:
+                pass
+
+            # 最后尝试按小写名称匹配
+            try:
+                for member in enum_class:
+                    if member.value.upper() == str_value:
+                        return member
+                logger.warning(f"无法找到{enum_class.__name__}中名称或value为'{value}'的枚举项，使用默认值")
+                return default
+            except Exception as e:
+                logger.warning(f"解析{enum_class.__name__}字符串值'{value}'时出错: {e}，使用默认值")
+                return default
+
+        # 其他类型，返回默认值
+        logger.warning(f"不支持的{enum_class.__name__}值类型: {type(value)}，使用默认值")
+        return default
     
     def _get_from_cache(self, memory_id: str) -> Optional[MemoryChunk]:
         """从缓存获取记忆"""
@@ -518,14 +633,19 @@ class VectorMemoryStorage:
                     created_after=metadata_filters.get('created_after'),
                     created_before=metadata_filters.get('created_before'),
                     user_id=metadata_filters.get('user_id'),
-                    limit=self.config.search_limit * 2  # 粗筛返回更多候选
+                    limit=self.config.search_limit * 2,  # 粗筛返回更多候选
+                    flexible_mode=True  # 使用灵活匹配模式
                 )
                 logger.info(f"[JSON元数据粗筛] 完成，筛选出 {len(candidate_ids)} 个候选ID")
-                
-                # 如果粗筛后没有结果，直接返回
+
+                # 如果粗筛后没有结果，回退到全部记忆搜索
                 if not candidate_ids:
-                    logger.warning("JSON元数据粗筛后无候选，返回空结果")
-                    return []
+                    total_memories = len(self.metadata_index.index)
+                    logger.warning(f"JSON元数据粗筛后无候选，启用回退机制：在全部 {total_memories} 条记忆中进行向量搜索")
+                    logger.info("💡 提示：这可能是因为查询条件过于严格，或相关记忆的元数据与查询条件不完全匹配")
+                    candidate_ids = None  # 设为None表示不限制候选ID
+                else:
+                    logger.debug(f"[JSON元数据粗筛] 成功筛选出候选，进入向量精筛阶段")
             
             # === 阶段二：向量精筛 ===
             # 生成查询向量
@@ -543,6 +663,8 @@ class VectorMemoryStorage:
                 # ChromaDB的where条件需要使用$in操作符
                 where_conditions["memory_id"] = {"$in": candidate_ids}
                 logger.debug(f"[向量精筛] 限制在 {len(candidate_ids)} 个候选ID内搜索")
+            else:
+                logger.info("[向量精筛] 在全部记忆中搜索（元数据筛选无结果回退）")
             
             # 查询Vector DB
             logger.debug(f"[向量精筛] 开始，limit={min(limit, self.config.search_limit)}")
