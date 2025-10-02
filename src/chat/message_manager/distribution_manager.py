@@ -387,7 +387,7 @@ class StreamLoopManager:
             start_time = time.time()
 
             # 直接调用chatter_manager处理流上下文
-            results = await self.chatter_manager.process_stream_context(stream_id, context)
+            results = await asyncio.create_task(self.chatter_manager.process_stream_context(stream_id, context))
             success = results.get("success", False)
 
             if success:
