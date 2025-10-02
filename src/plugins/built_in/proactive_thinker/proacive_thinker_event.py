@@ -13,6 +13,7 @@ from src.manager.async_task_manager import async_task_manager, AsyncTask
 from src.plugin_system import EventType, BaseEventHandler
 from src.plugin_system.apis import chat_api, person_api
 from src.plugin_system.base.base_event import HandlerResult
+from .proactive_thinker_executor import ProactiveThinkerExecutor
 
 logger = get_logger(__name__)
 
@@ -26,6 +27,7 @@ class ColdStartTask(AsyncTask):
     def __init__(self):
         super().__init__(task_name="ColdStartTask")
         self.chat_manager = get_chat_manager()
+        self.executor = ProactiveThinkerExecutor()
 
     async def run(self):
         """任务主循环，周期性地检查是否有需要“破冰”的新用户。"""
@@ -72,7 +74,7 @@ class ColdStartTask(AsyncTask):
                         # 创建后，该用户就进入了机器人的“好友列表”，后续将由 ProactiveThinkingTask 接管
                         await self.chat_manager.get_or_create_stream(platform, user_info)
 
-                        # TODO: 在这里调用LLM，生成一句自然的、符合人设的“破冰”问候语，并发送给用户。
+                        await self.executor.execute_cold_start(user_info)
                         logger.info(f"【冷启动】已为新用户 {chat_id} (昵称: {user_nickname}) 创建聊天流并发送问候。")
 
                     except ValueError:
@@ -100,6 +102,7 @@ class ProactiveThinkingTask(AsyncTask):
     def __init__(self):
         super().__init__(task_name="ProactiveThinkingTask")
         self.chat_manager = get_chat_manager()
+        self.executor = ProactiveThinkerExecutor()
 
     def _get_next_interval(self) -> float:
         """
@@ -174,7 +177,7 @@ class ProactiveThinkingTask(AsyncTask):
                     if time_since_last_active > next_interval:
                         logger.info(f"【日常唤醒】聊天流 {stream.stream_id} 已冷却 {time_since_last_active:.2f} 秒，触发主动对话。")
                         
-                        # TODO: 在这里调用LLM，生成一句自然的、符合上下文的问候语，并发送。
+                        await self.executor.execute_wakeup(stream.stream_id)
                         
                         # 【关键步骤】在触发后，立刻更新活跃时间并保存。
                         # 这可以防止在同一个检查周期内，对同一个目标因为意外的延迟而发送多条消息。
