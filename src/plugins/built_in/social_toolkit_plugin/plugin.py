@@ -139,8 +139,15 @@ class PokeAction(BaseAction):
 
     # === 基本信息（必须填写）===
     action_name = "poke_user"
-    action_description = "向用户发送戳一戳"
-    activation_type = ActionActivationType.LLM_JUDGE
+    action_description = """可以让你戳其他用户：
+    1. **关键**: 这是一个高消耗的动作，请仅在绝对必要时使用，例如用户明确要求或作为提醒的关键部分。请极其谨慎地使用。
+    2. **用户请求**: 用户明确要求使用戳一戳。
+    4. **上下文需求**: 上下文明确需要你戳一个或多个人。
+    5. **频率限制**: 如果最近已经戳过，或者用户情绪不高，请绝对不要使用。
+    6.  **核心原则**：
+
+    请严格根据上述规则，回答“是”或“否"""
+    activation_type = ActionActivationType.ALWAYS
     parallel_action = True
 
     # === 功能描述（必须填写）===
@@ -154,12 +161,10 @@ class PokeAction(BaseAction):
     判定是否需要使用戳一戳动作的条件：
     1. **关键**: 这是一个高消耗的动作，请仅在绝对必要时使用，例如用户明确要求或作为提醒的关键部分。请极其谨慎地使用。
     2. **用户请求**: 用户明确要求使用戳一戳。
-    3. **互动提醒**: 你想以一种有趣的方式提醒或与某人互动，但请确保这是对话的自然延伸，而不是无故打扰。
     4. **上下文需求**: 上下文明确需要你戳一个或多个人。
     5. **频率限制**: 如果最近已经戳过，或者用户情绪不高，请绝对不要使用。
     6.  **核心原则**：
-        *   这是一个**强打扰**且**高消耗**的动作。
-        *   **禁止**在模糊情境下使用。
+
     请严格根据上述规则，回答“是”或“否”。
     """
     associated_types = ["text"]
@@ -192,7 +197,7 @@ class PokeAction(BaseAction):
         display_name = user_name or user_id
 
         # 构建戳一戳的参数
-        poke_args = {"user_id": str(user_id)}
+        poke_args = {"qq_id": str(user_id)}
 
         for i in range(times):
             logger.info(f"正在向 {display_name} ({user_id}) 发送第 {i + 1}/{times} 次戳一戳...")
