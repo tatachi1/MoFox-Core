@@ -605,15 +605,25 @@ class DefaultReplyer:
                 # 转换格式以兼容现有代码
                 running_memories = []
                 if enhanced_memories:
-                    for memory_chunk in enhanced_memories:
+                    logger.debug(f"[记忆转换] 收到 {len(enhanced_memories)} 条原始记忆")
+                    for idx, memory_chunk in enumerate(enhanced_memories, 1):
+                        # 获取结构化内容的字符串表示
+                        structure_display = str(memory_chunk.content) if hasattr(memory_chunk, 'content') else "unknown"
+                        
+                        # 获取记忆内容，优先使用display
+                        content = memory_chunk.display or memory_chunk.text_content or ""
+                        
+                        # 调试：记录每条记忆的内容获取情况
+                        logger.debug(f"[记忆转换] 第{idx}条: display={repr(memory_chunk.display)[:80]}, text_content={repr(memory_chunk.text_content)[:80]}, final_content={repr(content)[:80]}")
+                        
                         running_memories.append({
-                            "content": memory_chunk.display or memory_chunk.text_content or "",
+                            "content": content,
                             "memory_type": memory_chunk.memory_type.value,
                             "confidence": memory_chunk.metadata.confidence.value,
                             "importance": memory_chunk.metadata.importance.value,
-                            "relevance": getattr(memory_chunk, 'relevance_score', 0.5),
+                            "relevance": getattr(memory_chunk.metadata, 'relevance_score', 0.5),
                             "source": memory_chunk.metadata.source,
-                            "structure": memory_chunk.content_structure.value if memory_chunk.content_structure else "unknown",
+                            "structure": structure_display,
                         })
 
                 # 构建瞬时记忆字符串
@@ -622,7 +632,7 @@ class DefaultReplyer:
                     if top_memory:
                         instant_memory = top_memory[0].get("content", "")
 
-                logger.info(f"增强记忆系统检索到 {len(running_memories)} 条记忆")
+                logger.info(f"增强记忆系统检索到 {len(enhanced_memories)} 条原始记忆，转换为 {len(running_memories)} 条可用记忆")
 
             except Exception as e:
                 logger.warning(f"增强记忆系统检索失败: {e}")
@@ -658,10 +668,17 @@ class DefaultReplyer:
             # 调试相关度信息
             relevance_info = [(m.get('memory_type', 'unknown'), m.get('relevance', 0.0)) for m in sorted_memories]
             logger.debug(f"记忆相关度信息: {relevance_info}")
+            logger.debug(f"[记忆构建] 准备将 {len(sorted_memories)} 条记忆添加到提示词")
 
-            for running_memory in sorted_memories:
+            for idx, running_memory in enumerate(sorted_memories, 1):
                 content = running_memory.get('content', '')
                 memory_type = running_memory.get('memory_type', 'unknown')
+                
+                # 跳过空内容
+                if not content or not content.strip():
+                    logger.warning(f"[记忆构建] 跳过第 {idx} 条记忆：内容为空 (type={memory_type})")
+                    logger.debug(f"[记忆构建] 空记忆详情: {running_memory}")
+                    continue
 
                 # 映射记忆类型到中文标签
                 type_mapping = {
@@ -679,10 +696,12 @@ class DefaultReplyer:
                 if "（类型:" in content and "）" in content:
                     clean_content = content.split("（类型:")[0].strip()
 
+                logger.debug(f"[记忆构建] 添加第 {idx} 条记忆: [{chinese_type}] {clean_content[:50]}...")
                 memory_parts.append(f"- **[{chinese_type}]** {clean_content}")
 
             memory_str = "\n".join(memory_parts) + "\n"
             has_any_memory = True
+            logger.debug(f"[记忆构建] 成功构建记忆字符串，包含 {len(memory_parts) - 2} 条记忆")
 
         # 添加瞬时记忆
         if instant_memory:

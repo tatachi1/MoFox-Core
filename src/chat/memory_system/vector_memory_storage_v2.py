@@ -281,26 +281,43 @@ class VectorMemoryStorage:
                 memory_dict = orjson.loads(metadata["memory_data"])
                 return MemoryChunk.from_dict(memory_dict)
             
-            # 兜底：从基础字段重建
+            # 兜底：从基础字段重建（使用新的结构化格式）
+            logger.warning(f"未找到memory_data，使用兜底逻辑重建记忆 (id={metadata.get('memory_id', 'unknown')})")
+            
+            # 构建符合MemoryChunk.from_dict期望的结构
             memory_dict = {
-                "memory_id": metadata.get("memory_id", f"recovered_{int(time.time())}"),
-                "user_id": metadata.get("user_id", "unknown"),
-                "text_content": document,
-                "display": document,
-                "memory_type": metadata.get("memory_type", "general"),
-                "keywords": orjson.loads(metadata.get("keywords", "[]")),
-                "importance": metadata.get("importance", 0.5),
-                "timestamp": metadata.get("timestamp", time.time()),
-                "access_count": metadata.get("access_count", 0),
-                "last_access_time": metadata.get("last_access_time", 0),
-                "confidence": metadata.get("confidence", 0.8),
-                "metadata": {}
+                "metadata": {
+                    "memory_id": metadata.get("memory_id", f"recovered_{int(time.time())}"),
+                    "user_id": metadata.get("user_id", "unknown"),
+                    "created_at": metadata.get("timestamp", time.time()),
+                    "last_accessed": metadata.get("last_access_time", time.time()),
+                    "last_modified": metadata.get("timestamp", time.time()),
+                    "access_count": metadata.get("access_count", 0),
+                    "relevance_score": 0.0,
+                    "confidence": int(metadata.get("confidence", 2)),  # MEDIUM
+                    "importance": int(metadata.get("importance", 2)),  # NORMAL
+                    "source_context": None,
+                },
+                "content": {
+                    "subject": "",
+                    "predicate": "",
+                    "object": "",
+                    "display": document  # 使用document作为显示文本
+                },
+                "memory_type": metadata.get("memory_type", "contextual"),
+                "keywords": orjson.loads(metadata.get("keywords", "[]")) if isinstance(metadata.get("keywords"), str) else metadata.get("keywords", []),
+                "tags": [],
+                "categories": [],
+                "embedding": None,
+                "semantic_hash": None,
+                "related_memories": [],
+                "temporal_context": None
             }
             
             return MemoryChunk.from_dict(memory_dict)
             
         except Exception as e:
-            logger.warning(f"转换Vector结果到MemoryChunk失败: {e}")
+            logger.error(f"转换Vector结果到MemoryChunk失败: {e}", exc_info=True)
             return None
     
     def _get_from_cache(self, memory_id: str) -> Optional[MemoryChunk]:

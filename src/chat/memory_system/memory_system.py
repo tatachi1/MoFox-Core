@@ -628,35 +628,22 @@ class MemorySystem:
 
         try:
             normalized_context = self._normalize_context(context, GLOBAL_MEMORY_SCOPE, None)
-            effective_limit = limit or self.config.final_recall_limit
-
+            effective_limit = self.config.final_recall_limit
+            
             # === 阶段一：元数据粗筛（软性过滤） ===
             coarse_filters = {
                 "user_id": GLOBAL_MEMORY_SCOPE,  # 必选：确保作用域正确
             }
-            
-            # 可选：添加重要性阈值（过滤低价值记忆）
-            if hasattr(self.config, 'memory_importance_threshold'):
-                importance_threshold = self.config.memory_importance_threshold
-                if importance_threshold > 0:
-                    coarse_filters["importance"] = {"$gte": importance_threshold}
-                    logger.debug(f"[阶段一] 启用重要性过滤: >= {importance_threshold}")
-            
-            # 可选：添加时间范围（只搜索最近N天）
-            if hasattr(self.config, 'memory_recency_days'):
-                recency_days = self.config.memory_recency_days
-                if recency_days > 0:
-                    cutoff_time = time.time() - (recency_days * 24 * 3600)
-                    coarse_filters["created_at"] = {"$gte": cutoff_time}
-                    logger.debug(f"[阶段一] 启用时间过滤: 最近 {recency_days} 天")
 
             # 应用查询规划（优化查询语句并构建元数据过滤）
             optimized_query = raw_query
             metadata_filters = {}
-            
+
             if self.query_planner:
                 try:
-                    query_plan = await self.query_planner.plan_query(raw_query, normalized_context)
+                    # 构建包含未读消息的增强上下文
+                    enhanced_context = await self._build_enhanced_query_context(raw_query, normalized_context)
+                    query_plan = await self.query_planner.plan_query(raw_query, enhanced_context)
                     
                     # 使用LLM优化后的查询语句（更精确的语义表达）
                     if getattr(query_plan, "semantic_query", None):
@@ -876,6 +863,150 @@ class MemorySystem:
                 context.pop("history_limit", None)
 
         return context
+
+    async def _build_enhanced_query_context(self, raw_query: str, normalized_context: Dict[str, Any]) -> Dict[str, Any]:
+        """构建包含未读消息综合上下文的增强查询上下文
+
+        Args:
+            raw_query: 原始查询文本
+            normalized_context: 标准化后的基础上下文
+
+        Returns:
+            Dict[str, Any]: 包含未读消息综合信息的增强上下文
+        """
+        enhanced_context = dict(normalized_context)  # 复制基础上下文
+
+        try:
+            # 获取stream_id以查找未读消息
+            stream_id = normalized_context.get("stream_id")
+            if not stream_id:
+                logger.debug("未找到stream_id，使用基础上下文进行查询规划")
+                return enhanced_context
+
+            # 获取未读消息作为上下文
+            unread_messages_summary = await self._collect_unread_messages_context(stream_id)
+
+            if unread_messages_summary:
+                enhanced_context["unread_messages_context"] = unread_messages_summary
+                enhanced_context["has_unread_context"] = True
+
+                logger.debug(f"为查询规划构建了增强上下文，包含 {len(unread_messages_summary.get('messages', []))} 条未读消息")
+            else:
+                enhanced_context["has_unread_context"] = False
+                logger.debug("未找到未读消息，使用基础上下文进行查询规划")
+
+        except Exception as e:
+            logger.warning(f"构建增强查询上下文失败: {e}", exc_info=True)
+            enhanced_context["has_unread_context"] = False
+
+        return enhanced_context
+
+    async def _collect_unread_messages_context(self, stream_id: str) -> Optional[Dict[str, Any]]:
+        """收集未读消息的综合上下文信息
+
+        Args:
+            stream_id: 流ID
+
+        Returns:
+            Optional[Dict[str, Any]]: 未读消息的综合信息，包含消息列表、关键词、主题等
+        """
+        try:
+            from src.chat.message_receive.chat_stream import get_chat_manager
+
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+
+            if not chat_stream or not hasattr(chat_stream, "context_manager"):
+                logger.debug(f"未找到stream_id={stream_id}的聊天流或上下文管理器")
+                return None
+
+            # 获取未读消息
+            context_manager = chat_stream.context_manager
+            unread_messages = context_manager.get_unread_messages()
+
+            if not unread_messages:
+                logger.debug(f"stream_id={stream_id}没有未读消息")
+                return None
+
+            # 构建未读消息摘要
+            messages_summary = []
+            all_keywords = set()
+            participant_names = set()
+
+            for msg in unread_messages[:10]:  # 限制处理最近10条未读消息
+                try:
+                    # 提取消息内容
+                    content = (getattr(msg, "processed_plain_text", None) or
+                              getattr(msg, "display_message", None) or "")
+                    if not content:
+                        continue
+
+                    # 提取发送者信息
+                    sender_name = "未知用户"
+                    if hasattr(msg, "user_info") and msg.user_info:
+                        sender_name = (getattr(msg.user_info, "user_nickname", None) or
+                                     getattr(msg.user_info, "user_cardname", None) or
+                                     getattr(msg.user_info, "user_id", None) or "未知用户")
+
+                    participant_names.add(sender_name)
+
+                    # 添加到消息摘要
+                    messages_summary.append({
+                        "sender": sender_name,
+                        "content": content[:200],  # 限制长度避免过长
+                        "timestamp": getattr(msg, "time", None)
+                    })
+
+                    # 提取关键词（简单实现）
+                    content_lower = content.lower()
+                    # 这里可以添加更复杂的关键词提取逻辑
+                    words = [w.strip() for w in content_lower.split() if len(w.strip()) > 1]
+                    all_keywords.update(words[:5])  # 每条消息最多取5个词
+
+                except Exception as msg_e:
+                    logger.debug(f"处理未读消息时出错: {msg_e}")
+                    continue
+
+            if not messages_summary:
+                return None
+
+            # 构建综合上下文信息
+            unread_context = {
+                "messages": messages_summary,
+                "total_count": len(unread_messages),
+                "processed_count": len(messages_summary),
+                "keywords": list(all_keywords)[:20],  # 最多20个关键词
+                "participants": list(participant_names),
+                "context_summary": self._build_unread_context_summary(messages_summary)
+            }
+
+            logger.debug(f"收集到未读消息上下文: {len(messages_summary)}条消息，{len(all_keywords)}个关键词，{len(participant_names)}个参与者")
+            return unread_context
+
+        except Exception as e:
+            logger.warning(f"收集未读消息上下文失败: {e}", exc_info=True)
+            return None
+
+    def _build_unread_context_summary(self, messages_summary: List[Dict[str, Any]]) -> str:
+        """构建未读消息的文本摘要
+
+        Args:
+            messages_summary: 未读消息摘要列表
+
+        Returns:
+            str: 未读消息的文本摘要
+        """
+        if not messages_summary:
+            return ""
+
+        summary_parts = []
+        for msg_info in messages_summary:
+            sender = msg_info.get("sender", "未知")
+            content = msg_info.get("content", "")
+            if content:
+                summary_parts.append(f"{sender}: {content}")
+
+        return " | ".join(summary_parts)
 
     async def _resolve_conversation_context(self, fallback_text: str, context: Optional[Dict[str, Any]]) -> str:
         """使用 stream_id 历史消息和相关记忆充实对话文本，默认回退到传入文本"""

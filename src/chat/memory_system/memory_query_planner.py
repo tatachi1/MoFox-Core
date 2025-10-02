@@ -135,22 +135,76 @@ class MemoryQueryPlanner:
 
         persona = context.get("bot_personality") or context.get("bot_identity") or "未知"
 
+        # 构建未读消息上下文信息
+        context_section = ""
+        if context.get("has_unread_context") and context.get("unread_messages_context"):
+            unread_context = context["unread_messages_context"]
+            unread_messages = unread_context.get("messages", [])
+            unread_keywords = unread_context.get("keywords", [])
+            unread_participants = unread_context.get("participants", [])
+            context_summary = unread_context.get("context_summary", "")
+
+            if unread_messages:
+                # 构建未读消息摘要
+                message_previews = []
+                for msg in unread_messages[:5]:  # 最多显示5条
+                    sender = msg.get("sender", "未知")
+                    content = msg.get("content", "")[:100]  # 限制每条消息长度
+                    message_previews.append(f"{sender}: {content}")
+
+                context_section = f"""
+
+## 📋 未读消息上下文 (共{unread_context.get('total_count', 0)}条未读消息)
+### 最近消息预览:
+{chr(10).join(message_previews)}
+
+### 上下文关键词:
+{', '.join(unread_keywords[:15]) if unread_keywords else '无'}
+
+### 对话参与者:
+{', '.join(unread_participants) if unread_participants else '无'}
+
+### 上下文摘要:
+{context_summary[:300] if context_summary else '无'}
+"""
+        else:
+            context_section = """
+
+## 📋 未读消息上下文:
+无未读消息或上下文信息不可用
+"""
+
         return f"""
 你是一名记忆检索规划助手，请基于输入生成一个简洁的 JSON 检索计划。
+你的任务是分析当前查询并结合未读消息的上下文，生成更精准的记忆检索策略。
+
 仅需提供以下字段：
-- semantic_query: 用于向量召回的自然语言描述，要求具体且贴合当前查询；
+- semantic_query: 用于向量召回的自然语言描述，要求具体且贴合当前查询和上下文；
 - memory_types: 建议检索的记忆类型列表，取值范围来自 MemoryType 枚举 (personal_fact,event,preference,opinion,relationship,emotion,knowledge,skill,goal,experience,contextual)；
 - subject_includes: 建议出现在记忆主语中的人物或角色；
 - object_includes: 建议关注的对象、主题或关键信息；
+- required_keywords: 建议必须包含的关键词（从上下文中提取）；
 - recency: 推荐的时间偏好，可选 recent/any/historical；
 - limit: 推荐的最大返回数量 (1-15)；
-- notes: 额外补充说明（可选）。
+- emphasis: 检索重点，可选 balanced/contextual/recent/comprehensive。
 
 请不要生成谓语字段，也不要额外补充其它参数。
 
-当前查询: "{query_text}"
-已知的对话参与者: {participant_preview}
-机器人设定: {persona}
+## 当前查询:
+"{query_text}"
+
+## 已知对话参与者:
+{participant_preview}
+
+## 机器人设定:
+{persona}{context_section}
+
+## 🎯 指导原则:
+1. **上下文关联**: 优先分析与当前查询相关的未读消息内容和关键词
+2. **语义理解**: 结合上下文理解查询的真实意图，而非字面意思
+3. **参与者感知**: 考虑未读消息中的参与者，检索与他们相关的记忆
+4. **主题延续**: 关注未读消息中讨论的主题，检索相关的历史记忆
+5. **时间相关性**: 如果未读消息讨论最近的事件，偏向检索相关时期的记忆
 
 请直接输出符合要求的 JSON 对象，禁止添加额外文本或 Markdown 代码块。
 """
