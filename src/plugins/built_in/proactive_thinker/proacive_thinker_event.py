@@ -2,7 +2,7 @@ import asyncio
 import random
 import time
 from datetime import datetime
-from typing import List, Union, Type, Optional
+from typing import List, Union
 
 from maim_message import UserInfo
 
@@ -69,7 +69,7 @@ class ColdStartTask(AsyncTask):
 
                         # 创建 UserInfo 对象，这是创建聊天流的必要信息
                         user_info = UserInfo(platform=platform, user_id=str(user_id), user_nickname=user_nickname)
-                        
+
                         # 【关键步骤】主动创建聊天流。
                         # 创建后，该用户就进入了机器人的“好友列表”，后续将由 ProactiveThinkingTask 接管
                         stream = await self.chat_manager.get_or_create_stream(platform, user_info)
@@ -175,10 +175,12 @@ class ProactiveThinkingTask(AsyncTask):
                     # 2. 【核心逻辑】检查聊天冷却时间是否足够长
                     time_since_last_active = time.time() - stream.last_active_time
                     if time_since_last_active > next_interval:
-                        logger.info(f"【日常唤醒】聊天流 {stream.stream_id} 已冷却 {time_since_last_active:.2f} 秒，触发主动对话。")
-                        
+                        logger.info(
+                            f"【日常唤醒】聊天流 {stream.stream_id} 已冷却 {time_since_last_active:.2f} 秒，触发主动对话。"
+                        )
+
                         await self.executor.execute(stream_id=stream.stream_id, start_mode="wake_up")
-                        
+
                         # 【关键步骤】在触发后，立刻更新活跃时间并保存。
                         # 这可以防止在同一个检查周期内，对同一个目标因为意外的延迟而发送多条消息。
                         stream.update_active_time()

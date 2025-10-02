@@ -65,7 +65,7 @@ class ChatterPlanExecutor:
         if not plan.decided_actions:
             logger.info("没有需要执行的动作。")
             return {"executed_count": 0, "results": []}
-        
+
         # 像hfc一样，提前打印将要执行的动作
         action_types = [action.action_type for action in plan.decided_actions]
         logger.info(f"选择动作: {', '.join(action_types) if action_types else '无'}")
@@ -150,17 +150,19 @@ class ChatterPlanExecutor:
         for i, action_info in enumerate(unique_actions):
             is_last_action = i == total_actions - 1
             if total_actions > 1:
-                logger.info(f"[多重回复] 正在执行第 {i+1}/{total_actions} 个回复...")
+                logger.info(f"[多重回复] 正在执行第 {i + 1}/{total_actions} 个回复...")
 
             # 传递 clear_unread 参数
             result = await self._execute_single_reply_action(action_info, plan, clear_unread=is_last_action)
             results.append(result)
 
         if total_actions > 1:
-            logger.info(f"[多重回复] 所有回复任务执行完毕。")
+            logger.info("[多重回复] 所有回复任务执行完毕。")
         return {"results": results}
 
-    async def _execute_single_reply_action(self, action_info: ActionPlannerInfo, plan: Plan, clear_unread: bool = True) -> Dict[str, any]:
+    async def _execute_single_reply_action(
+        self, action_info: ActionPlannerInfo, plan: Plan, clear_unread: bool = True
+    ) -> Dict[str, any]:
         """执行单个回复动作"""
         start_time = time.time()
         success = False
@@ -201,7 +203,7 @@ class ChatterPlanExecutor:
             execution_result = await self.action_manager.execute_action(
                 action_name=action_info.action_type, **action_params
             )
-            
+
             # 从返回结果中提取真正的回复文本
             if isinstance(execution_result, dict):
                 reply_content = execution_result.get("reply_text", "")
@@ -233,7 +235,9 @@ class ChatterPlanExecutor:
             "error_message": error_message,
             "execution_time": execution_time,
             "reasoning": action_info.reasoning,
-            "reply_content": reply_content[:200] + "..." if reply_content and len(reply_content) > 200 else reply_content,
+            "reply_content": reply_content[:200] + "..."
+            if reply_content and len(reply_content) > 200
+            else reply_content,
         }
 
     async def _execute_other_actions(self, other_actions: List[ActionPlannerInfo], plan: Plan) -> Dict[str, any]:

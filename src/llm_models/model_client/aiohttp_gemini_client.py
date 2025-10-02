@@ -452,9 +452,7 @@ class AiohttpGeminiClient(BaseClient):
         # 构建请求体
         request_data = {
             "contents": contents,
-            "generationConfig": _build_generation_config(
-                max_tokens, temperature, tb, response_format, extra_params
-            ),
+            "generationConfig": _build_generation_config(max_tokens, temperature, tb, response_format, extra_params),
         }
 
         # 添加系统指令

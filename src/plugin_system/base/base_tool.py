@@ -64,7 +64,15 @@ class BaseTool(ABC):
             return {
                 "name": cls.name,
                 "description": cls.step_one_description or cls.description,
-                "parameters": [("action", ToolParamType.STRING, "选择要执行的操作", True, [sub_tool[0] for sub_tool in cls.sub_tools])]
+                "parameters": [
+                    (
+                        "action",
+                        ToolParamType.STRING,
+                        "选择要执行的操作",
+                        True,
+                        [sub_tool[0] for sub_tool in cls.sub_tools],
+                    )
+                ],
             }
         else:
             # 普通工具需要parameters
@@ -88,12 +96,8 @@ class BaseTool(ABC):
         # 查找对应的子工具
         for sub_name, sub_desc, sub_params in cls.sub_tools:
             if sub_name == sub_tool_name:
-                return {
-                    "name": f"{cls.name}_{sub_tool_name}",
-                    "description": sub_desc,
-                    "parameters": sub_params
-                }
-        
+                return {"name": f"{cls.name}_{sub_tool_name}", "description": sub_desc, "parameters": sub_params}
+
         raise ValueError(f"未找到子工具: {sub_tool_name}")
 
     @classmethod
@@ -105,14 +109,10 @@ class BaseTool(ABC):
         """
         if not cls.is_two_step_tool:
             return []
-        
+
         definitions = []
         for sub_name, sub_desc, sub_params in cls.sub_tools:
-            definitions.append({
-                "name": f"{cls.name}_{sub_name}",
-                "description": sub_desc,
-                "parameters": sub_params
-            })
+            definitions.append({"name": f"{cls.name}_{sub_name}", "description": sub_desc, "parameters": sub_params})
         return definitions
 
     @classmethod
@@ -144,7 +144,7 @@ class BaseTool(ABC):
         # 如果是二步工具，处理第一步调用
         if self.is_two_step_tool and "action" in function_args:
             return await self._handle_step_one(function_args)
-        
+
         raise NotImplementedError("子类必须实现execute方法")
 
     async def _handle_step_one(self, function_args: dict[str, Any]) -> dict[str, Any]:
@@ -174,17 +174,13 @@ class BaseTool(ABC):
         sub_name, sub_desc, sub_params = sub_tool_found
 
         # 返回第二步工具定义
-        step_two_definition = {
-            "name": f"{self.name}_{sub_name}",
-            "description": sub_desc,
-            "parameters": sub_params
-        }
+        step_two_definition = {"name": f"{self.name}_{sub_name}", "description": sub_desc, "parameters": sub_params}
 
         return {
             "type": "two_step_tool_step_one",
             "content": f"已选择操作: {action}。请使用以下工具进行具体调用:",
             "next_tool_definition": step_two_definition,
-            "selected_action": action
+            "selected_action": action,
         }
 
     async def execute_step_two(self, sub_tool_name: str, function_args: dict[str, Any]) -> dict[str, Any]:

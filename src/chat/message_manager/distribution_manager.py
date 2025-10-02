@@ -34,17 +34,13 @@ class StreamLoopManager:
         }
 
         # 配置参数
-        self.max_concurrent_streams = (
-            max_concurrent_streams or global_config.chat.max_concurrent_distributions
-        )
+        self.max_concurrent_streams = max_concurrent_streams or global_config.chat.max_concurrent_distributions
 
         # 强制分发策略
         self.force_dispatch_unread_threshold: Optional[int] = getattr(
             global_config.chat, "force_dispatch_unread_threshold", 20
         )
-        self.force_dispatch_min_interval: float = getattr(
-            global_config.chat, "force_dispatch_min_interval", 0.1
-        )
+        self.force_dispatch_min_interval: float = getattr(global_config.chat, "force_dispatch_min_interval", 0.1)
 
         # Chatter管理器
         self.chatter_manager: Optional[ChatterManager] = None
@@ -108,7 +104,9 @@ class StreamLoopManager:
 
             if force and len(self.stream_loops) >= self.max_concurrent_streams:
                 logger.warning(
-                    "流 %s 未读消息积压严重(>%s)，突破并发限制强制启动分发", stream_id, self.force_dispatch_unread_threshold
+                    "流 %s 未读消息积压严重(>%s)，突破并发限制强制启动分发",
+                    stream_id,
+                    self.force_dispatch_unread_threshold,
                 )
 
             # 创建流循环任务
@@ -168,9 +166,7 @@ class StreamLoopManager:
 
                     if has_messages:
                         if force_dispatch:
-                            logger.info(
-                                "流 %s 未读消息 %d 条，触发强制分发", stream_id, unread_count
-                            )
+                            logger.info("流 %s 未读消息 %d 条，触发强制分发", stream_id, unread_count)
                         # 3. 激活chatter处理
                         success = await self._process_stream_messages(stream_id, context)
 

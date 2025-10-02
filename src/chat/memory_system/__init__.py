@@ -12,44 +12,23 @@ from .memory_chunk import (
     MemoryType,
     ImportanceLevel,
     ConfidenceLevel,
-    create_memory_chunk
+    create_memory_chunk,
 )
 
 # 遗忘引擎
-from .memory_forgetting_engine import (
-    MemoryForgettingEngine,
-    ForgettingConfig,
-    get_memory_forgetting_engine
-)
+from .memory_forgetting_engine import MemoryForgettingEngine, ForgettingConfig, get_memory_forgetting_engine
 
 # Vector DB存储系统
-from .vector_memory_storage_v2 import (
-    VectorMemoryStorage,
-    VectorStorageConfig,
-    get_vector_memory_storage
-)
+from .vector_memory_storage_v2 import VectorMemoryStorage, VectorStorageConfig, get_vector_memory_storage
 
 # 记忆核心系统
-from .memory_system import (
-    MemorySystem,
-    MemorySystemConfig,
-    get_memory_system,
-    initialize_memory_system
-)
+from .memory_system import MemorySystem, MemorySystemConfig, get_memory_system, initialize_memory_system
 
 # 记忆管理器
-from .memory_manager import (
-    MemoryManager,
-    MemoryResult,
-    memory_manager
-)
+from .memory_manager import MemoryManager, MemoryResult, memory_manager
 
 # 激活器
-from .enhanced_memory_activator import (
-    MemoryActivator,
-    memory_activator,
-    enhanced_memory_activator
-)
+from .enhanced_memory_activator import MemoryActivator, memory_activator, enhanced_memory_activator
 
 # 兼容性别名
 from .memory_chunk import MemoryChunk as Memory
@@ -64,28 +43,23 @@ __all__ = [
     "ImportanceLevel",
     "ConfidenceLevel",
     "create_memory_chunk",
-
     # 遗忘引擎
     "MemoryForgettingEngine",
     "ForgettingConfig",
     "get_memory_forgetting_engine",
-
     # Vector DB存储
     "VectorMemoryStorage",
-    "VectorStorageConfig", 
+    "VectorStorageConfig",
     "get_vector_memory_storage",
-
     # 记忆系统
     "MemorySystem",
     "MemorySystemConfig",
     "get_memory_system",
     "initialize_memory_system",
-
     # 记忆管理器
     "MemoryManager",
-    "MemoryResult", 
+    "MemoryResult",
     "memory_manager",
-
     # 激活器
     "MemoryActivator",
     "memory_activator",

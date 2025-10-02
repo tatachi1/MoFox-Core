@@ -29,6 +29,7 @@ from src.chat.utils.chat_message_builder import (
     replace_user_references_sync,
 )
 from src.chat.express.expression_selector import expression_selector
+
 # 旧记忆系统已被移除
 # 旧记忆系统已被移除
 from src.mood.mood_manager import mood_manager
@@ -580,7 +581,9 @@ class DefaultReplyer:
                     memory_context["user_aliases"] = memory_aliases
 
                 if group_info_obj is not None:
-                    group_name = getattr(group_info_obj, "group_name", None) or getattr(group_info_obj, "group_nickname", None)
+                    group_name = getattr(group_info_obj, "group_name", None) or getattr(
+                        group_info_obj, "group_nickname", None
+                    )
                     if group_name:
                         memory_context["group_name"] = str(group_name)
                     group_id = getattr(group_info_obj, "group_id", None)
@@ -594,11 +597,7 @@ class DefaultReplyer:
 
                 # 检索相关记忆
                 enhanced_memories = await memory_system.retrieve_relevant_memories(
-                    query=target,
-                    user_id=memory_user_id,
-                    scope_id=stream.stream_id,
-                    context=memory_context,
-                    limit=10
+                    query=target, user_id=memory_user_id, scope_id=stream.stream_id, context=memory_context, limit=10
                 )
 
                 # 注意：记忆存储已迁移到回复生成完成后进行，不在查询阶段执行
@@ -609,23 +608,27 @@ class DefaultReplyer:
                     logger.debug(f"[记忆转换] 收到 {len(enhanced_memories)} 条原始记忆")
                     for idx, memory_chunk in enumerate(enhanced_memories, 1):
                         # 获取结构化内容的字符串表示
-                        structure_display = str(memory_chunk.content) if hasattr(memory_chunk, 'content') else "unknown"
-                        
+                        structure_display = str(memory_chunk.content) if hasattr(memory_chunk, "content") else "unknown"
+
                         # 获取记忆内容，优先使用display
                         content = memory_chunk.display or memory_chunk.text_content or ""
-                        
+
                         # 调试：记录每条记忆的内容获取情况
-                        logger.debug(f"[记忆转换] 第{idx}条: display={repr(memory_chunk.display)[:80]}, text_content={repr(memory_chunk.text_content)[:80]}, final_content={repr(content)[:80]}")
-                        
-                        running_memories.append({
-                            "content": content,
-                            "memory_type": memory_chunk.memory_type.value,
-                            "confidence": memory_chunk.metadata.confidence.value,
-                            "importance": memory_chunk.metadata.importance.value,
-                            "relevance": getattr(memory_chunk.metadata, 'relevance_score', 0.5),
-                            "source": memory_chunk.metadata.source,
-                            "structure": structure_display,
-                        })
+                        logger.debug(
+                            f"[记忆转换] 第{idx}条: display={repr(memory_chunk.display)[:80]}, text_content={repr(memory_chunk.text_content)[:80]}, final_content={repr(content)[:80]}"
+                        )
+
+                        running_memories.append(
+                            {
+                                "content": content,
+                                "memory_type": memory_chunk.memory_type.value,
+                                "confidence": memory_chunk.metadata.confidence.value,
+                                "importance": memory_chunk.metadata.importance.value,
+                                "relevance": getattr(memory_chunk.metadata, "relevance_score", 0.5),
+                                "source": memory_chunk.metadata.source,
+                                "structure": structure_display,
+                            }
+                        )
 
                 # 构建瞬时记忆字符串
                 if running_memories:
@@ -633,7 +636,9 @@ class DefaultReplyer:
                     if top_memory:
                         instant_memory = top_memory[0].get("content", "")
 
-                logger.info(f"增强记忆系统检索到 {len(enhanced_memories)} 条原始记忆，转换为 {len(running_memories)} 条可用记忆")
+                logger.info(
+                    f"增强记忆系统检索到 {len(enhanced_memories)} 条原始记忆，转换为 {len(running_memories)} 条可用记忆"
+                )
 
             except Exception as e:
                 logger.warning(f"增强记忆系统检索失败: {e}")
@@ -650,17 +655,17 @@ class DefaultReplyer:
             memory_parts = ["### 🧠 相关记忆 (Relevant Memories)", ""]
 
             # 按相关度排序，并记录相关度信息用于调试
-            sorted_memories = sorted(running_memories, key=lambda x: x.get('relevance', 0.0), reverse=True)
+            sorted_memories = sorted(running_memories, key=lambda x: x.get("relevance", 0.0), reverse=True)
 
             # 调试相关度信息
-            relevance_info = [(m.get('memory_type', 'unknown'), m.get('relevance', 0.0)) for m in sorted_memories]
+            relevance_info = [(m.get("memory_type", "unknown"), m.get("relevance", 0.0)) for m in sorted_memories]
             logger.debug(f"记忆相关度信息: {relevance_info}")
             logger.debug(f"[记忆构建] 准备将 {len(sorted_memories)} 条记忆添加到提示词")
 
             for idx, running_memory in enumerate(sorted_memories, 1):
-                content = running_memory.get('content', '')
-                memory_type = running_memory.get('memory_type', 'unknown')
-                
+                content = running_memory.get("content", "")
+                memory_type = running_memory.get("memory_type", "unknown")
+
                 # 跳过空内容
                 if not content or not content.strip():
                     logger.warning(f"[记忆构建] 跳过第 {idx} 条记忆：内容为空 (type={memory_type})")
@@ -822,10 +827,10 @@ class DefaultReplyer:
         """
         try:
             # 从message_manager获取真实的已读/未读消息
-            from src.chat.message_manager.message_manager import message_manager
 
             # 获取聊天流的上下文
             from src.plugin_system.apis.chat_api import get_chat_manager
+
             chat_manager = get_chat_manager()
             chat_stream = chat_manager.get_stream(chat_id)
             if chat_stream:
@@ -1021,7 +1026,9 @@ class DefaultReplyer:
         interest_scores = {}
 
         try:
-            from src.plugins.built_in.affinity_flow_chatter.interest_scoring import chatter_interest_scoring_system as interest_scoring_system
+            from src.plugins.built_in.affinity_flow_chatter.interest_scoring import (
+                chatter_interest_scoring_system as interest_scoring_system,
+            )
             from src.common.data_models.database_data_model import DatabaseMessages
 
             # 转换消息格式
@@ -1204,7 +1211,7 @@ class DefaultReplyer:
                     platform,  # type: ignore
                     reply_message.get("user_id"),  # type: ignore
                     reply_message.get("user_nickname"),
-                    reply_message.get("user_cardname")
+                    reply_message.get("user_cardname"),
                 )
 
             # 检查是否是bot自己的名字，如果是则替换为"(你)"
@@ -1763,6 +1770,7 @@ class DefaultReplyer:
 
             # 创建关系追踪器实例
             from src.plugins.built_in.affinity_flow_chatter.interest_scoring import chatter_interest_scoring_system
+
             relationship_tracker = ChatterRelationshipTracker(chatter_interest_scoring_system)
             if relationship_tracker:
                 # 获取用户信息以获取真实的user_id
@@ -1805,7 +1813,7 @@ class DefaultReplyer:
     async def _store_chat_memory_async(self, reply_to: str, reply_message: Optional[Dict[str, Any]] = None):
         """
         异步存储聊天记忆（从build_memory_block迁移而来）
-        
+
         Args:
             reply_to: 回复对象
             reply_message: 回复的原始消息
@@ -1874,9 +1882,7 @@ class DefaultReplyer:
                             memory_aliases.append(stripped)
 
                 alias_values = (
-                    user_info_dict.get("aliases")
-                    or user_info_dict.get("alias_names")
-                    or user_info_dict.get("alias")
+                    user_info_dict.get("aliases") or user_info_dict.get("alias_names") or user_info_dict.get("alias")
                 )
                 if isinstance(alias_values, (list, tuple, set)):
                     for alias in alias_values:
@@ -1900,7 +1906,9 @@ class DefaultReplyer:
                 memory_context["user_aliases"] = memory_aliases
 
             if group_info_obj is not None:
-                group_name = getattr(group_info_obj, "group_name", None) or getattr(group_info_obj, "group_nickname", None)
+                group_name = getattr(group_info_obj, "group_name", None) or getattr(
+                    group_info_obj, "group_nickname", None
+                )
                 if group_name:
                     memory_context["group_name"] = str(group_name)
                 group_id = getattr(group_info_obj, "group_id", None)
@@ -1932,11 +1940,11 @@ class DefaultReplyer:
                         "conversation_text": chat_history,
                         "user_id": memory_user_id,
                         "scope_id": stream.stream_id,
-                        **memory_context
+                        **memory_context,
                     }
                 )
             )
-            
+
             logger.debug(f"已启动记忆存储任务，用户: {memory_user_display or memory_user_id}")
 
         except Exception as e:

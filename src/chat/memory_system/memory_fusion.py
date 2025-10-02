@@ -5,14 +5,12 @@
 """
 
 import time
-from typing import Dict, List, Optional, Tuple, Set, Any
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 
 
 from src.common.logger import get_logger
-from src.chat.memory_system.memory_chunk import (
-    MemoryChunk, MemoryType, ConfidenceLevel, ImportanceLevel
-)
+from src.chat.memory_system.memory_chunk import MemoryChunk, ConfidenceLevel, ImportanceLevel
 
 logger = get_logger(__name__)
 
@@ -20,6 +18,7 @@ logger = get_logger(__name__)
 @dataclass
 class FusionResult:
     """融合结果"""
+
     original_count: int
     fused_count: int
     removed_duplicates: int
@@ -31,6 +30,7 @@ class FusionResult:
 @dataclass
 class DuplicateGroup:
     """重复记忆组"""
+
     group_id: str
     memories: List[MemoryChunk]
     similarity_matrix: List[List[float]]
@@ -46,22 +46,20 @@ class MemoryFusionEngine:
             "total_fusions": 0,
             "memories_fused": 0,
             "duplicates_removed": 0,
-            "average_similarity": 0.0
+            "average_similarity": 0.0,
         }
 
         # 融合策略配置
         self.fusion_strategies = {
-            "semantic_similarity": True,      # 语义相似性融合
-            "temporal_proximity": True,         # 时间接近性融合
-            "logical_consistency": True,       # 逻辑一致性融合
-            "confidence_boosting": True,        # 置信度提升
-            "importance_preservation": True     # 重要性保持
+            "semantic_similarity": True,  # 语义相似性融合
+            "temporal_proximity": True,  # 时间接近性融合
+            "logical_consistency": True,  # 逻辑一致性融合
+            "confidence_boosting": True,  # 置信度提升
+            "importance_preservation": True,  # 重要性保持
         }
 
     async def fuse_memories(
-        self,
-        new_memories: List[MemoryChunk],
-        existing_memories: Optional[List[MemoryChunk]] = None
+        self, new_memories: List[MemoryChunk], existing_memories: Optional[List[MemoryChunk]] = None
     ) -> List[MemoryChunk]:
         """融合记忆列表"""
         start_time = time.time()
@@ -73,9 +71,7 @@ class MemoryFusionEngine:
             logger.info(f"开始记忆融合，新记忆: {len(new_memories)}，现有记忆: {len(existing_memories or [])}")
 
             # 1. 检测重复记忆组
-            duplicate_groups = await self._detect_duplicate_groups(
-                new_memories, existing_memories or []
-            )
+            duplicate_groups = await self._detect_duplicate_groups(new_memories, existing_memories or [])
 
             if not duplicate_groups:
                 fusion_time = time.time() - start_time
@@ -110,9 +106,7 @@ class MemoryFusionEngine:
             return new_memories  # 失败时返回原始记忆
 
     async def _detect_duplicate_groups(
-        self,
-        new_memories: List[MemoryChunk],
-        existing_memories: List[MemoryChunk]
+        self, new_memories: List[MemoryChunk], existing_memories: List[MemoryChunk]
     ) -> List[DuplicateGroup]:
         """检测重复记忆组"""
         all_memories = new_memories + existing_memories
@@ -125,16 +119,12 @@ class MemoryFusionEngine:
                 continue
 
             # 创建新的重复组
-            group = DuplicateGroup(
-                group_id=f"group_{len(groups)}",
-                memories=[memory1],
-                similarity_matrix=[[1.0]]
-            )
+            group = DuplicateGroup(group_id=f"group_{len(groups)}", memories=[memory1], similarity_matrix=[[1.0]])
 
             processed_ids.add(memory1.memory_id)
 
             # 寻找相似记忆
-            for j, memory2 in enumerate(all_memories[i+1:], i+1):
+            for j, memory2 in enumerate(all_memories[i + 1 :], i + 1):
                 if memory2.memory_id in processed_ids:
                     continue
 
@@ -182,9 +172,7 @@ class MemoryFusionEngine:
 
         # 5. 时间接近性
         if self.fusion_strategies["temporal_proximity"]:
-            temporal_sim = self._calculate_temporal_similarity(
-                mem1.metadata.created_at, mem2.metadata.created_at
-            )
+            temporal_sim = self._calculate_temporal_similarity(mem1.metadata.created_at, mem2.metadata.created_at)
             similarity_scores.append(("temporal", temporal_sim))
 
         # 6. 逻辑一致性
@@ -193,14 +181,7 @@ class MemoryFusionEngine:
             similarity_scores.append(("logical", logical_sim))
 
         # 计算加权平均相似度
-        weights = {
-            "semantic": 0.35,
-            "text": 0.25,
-            "keyword": 0.15,
-            "type": 0.10,
-            "temporal": 0.10,
-            "logical": 0.05
-        }
+        weights = {"semantic": 0.35, "text": 0.25, "keyword": 0.15, "type": 0.10, "temporal": 0.10, "logical": 0.05}
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -276,9 +257,7 @@ class MemoryFusionEngine:
 
         # 宾语相似性
         if isinstance(mem1.content.object, str) and isinstance(mem2.content.object, str):
-            object_sim = self._calculate_text_similarity(
-                str(mem1.content.object), str(mem2.content.object)
-            )
+            object_sim = self._calculate_text_similarity(str(mem1.content.object), str(mem2.content.object))
             consistency_score += object_sim * 0.3
 
         return consistency_score
@@ -349,11 +328,7 @@ class MemoryFusionEngine:
             # 返回置信度最高的记忆
             return max(group.memories, key=lambda m: m.metadata.confidence.value)
 
-    async def _merge_memory_attributes(
-        self,
-        base_memory: MemoryChunk,
-        memories: List[MemoryChunk]
-    ) -> MemoryChunk:
+    async def _merge_memory_attributes(self, base_memory: MemoryChunk, memories: List[MemoryChunk]) -> MemoryChunk:
         """合并记忆属性"""
         # 创建基础记忆的深拷贝
         fused_memory = MemoryChunk.from_dict(base_memory.to_dict())
@@ -436,7 +411,7 @@ class MemoryFusionEngine:
             "earliest_timestamp": earliest_time,
             "latest_timestamp": latest_time,
             "time_span_hours": (latest_time - earliest_time) / 3600,
-            "source_memories": len(memories)
+            "source_memories": len(memories),
         }
 
         # 合并其他上下文信息
@@ -451,9 +426,7 @@ class MemoryFusionEngine:
         return merged_context
 
     async def incremental_fusion(
-        self,
-        new_memory: MemoryChunk,
-        existing_memories: List[MemoryChunk]
+        self, new_memory: MemoryChunk, existing_memories: List[MemoryChunk]
     ) -> Tuple[MemoryChunk, List[MemoryChunk]]:
         """增量融合（单个新记忆与现有记忆融合）"""
         # 寻找相似记忆
@@ -478,7 +451,7 @@ class MemoryFusionEngine:
         group = DuplicateGroup(
             group_id=f"incremental_{int(time.time())}",
             memories=[new_memory, best_match],
-            similarity_matrix=[[1.0, similarity], [similarity, 1.0]]
+            similarity_matrix=[[1.0, similarity], [similarity, 1.0]],
         )
 
         # 执行融合
@@ -530,5 +503,5 @@ class MemoryFusionEngine:
             "total_fusions": 0,
             "memories_fused": 0,
             "duplicates_removed": 0,
-            "average_similarity": 0.0
+            "average_similarity": 0.0,
         }

@@ -108,7 +108,7 @@ class MessageRecv(Message):
         self.message_info = BaseMessageInfo.from_dict(message_dict.get("message_info", {}))
         self.message_segment = Seg.from_dict(message_dict.get("message_segment", {}))
         self.raw_message = message_dict.get("raw_message")
-        
+
         self.chat_stream = None
         self.reply = None
         self.processed_plain_text = message_dict.get("processed_plain_text", "")

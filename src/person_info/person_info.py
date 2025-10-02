@@ -1,4 +1,3 @@
-import asyncio
 import copy
 import datetime
 import hashlib
@@ -475,7 +474,7 @@ class PersonInfoManager:
         except Exception as e:
             logger.error(f"根据用户名 {person_name} 获取用户ID时出错: {e}")
             return ""
-        
+
     @staticmethod
     async def first_knowing_some_one(platform: str, user_id: str, user_nickname: str, user_cardname: str):
         """判断是否认识某人"""
@@ -496,7 +495,7 @@ class PersonInfoManager:
         await person_info_manager.update_one_field(
             person_id=person_id, field_name="nickname", value=user_nickname, data=data
         )
-        
+
     @staticmethod
     async def create_person_info(person_id: str, data: Optional[dict] = None):
         """创建一个项"""
@@ -822,7 +821,9 @@ class PersonInfoManager:
 
                 async def _db_check_name_exists_async(name_to_check):
                     async with get_db_session() as session:
-                        result = await session.execute(select(PersonInfo).where(PersonInfo.person_name == name_to_check))
+                        result = await session.execute(
+                            select(PersonInfo).where(PersonInfo.person_name == name_to_check)
+                        )
                         record = result.scalar()
                         return record is not None
 
@@ -885,7 +886,6 @@ class PersonInfoManager:
             logger.debug(f"删除成功：person_id={person_id}")
         else:
             logger.debug(f"删除失败：未找到 person_id={person_id} 或删除未影响行")
-
 
     @staticmethod
     async def get_value(person_id: str, field_name: str) -> Any:
@@ -957,6 +957,7 @@ class PersonInfoManager:
                 result[field_name] = copy.deepcopy(person_info_default.get(field_name))
 
         return result
+
     @staticmethod
     async def get_specific_value_list(
         field_name: str,
@@ -1028,7 +1029,7 @@ class PersonInfoManager:
                         return record, False  # 其他协程已创建，返回现有记录
                     # 如果仍然失败，重新抛出异常
                     raise e
-        
+
         unique_nickname = await self._generate_unique_person_name(nickname)
         initial_data = {
             "person_id": person_id,

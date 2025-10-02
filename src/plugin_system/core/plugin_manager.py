@@ -1,7 +1,5 @@
 import asyncio
 import os
-import shutil
-import hashlib
 import traceback
 import importlib
 
@@ -105,7 +103,6 @@ class PluginManager:
             # 如果没有记录，直接返回失败
             if not plugin_dir:
                 return False, 1
-
 
             plugin_instance = plugin_class(plugin_dir=plugin_dir)  # 实例化插件（可能因为缺少manifest而失败）
             if not plugin_instance:
@@ -545,9 +542,7 @@ class PluginManager:
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    fut = asyncio.run_coroutine_threadsafe(
-                        component_registry.unregister_plugin(plugin_name), loop
-                    )
+                    fut = asyncio.run_coroutine_threadsafe(component_registry.unregister_plugin(plugin_name), loop)
                     fut.result(timeout=5)
                 else:
                     asyncio.run(component_registry.unregister_plugin(plugin_name))

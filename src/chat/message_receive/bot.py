@@ -191,7 +191,7 @@ class ChatBot:
             try:
                 # 检查聊天类型限制
                 if not plus_command_instance.is_chat_type_allowed():
-                    is_group = message.message_info.group_info                    
+                    is_group = message.message_info.group_info
                     logger.info(
                         f"PlusCommand {plus_command_class.__name__} 不支持当前聊天类型: {'群聊' if is_group else '私聊'}"
                     )
@@ -424,7 +424,9 @@ class ChatBot:
             await message.process()
 
             # 在这里打印[所见]日志，确保在所有处理和过滤之前记录
-            logger.info(f"\u001b[38;5;118m{message.message_info.user_info.user_nickname}:{message.processed_plain_text}\u001b[0m")
+            logger.info(
+                f"\u001b[38;5;118m{message.message_info.user_info.user_nickname}:{message.processed_plain_text}\u001b[0m"
+            )
 
             # 过滤检查
             if _check_ban_words(message.processed_plain_text, chat, user_info) or _check_ban_regex(  # type: ignore
@@ -456,7 +458,7 @@ class ChatBot:
             result = await event_manager.trigger_event(EventType.ON_MESSAGE, permission_group="SYSTEM", message=message)
             if not result.all_continue_process():
                 raise UserWarning(f"插件{result.get_summary().get('stopped_handlers', '')}于消息到达时取消了消息处理")
-            
+
             # TODO:暂不可用
             # 确认从接口发来的message是否有自定义的prompt模板信息
             if message.message_info.template_info and not message.message_info.template_info.template_default:
@@ -473,14 +475,14 @@ class ChatBot:
             async def preprocess():
                 # 存储消息到数据库
                 from .storage import MessageStorage
-                
+
                 try:
                     await MessageStorage.store_message(message, message.chat_stream)
                     logger.debug(f"消息已存储到数据库: {message.message_info.message_id}")
                 except Exception as e:
                     logger.error(f"存储消息到数据库失败: {e}")
                     traceback.print_exc()
-                
+
                 # 使用消息管理器处理消息（保持原有功能）
                 from src.common.data_models.database_data_model import DatabaseMessages
 

@@ -40,6 +40,7 @@ file_lock = Lock()
 
 # --- 缓存清理 ---
 
+
 def clear_cache():
     """清理 lpmm_learning_tool.py 生成的缓存文件"""
     logger.info("--- 开始清理缓存 ---")
@@ -52,6 +53,7 @@ def clear_cache():
     else:
         logger.info("缓存目录不存在，无需清理。")
     logger.info("--- 缓存清理完成 ---")
+
 
 # --- 模块一：数据预处理 ---
 
@@ -108,7 +110,7 @@ def _parse_and_repair_json(json_string: str) -> Optional[dict]:
         cleaned_string = cleaned_string[7:].strip()
     elif cleaned_string.startswith("```"):
         cleaned_string = cleaned_string[3:].strip()
-    
+
     if cleaned_string.endswith("```"):
         cleaned_string = cleaned_string[:-3].strip()
 
@@ -117,7 +119,7 @@ def _parse_and_repair_json(json_string: str) -> Optional[dict]:
         return orjson.loads(cleaned_string)
     except orjson.JSONDecodeError:
         logger.warning("直接解析JSON失败，将尝试修复...")
-        
+
         # 3. 修复与最终解析
         repaired_json_str = ""
         try:
@@ -164,10 +166,10 @@ async def extract_info_async(pg_hash, paragraph, llm_api):
     content = None
     try:
         content, (_, _, _) = await llm_api.generate_response_async(prompt)
-        
+
         # 改进点：调用封装好的函数处理JSON解析和修复
         extracted_data = _parse_and_repair_json(content)
-        
+
         if extracted_data is None:
             # 如果解析失败，抛出异常以触发统一的错误处理逻辑
             raise ValueError("无法从LLM输出中解析有效的JSON数据")

@@ -80,10 +80,7 @@ class MemoryQueryPlanner:
             return self._default_plan(query_text)
 
     def _default_plan(self, query_text: str) -> MemoryQueryPlan:
-        return MemoryQueryPlan(
-            semantic_query=query_text,
-            limit=self.default_limit
-        )
+        return MemoryQueryPlan(semantic_query=query_text, limit=self.default_limit)
 
     def _parse_plan_dict(self, data: Dict[str, Any], fallback_query: str) -> MemoryQueryPlan:
         semantic_query = self._safe_str(data.get("semantic_query")) or fallback_query
@@ -122,7 +119,7 @@ class MemoryQueryPlanner:
             recency_preference=self._safe_str(data.get("recency")) or "any",
             limit=self._safe_int(data.get("limit"), self.default_limit),
             emphasis=self._safe_str(data.get("emphasis")) or "balanced",
-            raw_plan=data
+            raw_plan=data,
         )
         return plan
 
@@ -154,18 +151,18 @@ class MemoryQueryPlanner:
 
                 context_section = f"""
 
-## 📋 未读消息上下文 (共{unread_context.get('total_count', 0)}条未读消息)
+## 📋 未读消息上下文 (共{unread_context.get("total_count", 0)}条未读消息)
 ### 最近消息预览:
 {chr(10).join(message_previews)}
 
 ### 上下文关键词:
-{', '.join(unread_keywords[:15]) if unread_keywords else '无'}
+{", ".join(unread_keywords[:15]) if unread_keywords else "无"}
 
 ### 对话参与者:
-{', '.join(unread_participants) if unread_participants else '无'}
+{", ".join(unread_participants) if unread_participants else "无"}
 
 ### 上下文摘要:
-{context_summary[:300] if context_summary else '无'}
+{context_summary[:300] if context_summary else "无"}
 """
         else:
             context_section = """
@@ -223,7 +220,7 @@ class MemoryQueryPlanner:
         start = stripped.find("{")
         end = stripped.rfind("}")
         if start != -1 and end != -1 and end > start:
-            return stripped[start:end + 1]
+            return stripped[start : end + 1]
 
         return stripped if stripped.startswith("{") and stripped.endswith("}") else None
 

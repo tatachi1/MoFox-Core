@@ -95,9 +95,7 @@ async def mark_plans_completed(plan_ids: List[int]):
             plan_details = "\n".join([f"  {i + 1}. {plan.plan_text}" for i, plan in enumerate(plans_to_mark)])
             logger.info(f"以下 {len(plans_to_mark)} 条月度计划将被标记为已完成:\n{plan_details}")
 
-            await session.execute(
-                update(MonthlyPlan).where(MonthlyPlan.id.in_(plan_ids)).values(status="completed")
-            )
+            await session.execute(update(MonthlyPlan).where(MonthlyPlan.id.in_(plan_ids)).values(status="completed"))
             await session.commit()
         except Exception as e:
             logger.error(f"标记月度计划为完成时发生错误: {e}")
@@ -184,9 +182,7 @@ async def update_plan_usage(plan_ids: List[int], used_date: str):
             raise
 
 
-async def get_smart_plans_for_daily_schedule(
-    month: str, max_count: int = 3, avoid_days: int = 7
-) -> List[MonthlyPlan]:
+async def get_smart_plans_for_daily_schedule(month: str, max_count: int = 3, avoid_days: int = 7) -> List[MonthlyPlan]:
     """
     智能抽取月度计划用于每日日程生成。
 
@@ -208,14 +204,10 @@ async def get_smart_plans_for_daily_schedule(
             avoid_date = (datetime.now() - timedelta(days=avoid_days)).strftime("%Y-%m-%d")
 
             # 查询符合条件的计划
-            query = select(MonthlyPlan).where(
-                MonthlyPlan.target_month == month, MonthlyPlan.status == "active"
-            )
+            query = select(MonthlyPlan).where(MonthlyPlan.target_month == month, MonthlyPlan.status == "active")
 
             # 排除最近使用过的计划
-            query = query.where(
-                (MonthlyPlan.last_used_date.is_(None)) | (MonthlyPlan.last_used_date < avoid_date)
-            )
+            query = query.where((MonthlyPlan.last_used_date.is_(None)) | (MonthlyPlan.last_used_date < avoid_date))
 
             # 按使用次数升序排列，优先选择使用次数少的
             result = await session.execute(query.order_by(MonthlyPlan.usage_count.asc()))
@@ -274,9 +266,7 @@ async def get_archived_plans_for_month(month: str) -> List[MonthlyPlan]:
     async with get_db_session() as session:
         try:
             result = await session.execute(
-                select(MonthlyPlan).where(
-                    MonthlyPlan.target_month == month, MonthlyPlan.status == "archived"
-                )
+                select(MonthlyPlan).where(MonthlyPlan.target_month == month, MonthlyPlan.status == "archived")
             )
             return result.scalars().all()
         except Exception as e:

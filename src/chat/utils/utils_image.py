@@ -81,14 +81,16 @@ class ImageManager:
         """
         try:
             async with get_db_session() as session:
-                record = (await session.execute(
-                    select(ImageDescriptions).where(
-                        and_(
-                            ImageDescriptions.image_description_hash == image_hash,
-                            ImageDescriptions.type == description_type,
+                record = (
+                    await session.execute(
+                        select(ImageDescriptions).where(
+                            and_(
+                                ImageDescriptions.image_description_hash == image_hash,
+                                ImageDescriptions.type == description_type,
+                            )
                         )
                     )
-                )).scalar()
+                ).scalar()
                 return record.description if record else None
         except Exception as e:
             logger.error(f"从数据库获取描述失败 (SQLAlchemy): {str(e)}")
@@ -107,14 +109,16 @@ class ImageManager:
             current_timestamp = time.time()
             async with get_db_session() as session:
                 # 查找现有记录
-                existing = (await session.execute(
-                    select(ImageDescriptions).where(
-                        and_(
-                            ImageDescriptions.image_description_hash == image_hash,
-                            ImageDescriptions.type == description_type,
+                existing = (
+                    await session.execute(
+                        select(ImageDescriptions).where(
+                            and_(
+                                ImageDescriptions.image_description_hash == image_hash,
+                                ImageDescriptions.type == description_type,
+                            )
                         )
                     )
-                )).scalar()
+                ).scalar()
 
                 if existing:
                     # 更新现有记录
@@ -262,9 +266,11 @@ class ImageManager:
                         from src.common.database.sqlalchemy_models import get_db_session
 
                         async with get_db_session() as session:
-                            existing_img = (await session.execute(
-                                select(Images).where(and_(Images.emoji_hash == image_hash, Images.type == "emoji"))
-                            )).scalar()
+                            existing_img = (
+                                await session.execute(
+                                    select(Images).where(and_(Images.emoji_hash == image_hash, Images.type == "emoji"))
+                                )
+                            ).scalar()
 
                             if existing_img:
                                 existing_img.path = file_path

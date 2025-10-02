@@ -101,7 +101,7 @@ class QAManager:
     async def get_knowledge(self, question: str) -> Optional[Dict[str, Any]]:
         """
         获取知识，返回结构化字典
-        
+
         Args:
             question: 用户提出的问题
 
@@ -114,30 +114,27 @@ class QAManager:
             return None
 
         query_res = processed_result[0]
-        
+
         knowledge_items = []
         for res_hash, relevance, *_ in query_res:
             if store_item := self.embed_manager.paragraphs_embedding_store.store.get(res_hash):
-                knowledge_items.append({
-                    "content": store_item.str,
-                    "source": "内部知识库",
-                    "relevance": f"{relevance:.4f}"
-                })
+                knowledge_items.append(
+                    {"content": store_item.str, "source": "内部知识库", "relevance": f"{relevance:.4f}"}
+                )
 
         if not knowledge_items:
             return None
-            
+
         # 使用LLM生成总结
-        knowledge_text_for_summary = "\n\n".join([item['content'] for item in knowledge_items[:5]]) # 最多总结前5条
-        summary_prompt = f"根据以下信息，为问题 '{question}' 生成一个简洁的、不超过50字的摘要：\n\n{knowledge_text_for_summary}"
-        
+        knowledge_text_for_summary = "\n\n".join([item["content"] for item in knowledge_items[:5]])  # 最多总结前5条
+        summary_prompt = (
+            f"根据以下信息，为问题 '{question}' 生成一个简洁的、不超过50字的摘要：\n\n{knowledge_text_for_summary}"
+        )
+
         try:
             summary, (_, _, _) = await self.qa_model.generate_response_async(summary_prompt)
         except Exception as e:
             logger.error(f"生成知识摘要失败: {e}")
             summary = "无法生成摘要。"
 
-        return {
-            "knowledge_items": knowledge_items,
-            "summary": summary.strip() if summary else "没有可用的摘要。"
-        }
+        return {"knowledge_items": knowledge_items, "summary": summary.strip() if summary else "没有可用的摘要。"}

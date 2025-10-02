@@ -77,7 +77,10 @@ class CacheManager:
                     embedding_array = embedding_array.flatten()
 
                 # 检查维度是否符合预期
-                expected_dim = getattr(CacheManager, "embedding_dimension", None) or global_config.lpmm_knowledge.embedding_dimension
+                expected_dim = (
+                    getattr(CacheManager, "embedding_dimension", None)
+                    or global_config.lpmm_knowledge.embedding_dimension
+                )
                 if embedding_array.shape[0] != expected_dim:
                     logger.warning(f"嵌入向量维度不匹配: 期望 {expected_dim}, 实际 {embedding_array.shape[0]}")
                     return None

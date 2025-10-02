@@ -40,7 +40,7 @@ class ChatterActionManager:
 
     @staticmethod
     def create_action(
-            action_name: str,
+        action_name: str,
         action_data: dict,
         reasoning: str,
         cycle_timers: dict,
@@ -162,7 +162,7 @@ class ChatterActionManager:
         Returns:
             执行结果
         """
-        from src.chat.message_manager.message_manager import message_manager
+
         try:
             logger.debug(f"🎯 [ActionManager] execute_action接收到 target_message: {target_message}")
             # 通过chat_id获取chat_stream
@@ -309,9 +309,7 @@ class ChatterActionManager:
 
             # 通过message_manager更新消息的动作记录并刷新focus_energy
             await message_manager.add_action(
-                stream_id=chat_stream.stream_id,
-                message_id=target_message_id,
-                action=action_name
+                stream_id=chat_stream.stream_id, message_id=target_message_id, action=action_name
             )
             logger.debug(f"已记录动作 {action_name} 到消息 {target_message_id} 并更新focus_energy")
 
@@ -321,9 +319,10 @@ class ChatterActionManager:
 
     async def _reset_interruption_count_after_action(self, stream_id: str):
         """在动作执行成功后重置打断计数"""
-        from src.chat.message_manager.message_manager import message_manager
+
         try:
             from src.plugin_system.apis.chat_api import get_chat_manager
+
             chat_manager = get_chat_manager()
             chat_stream = chat_manager.get_stream(stream_id)
             if chat_stream:
@@ -332,7 +331,9 @@ class ChatterActionManager:
                     old_count = context.context.interruption_count
                     old_afc_adjustment = context.context.get_afc_threshold_adjustment()
                     context.context.reset_interruption_count()
-                    logger.debug(f"动作执行成功，重置聊天流 {stream_id} 的打断计数: {old_count} -> 0, afc调整: {old_afc_adjustment} -> 0")
+                    logger.debug(
+                        f"动作执行成功，重置聊天流 {stream_id} 的打断计数: {old_count} -> 0, afc调整: {old_afc_adjustment} -> 0"
+                    )
         except Exception as e:
             logger.warning(f"重置打断计数时出错: {e}")
 
@@ -531,7 +532,7 @@ class ChatterActionManager:
         # 根据新消息数量决定是否需要引用回复
         reply_text = ""
         is_proactive_thinking = (message_data.get("message_type") == "proactive_thinking") if message_data else True
-        
+
         logger.debug(f"[send_response] message_data: {message_data}")
 
         first_replied = False
@@ -558,7 +559,9 @@ class ChatterActionManager:
             # 发送第一段回复
             if not first_replied:
                 set_reply_flag = bool(message_data)
-                logger.debug(f"📤 [ActionManager] 准备发送第一段回复。message_data: {message_data}, set_reply: {set_reply_flag}")
+                logger.debug(
+                    f"📤 [ActionManager] 准备发送第一段回复。message_data: {message_data}, set_reply: {set_reply_flag}"
+                )
                 await send_api.text_to_stream(
                     text=data,
                     stream_id=chat_stream.stream_id,

@@ -89,7 +89,7 @@ class ChatStream:
 
         # 复制 stream_context，但跳过 processing_task
         new_stream.stream_context = copy.deepcopy(self.stream_context, memo)
-        if hasattr(new_stream.stream_context, 'processing_task'):
+        if hasattr(new_stream.stream_context, "processing_task"):
             new_stream.stream_context.processing_task = None
 
         # 复制 context_manager
@@ -377,6 +377,7 @@ class ChatStream:
         # 默认基础分
         return 0.3
 
+
 class ChatManager:
     """聊天管理器，管理所有聊天流"""
 
@@ -563,9 +564,8 @@ class ChatManager:
         if not hasattr(stream, "context_manager"):
             # 创建新的单流上下文管理器
             from src.chat.message_manager.context_manager import SingleStreamContextManager
-            stream.context_manager = SingleStreamContextManager(
-                stream_id=stream_id, context=stream.stream_context
-            )
+
+            stream.context_manager = SingleStreamContextManager(stream_id=stream_id, context=stream.stream_context)
 
         # 保存到内存和数据库
         self.streams[stream_id] = stream
@@ -721,6 +721,7 @@ class ChatManager:
                 # 确保 ChatStream 有自己的 context_manager
                 if not hasattr(stream, "context_manager"):
                     from src.chat.message_manager.context_manager import SingleStreamContextManager
+
                     stream.context_manager = SingleStreamContextManager(
                         stream_id=stream.stream_id, context=stream.stream_context
                     )

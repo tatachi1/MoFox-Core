@@ -58,7 +58,7 @@ class MessageBuilder:
         self,
         image_format: str,
         image_base64: str,
-            support_formats=None,  # 默认支持格式
+        support_formats=None,  # 默认支持格式
     ) -> "MessageBuilder":
         """
         添加图片内容

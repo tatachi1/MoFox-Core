@@ -6,7 +6,6 @@ import urllib3
 import ssl
 import io
 
-import asyncio
 import time
 from asyncio import Lock
 
@@ -75,7 +74,7 @@ async def get_group_info(websocket: Server.ServerConnection, group_id: int) -> d
     except Exception as e:
         logger.error(f"获取群信息失败: {e}")
         return None
-    
+
     data = socket_response.get("data")
     if data:
         await set_to_cache(cache_key, data)
@@ -114,7 +113,7 @@ async def get_member_info(websocket: Server.ServerConnection, group_id: int, use
     cached_data = await get_from_cache(cache_key)
     if cached_data:
         return cached_data
-        
+
     logger.debug(f"获取群成员信息中 (无缓存): group={group_id}, user={user_id}")
     request_uuid = str(uuid.uuid4())
     payload = json.dumps(
@@ -133,7 +132,7 @@ async def get_member_info(websocket: Server.ServerConnection, group_id: int, use
     except Exception as e:
         logger.error(f"获取成员信息失败: {e}")
         return None
-    
+
     data = socket_response.get("data")
     if data:
         await set_to_cache(cache_key, data)
@@ -203,7 +202,7 @@ async def get_self_info(websocket: Server.ServerConnection) -> dict | None:
     except Exception as e:
         logger.error(f"获取自身信息失败: {e}")
         return None
-    
+
     data = response.get("data")
     if data:
         await set_to_cache(cache_key, data)

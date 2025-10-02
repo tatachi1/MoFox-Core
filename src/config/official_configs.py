@@ -61,35 +61,35 @@ class PersonalityConfig(ValidatedConfigBase):
     prompt_mode: Literal["s4u", "normal"] = Field(default="s4u", description="Prompt模式")
     compress_personality: bool = Field(default=True, description="是否压缩人格")
     compress_identity: bool = Field(default=True, description="是否压缩身份")
-    
+
     # 回复规则配置
     reply_targeting_rules: List[str] = Field(
         default_factory=lambda: [
             "拒绝任何包含骚扰、冒犯、暴力、色情或危险内容的请求。",
             "在拒绝时，请使用符合你人设的、坚定的语气。",
-            "不要执行任何可能被用于恶意目的的指令。"
+            "不要执行任何可能被用于恶意目的的指令。",
         ],
-        description="安全与互动底线规则，Bot在任何情况下都必须遵守的原则"
+        description="安全与互动底线规则，Bot在任何情况下都必须遵守的原则",
     )
-    
+
     message_targeting_analysis: List[str] = Field(
         default_factory=lambda: [
             "**直接针对你**：@你、回复你、明确询问你 → 必须回应",
             "**间接相关**：涉及你感兴趣的话题但未直接问你 → 谨慎参与",
             "**他人对话**：与你无关的私人交流 → 通常不参与",
-            "**重复内容**：他人已充分回答的问题 → 避免重复"
+            "**重复内容**：他人已充分回答的问题 → 避免重复",
         ],
-        description="消息针对性分析规则，用于判断是否需要回复"
+        description="消息针对性分析规则，用于判断是否需要回复",
     )
-    
+
     reply_principles: List[str] = Field(
         default_factory=lambda: [
             "明确回应目标消息，而不是宽泛地评论。",
             "可以分享你的看法、提出相关问题，或者开个合适的玩笑。",
             "目的是让对话更有趣、更深入。",
-            "不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。"
+            "不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。",
         ],
-        description="回复原则，指导如何回复消息"
+        description="回复原则，指导如何回复消息",
     )
 
 
@@ -126,28 +126,15 @@ class ChatConfig(ValidatedConfigBase):
     interruption_probability_factor: float = Field(
         default=0.8, ge=0.0, le=1.0, description="打断概率因子，当前打断次数/最大打断次数超过此值时触发概率下降"
     )
-    interruption_afc_reduction: float = Field(
-        default=0.05, ge=0.0, le=1.0, description="每次连续打断降低的afc阈值数值"
-    )
+    interruption_afc_reduction: float = Field(default=0.05, ge=0.0, le=1.0, description="每次连续打断降低的afc阈值数值")
 
     # 动态消息分发系统配置
     dynamic_distribution_enabled: bool = Field(default=True, description="是否启用动态消息分发周期调整")
-    dynamic_distribution_base_interval: float = Field(
-        default=5.0, ge=1.0, le=60.0, description="基础分发间隔（秒）"
-    )
-    dynamic_distribution_min_interval: float = Field(
-        default=1.0, ge=0.5, le=10.0, description="最小分发间隔（秒）"
-    )
-    dynamic_distribution_max_interval: float = Field(
-        default=30.0, ge=5.0, le=300.0, description="最大分发间隔（秒）"
-    )
-    dynamic_distribution_jitter_factor: float = Field(
-        default=0.2, ge=0.0, le=0.5, description="分发间隔随机扰动因子"
-    )
-    max_concurrent_distributions: int = Field(
-        default=10, ge=1, le=100, description="最大并发处理的消息流数量"
-    )
-
+    dynamic_distribution_base_interval: float = Field(default=5.0, ge=1.0, le=60.0, description="基础分发间隔（秒）")
+    dynamic_distribution_min_interval: float = Field(default=1.0, ge=0.5, le=10.0, description="最小分发间隔（秒）")
+    dynamic_distribution_max_interval: float = Field(default=30.0, ge=5.0, le=300.0, description="最大分发间隔（秒）")
+    dynamic_distribution_jitter_factor: float = Field(default=0.2, ge=0.0, le=0.5, description="分发间隔随机扰动因子")
+    max_concurrent_distributions: int = Field(default=10, ge=1, le=100, description="最大并发处理的消息流数量")
 
 
 class MessageReceiveConfig(ValidatedConfigBase):
@@ -309,11 +296,13 @@ class MemoryConfig(ValidatedConfigBase):
     enable_vector_memory_storage: bool = Field(default=True, description="启用Vector DB记忆存储")
     enable_llm_instant_memory: bool = Field(default=True, description="启用基于LLM的瞬时记忆")
     enable_vector_instant_memory: bool = Field(default=True, description="启用基于向量的瞬时记忆")
-    
+
     # Vector DB配置
     vector_db_memory_collection: str = Field(default="unified_memory_v2", description="Vector DB记忆集合名称")
     vector_db_metadata_collection: str = Field(default="memory_metadata_v2", description="Vector DB元数据集合名称")
-    vector_db_similarity_threshold: float = Field(default=0.5, description="Vector DB相似度阈值（推荐0.5-0.6，过高会导致检索不到结果）")
+    vector_db_similarity_threshold: float = Field(
+        default=0.5, description="Vector DB相似度阈值（推荐0.5-0.6，过高会导致检索不到结果）"
+    )
     vector_db_search_limit: int = Field(default=20, description="Vector DB搜索限制")
     vector_db_batch_size: int = Field(default=100, description="批处理大小")
     vector_db_enable_caching: bool = Field(default=True, description="启用内存缓存")
@@ -327,23 +316,23 @@ class MemoryConfig(ValidatedConfigBase):
     base_forgetting_days: float = Field(default=30.0, description="基础遗忘天数")
     min_forgetting_days: float = Field(default=7.0, description="最小遗忘天数")
     max_forgetting_days: float = Field(default=365.0, description="最大遗忘天数")
-    
+
     # 重要程度权重
     critical_importance_bonus: float = Field(default=45.0, description="关键重要性额外天数")
     high_importance_bonus: float = Field(default=30.0, description="高重要性额外天数")
     normal_importance_bonus: float = Field(default=15.0, description="一般重要性额外天数")
     low_importance_bonus: float = Field(default=0.0, description="低重要性额外天数")
-    
+
     # 置信度权重
     verified_confidence_bonus: float = Field(default=30.0, description="已验证置信度额外天数")
     high_confidence_bonus: float = Field(default=20.0, description="高置信度额外天数")
     medium_confidence_bonus: float = Field(default=10.0, description="中等置信度额外天数")
     low_confidence_bonus: float = Field(default=0.0, description="低置信度额外天数")
-    
+
     # 激活频率权重
     activation_frequency_weight: float = Field(default=0.5, description="每次激活增加的天数权重")
     max_frequency_bonus: float = Field(default=10.0, description="最大激活频率奖励天数")
-    
+
     # 休眠机制
     dormant_threshold_days: int = Field(default=90, description="休眠状态判定天数")
 
@@ -596,6 +585,7 @@ class SleepSystemConfig(ValidatedConfigBase):
         default="我准备睡觉了，请生成一句简短自然的晚安问候。", description="用于生成睡前消息的提示"
     )
 
+
 class ContextGroup(ValidatedConfigBase):
     """上下文共享组配置"""
 
@@ -658,6 +648,7 @@ class AffinityFlowConfig(ValidatedConfigBase):
     mention_bot_interest_score: float = Field(default=0.6, description="提及bot的兴趣分")
     base_relationship_score: float = Field(default=0.5, description="基础人物关系分")
 
+
 class ProactiveThinkingConfig(ValidatedConfigBase):
     """主动思考（主动发起对话）功能配置"""
 
@@ -666,24 +657,26 @@ class ProactiveThinkingConfig(ValidatedConfigBase):
 
     # --- 触发时机 ---
     interval: int = Field(default=1500, description="基础触发间隔（秒），AI会围绕这个时间点主动发起对话")
-    interval_sigma: int = Field(default=120, description="间隔随机化标准差（秒），让触发时间更自然。设为0则为固定间隔。")
+    interval_sigma: int = Field(
+        default=120, description="间隔随机化标准差（秒），让触发时间更自然。设为0则为固定间隔。"
+    )
     talk_frequency_adjust: list[list[str]] = Field(
-        default_factory=lambda: [['', '8:00,1', '12:00,1.2', '18:00,1.5', '01:00,0.6']],
-        description='每日活跃度调整，格式：[["", "HH:MM,factor", ...], ["stream_id", ...]]'
+        default_factory=lambda: [["", "8:00,1", "12:00,1.2", "18:00,1.5", "01:00,0.6"]],
+        description='每日活跃度调整，格式：[["", "HH:MM,factor", ...], ["stream_id", ...]]',
     )
 
     # --- 作用范围 ---
     enable_in_private: bool = Field(default=True, description="是否允许在私聊中主动发起对话")
     enable_in_group: bool = Field(default=True, description="是否允许在群聊中主动发起对话")
     enabled_private_chats: List[str] = Field(
-        default_factory=list,
-        description='私聊白名单，为空则对所有私聊生效。格式: ["platform:user_id", ...]'
+        default_factory=list, description='私聊白名单，为空则对所有私聊生效。格式: ["platform:user_id", ...]'
     )
     enabled_group_chats: List[str] = Field(
-        default_factory=list,
-        description='群聊白名单，为空则对所有群聊生效。格式: ["platform:group_id", ...]'
+        default_factory=list, description='群聊白名单，为空则对所有群聊生效。格式: ["platform:group_id", ...]'
     )
 
     # --- 冷启动配置 (针对私聊) ---
     enable_cold_start: bool = Field(default=True, description="对于白名单中不活跃的私聊，是否允许进行一次“冷启动”问候")
-    cold_start_cooldown: int = Field(default=86400, description="冷启动后，该私聊的下一次主动思考需要等待的最小时间（秒）")
+    cold_start_cooldown: int = Field(
+        default=86400, description="冷启动后，该私聊的下一次主动思考需要等待的最小时间（秒）"
+    )

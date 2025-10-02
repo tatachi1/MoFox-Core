@@ -12,7 +12,7 @@ from .energy_manager import (
     ActivityEnergyCalculator,
     RecencyEnergyCalculator,
     RelationshipEnergyCalculator,
-    energy_manager
+    energy_manager,
 )
 
 __all__ = [
@@ -24,5 +24,5 @@ __all__ = [
     "ActivityEnergyCalculator",
     "RecencyEnergyCalculator",
     "RelationshipEnergyCalculator",
-    "energy_manager"
+    "energy_manager",
 ]

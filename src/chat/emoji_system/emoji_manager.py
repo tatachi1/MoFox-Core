@@ -204,9 +204,7 @@ class MaiEmoji:
             # 2. 删除数据库记录
             try:
                 async with get_db_session() as session:
-                    result = await session.execute(
-                        select(Emoji).where(Emoji.emoji_hash == self.hash)
-                    )
+                    result = await session.execute(select(Emoji).where(Emoji.emoji_hash == self.hash))
                     will_delete_emoji = result.scalar_one_or_none()
                     if will_delete_emoji is None:
                         logger.warning(f"[删除] 数据库中未找到哈希值为 {self.hash} 的表情包记录。")
@@ -947,10 +945,7 @@ class EmojiManager:
             existing_description = None
             try:
                 async with get_db_session() as session:
-                    stmt = select(Images).where(
-                        Images.emoji_hash == image_hash,
-                        Images.type == "emoji"
-                    )
+                    stmt = select(Images).where(Images.emoji_hash == image_hash, Images.type == "emoji")
                     result = await session.execute(stmt)
                     existing_image = result.scalar_one_or_none()
                     if existing_image and existing_image.description:

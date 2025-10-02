@@ -230,12 +230,14 @@ class SingleStreamContextManager:
         异步计算消息的兴趣度。
         此方法通过检查当前是否存在正在运行的 asyncio 事件循环来兼容同步和异步调用。
         """
+
         # 内部异步函数，封装实际的计算逻辑
         async def _get_score():
             try:
                 from src.plugins.built_in.affinity_flow_chatter.interest_scoring import (
                     chatter_interest_scoring_system,
                 )
+
                 interest_score = await chatter_interest_scoring_system._calculate_single_message_score(
                     message=message, bot_nickname=global_config.bot.nickname
                 )

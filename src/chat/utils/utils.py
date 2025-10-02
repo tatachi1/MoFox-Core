@@ -675,7 +675,6 @@ async def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional[Di
                             if loop.is_running():
                                 # 如果事件循环在运行，从其他线程提交并等待结果
                                 try:
-                                    from concurrent.futures import TimeoutError
 
                                     fut = asyncio.run_coroutine_threadsafe(
                                         person_info_manager.get_value(person_id, "person_name"), loop

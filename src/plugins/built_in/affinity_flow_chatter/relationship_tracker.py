@@ -596,7 +596,7 @@ class ChatterRelationshipTracker:
                     quality = response_data.get("interaction_quality", "medium")
 
                     # 更新数据库
-                    await self._update_user_relationship_in_db(user_id, new_text,  new_score)
+                    await self._update_user_relationship_in_db(user_id, new_text, new_score)
 
                     # 更新缓存
                     self.user_relationship_cache[user_id] = {

@@ -381,12 +381,12 @@ class Prompt:
 
             # 性能优化 - 为不同任务设置不同的超时时间
             task_timeouts = {
-                "memory_block": 15.0,       # 记忆系统 - 降低超时时间，鼓励预构建
-                "tool_info": 15.0,         # 工具信息
-                "relation_info": 10.0,     # 关系信息
-                "knowledge_info": 10.0,    # 知识库查询
-                "cross_context": 10.0,     # 上下文处理
-                "expression_habits": 10.0, # 表达习惯
+                "memory_block": 15.0,  # 记忆系统 - 降低超时时间，鼓励预构建
+                "tool_info": 15.0,  # 工具信息
+                "relation_info": 10.0,  # 关系信息
+                "knowledge_info": 10.0,  # 知识库查询
+                "cross_context": 10.0,  # 上下文处理
+                "expression_habits": 10.0,  # 表达习惯
             }
 
             # 分别处理每个任务，避免慢任务影响快任务
@@ -563,7 +563,7 @@ class Prompt:
                 ),
                 enhanced_memory_activator.get_instant_memory(
                     target_message=self.parameters.target, chat_id=self.parameters.chat_id
-                )
+                ),
             ]
 
             try:
@@ -606,26 +606,27 @@ class Prompt:
                             "opinion": "opinion",
                             "personal_fact": "personal_fact",
                             "preference": "preference",
-                            "event": "event"
+                            "event": "event",
                         }
                         mapped_type = memory_type_mapping.get(topic, "personal_fact")
 
-                        formatted_memories.append({
-                            "display": display_text,
-                            "memory_type": mapped_type,
-                            "metadata": {
-                                "confidence": memory.get("confidence", "未知"),
-                                "importance": memory.get("importance", "一般"),
-                                "timestamp": memory.get("timestamp", ""),
-                                "source": memory.get("source", "unknown"),
-                                "relevance_score": memory.get("relevance_score", 0.0)
+                        formatted_memories.append(
+                            {
+                                "display": display_text,
+                                "memory_type": mapped_type,
+                                "metadata": {
+                                    "confidence": memory.get("confidence", "未知"),
+                                    "importance": memory.get("importance", "一般"),
+                                    "timestamp": memory.get("timestamp", ""),
+                                    "source": memory.get("source", "unknown"),
+                                    "relevance_score": memory.get("relevance_score", 0.0),
+                                },
                             }
-                        })
+                        )
 
                     # 使用方括号格式格式化记忆
                     memory_block = format_memories_bracket_style(
-                        formatted_memories,
-                        query_context=self.parameters.target
+                        formatted_memories, query_context=self.parameters.target
                     )
                 except Exception as e:
                     logger.warning(f"记忆格式化失败，使用简化格式: {e}")
@@ -833,7 +834,8 @@ class Prompt:
             "moderation_prompt": self.parameters.moderation_prompt_block or context_data.get("moderation_prompt", ""),
             "safety_guidelines_block": self.parameters.safety_guidelines_block
             or context_data.get("safety_guidelines_block", ""),
-            "chat_scene": self.parameters.chat_scene or "你正在一个QQ群里聊天，你需要理解整个群的聊天动态和话题走向，并做出自然的回应。",
+            "chat_scene": self.parameters.chat_scene
+            or "你正在一个QQ群里聊天，你需要理解整个群的聊天动态和话题走向，并做出自然的回应。",
         }
 
     def _prepare_normal_params(self, context_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -860,7 +862,8 @@ class Prompt:
             "moderation_prompt": self.parameters.moderation_prompt_block or context_data.get("moderation_prompt", ""),
             "safety_guidelines_block": self.parameters.safety_guidelines_block
             or context_data.get("safety_guidelines_block", ""),
-            "chat_scene": self.parameters.chat_scene or "你正在一个QQ群里聊天，你需要理解整个群的聊天动态和话题走向，并做出自然的回应。",
+            "chat_scene": self.parameters.chat_scene
+            or "你正在一个QQ群里聊天，你需要理解整个群的聊天动态和话题走向，并做出自然的回应。",
         }
 
     def _prepare_default_params(self, context_data: Dict[str, Any]) -> Dict[str, Any]:

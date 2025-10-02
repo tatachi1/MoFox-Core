@@ -47,9 +47,9 @@ class SearchKnowledgeFromLPMMTool(BaseTool):
                 knowledge_parts = []
                 for i, item in enumerate(knowledge_info["knowledge_items"]):
                     knowledge_parts.append(f"- {item.get('content', 'N/A')}")
-                
+
                 knowledge_text = "\n".join(knowledge_parts)
-                summary = knowledge_info.get('summary', '无总结')
+                summary = knowledge_info.get("summary", "无总结")
                 content = f"关于 '{query}', 你知道以下信息：\n{knowledge_text}\n\n总结: {summary}"
             else:
                 content = f"关于 '{query}'，你的知识库里好像没有相关的信息呢"

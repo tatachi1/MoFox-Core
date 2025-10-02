@@ -149,7 +149,7 @@ class ChatMood:
         self.mood_state = response
 
         self.last_change_time = message_time
-        
+
     async def regress_mood(self):
         message_time = time.time()
         message_list_before_now = await get_raw_msg_by_timestamp_with_chat_inclusive(

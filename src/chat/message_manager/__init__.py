@@ -5,15 +5,12 @@
 
 from .message_manager import MessageManager, message_manager
 from .context_manager import SingleStreamContextManager
-from .distribution_manager import (
-    StreamLoopManager,
-    stream_loop_manager
-)
+from .distribution_manager import StreamLoopManager, stream_loop_manager
 
 __all__ = [
     "MessageManager",
     "message_manager",
     "SingleStreamContextManager",
     "StreamLoopManager",
-    "stream_loop_manager"
+    "stream_loop_manager",
 ]

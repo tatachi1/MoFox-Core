@@ -50,13 +50,13 @@ async def _calculate_interest(message: MessageRecv) -> Tuple[float, bool]:
                     query_text=message.processed_plain_text,
                     user_id=str(message.user_info.user_id),
                     scope_id=message.chat_id,
-                    limit=5
+                    limit=5,
                 )
 
                 # 基于检索结果计算兴趣度
                 if enhanced_memories:
                     # 有相关记忆，兴趣度基于相似度计算
-                    max_score = max(getattr(memory, 'relevance_score', 0.5) for memory in enhanced_memories)
+                    max_score = max(getattr(memory, "relevance_score", 0.5) for memory in enhanced_memories)
                     interested_rate = min(max_score, 1.0)  # 限制在0-1之间
                 else:
                     # 没有相关记忆，给予基础兴趣度

@@ -4,17 +4,15 @@
 提供与现有MoFox Bot系统的无缝集成点
 """
 
-import asyncio
 import time
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, Optional, Any
 from dataclasses import dataclass
 
 from src.common.logger import get_logger
 from src.chat.memory_system.enhanced_memory_adapter import (
-    get_enhanced_memory_adapter,
     process_conversation_with_enhanced_memory,
     retrieve_memories_with_enhanced_system,
-    get_memory_context_for_prompt
+    get_memory_context_for_prompt,
 )
 
 logger = get_logger(__name__)
@@ -23,6 +21,7 @@ logger = get_logger(__name__)
 @dataclass
 class HookResult:
     """钩子执行结果"""
+
     success: bool
     data: Any = None
     error: Optional[str] = None
@@ -39,7 +38,7 @@ class MemoryIntegrationHooks:
             "memory_retrieval_hooks": 0,
             "prompt_enhancement_hooks": 0,
             "total_hook_executions": 0,
-            "average_hook_time": 0.0
+            "average_hook_time": 0.0,
         }
 
     async def register_hooks(self):
@@ -130,10 +129,7 @@ class MemoryIntegrationHooks:
                 from src.plugin_system.base.component_types import EventType
 
                 # 注册消息后处理事件
-                event_manager.subscribe(
-                    EventType.MESSAGE_PROCESSED,
-                    self._on_message_processed_handler
-                )
+                event_manager.subscribe(EventType.MESSAGE_PROCESSED, self._on_message_processed_handler)
                 logger.debug("已注册到事件系统的消息处理钩子")
 
             except ImportError:
@@ -144,10 +140,8 @@ class MemoryIntegrationHooks:
                 from src.chat.message_manager import message_manager
 
                 # 如果消息管理器支持钩子注册
-                if hasattr(message_manager, 'register_post_process_hook'):
-                    message_manager.register_post_process_hook(
-                        self._on_message_processed_hook
-                    )
+                if hasattr(message_manager, "register_post_process_hook"):
+                    message_manager.register_post_process_hook(self._on_message_processed_hook)
                     logger.debug("已注册到消息管理器的处理钩子")
 
             except ImportError:
@@ -164,10 +158,8 @@ class MemoryIntegrationHooks:
                 from src.chat.message_receive.chat_stream import get_chat_manager
 
                 chat_manager = get_chat_manager()
-                if hasattr(chat_manager, 'register_save_hook'):
-                    chat_manager.register_save_hook(
-                        self._on_chat_stream_save_hook
-                    )
+                if hasattr(chat_manager, "register_save_hook"):
+                    chat_manager.register_save_hook(self._on_chat_stream_save_hook)
                     logger.debug("已注册到聊天流管理器的保存钩子")
 
             except ImportError:
@@ -183,10 +175,8 @@ class MemoryIntegrationHooks:
             try:
                 from src.chat.replyer.default_generator import default_generator
 
-                if hasattr(default_generator, 'register_pre_generation_hook'):
-                    default_generator.register_pre_generation_hook(
-                        self._on_pre_response_hook
-                    )
+                if hasattr(default_generator, "register_pre_generation_hook"):
+                    default_generator.register_pre_generation_hook(self._on_pre_response_hook)
                     logger.debug("已注册到回复生成器的前置钩子")
 
             except ImportError:
@@ -202,10 +192,8 @@ class MemoryIntegrationHooks:
             try:
                 from src.chat.knowledge.knowledge_lib import knowledge_manager
 
-                if hasattr(knowledge_manager, 'register_query_enhancer'):
-                    knowledge_manager.register_query_enhancer(
-                        self._on_knowledge_query_hook
-                    )
+                if hasattr(knowledge_manager, "register_query_enhancer"):
+                    knowledge_manager.register_query_enhancer(self._on_knowledge_query_hook)
                     logger.debug("已注册到知识库的查询增强钩子")
 
             except ImportError:
@@ -221,10 +209,8 @@ class MemoryIntegrationHooks:
             try:
                 from src.chat.utils.prompt import prompt_manager
 
-                if hasattr(prompt_manager, 'register_enhancer'):
-                    prompt_manager.register_enhancer(
-                        self._on_prompt_building_hook
-                    )
+                if hasattr(prompt_manager, "register_enhancer"):
+                    prompt_manager.register_enhancer(self._on_prompt_building_hook)
                     logger.debug("已注册到提示词管理器的增强钩子")
 
             except ImportError:
@@ -278,7 +264,7 @@ class MemoryIntegrationHooks:
                 "platform": message_info.get("platform", "unknown"),
                 "interest_value": message_data.get("interest_value", 0.0),
                 "keywords": message_data.get("key_words", []),
-                "timestamp": message_data.get("time", time.time())
+                "timestamp": message_data.get("time", time.time()),
             }
 
             # 使用增强记忆系统处理对话
@@ -296,7 +282,7 @@ class MemoryIntegrationHooks:
                 return HookResult(success=True, data=result, processing_time=processing_time)
             else:
                 logger.warning(f"消息处理钩子执行失败: {result.get('error')}")
-                return HookResult(success=False, error=result.get('error'), processing_time=processing_time)
+                return HookResult(success=False, error=result.get("error"), processing_time=processing_time)
 
         except Exception as e:
             processing_time = time.time() - start_time
@@ -334,7 +320,7 @@ class MemoryIntegrationHooks:
                 "stream_id": chat_stream_data.get("stream_id"),
                 "platform": chat_stream_data.get("platform", "unknown"),
                 "message_count": len(messages),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
             # 使用增强记忆系统处理对话
@@ -352,7 +338,7 @@ class MemoryIntegrationHooks:
                 return HookResult(success=True, data=result, processing_time=processing_time)
             else:
                 logger.warning(f"聊天流保存钩子执行失败: {result.get('error')}")
-                return HookResult(success=False, error=result.get('error'), processing_time=processing_time)
+                return HookResult(success=False, error=result.get("error"), processing_time=processing_time)
 
         except Exception as e:
             processing_time = time.time() - start_time
@@ -375,9 +361,7 @@ class MemoryIntegrationHooks:
                 return HookResult(success=True, data="No query provided")
 
             # 检索相关记忆
-            memories = await retrieve_memories_with_enhanced_system(
-                query, user_id, context, limit=5
-            )
+            memories = await retrieve_memories_with_enhanced_system(query, user_id, context, limit=5)
 
             processing_time = time.time() - start_time
             self._update_hook_stats(processing_time)
@@ -411,9 +395,7 @@ class MemoryIntegrationHooks:
                 return HookResult(success=True, data="No query provided")
 
             # 获取记忆上下文并增强查询
-            memory_context = await get_memory_context_for_prompt(
-                query, user_id, context, max_memories=3
-            )
+            memory_context = await get_memory_context_for_prompt(query, user_id, context, max_memories=3)
 
             processing_time = time.time() - start_time
             self._update_hook_stats(processing_time)
@@ -445,9 +427,7 @@ class MemoryIntegrationHooks:
                 return HookResult(success=True, data="No query provided")
 
             # 获取记忆上下文
-            memory_context = await get_memory_context_for_prompt(
-                query, user_id, context, max_memories=5
-            )
+            memory_context = await get_memory_context_for_prompt(query, user_id, context, max_memories=5)
 
             processing_time = time.time() - start_time
             self._update_hook_stats(processing_time)
@@ -499,6 +479,7 @@ class MemoryMaintenanceTask:
             # 获取适配器实例
             try:
                 from src.chat.memory_system.enhanced_memory_adapter import _enhanced_memory_adapter
+
                 if _enhanced_memory_adapter:
                     await _enhanced_memory_adapter.maintenance()
                     logger.info("✅ 增强记忆系统维护任务完成")

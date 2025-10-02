@@ -844,7 +844,7 @@ class MessageHandler:
                 if music:
                     tag = music.get("tag", "未知来源")
                     logger.debug(f"检测到【{tag}】音乐分享消息 (music view)，开始提取信息")
-                    
+
                     title = music.get("title", "未知歌曲")
                     desc = music.get("desc", "未知艺术家")
                     jump_url = music.get("jumpUrl", "")
@@ -862,7 +862,7 @@ class MessageHandler:
                             artist = parts[1]
                         else:
                             artist = desc
-                    
+
                     formatted_content = (
                         f"这是一张来自【{tag}】的音乐分享卡片：\n"
                         f"歌曲: {song_title}\n"
@@ -879,12 +879,12 @@ class MessageHandler:
                 if news and "网易云音乐" in news.get("tag", ""):
                     tag = news.get("tag")
                     logger.debug(f"检测到【{tag}】音乐分享消息 (news view)，开始提取信息")
-                    
+
                     title = news.get("title", "未知歌曲")
                     desc = news.get("desc", "未知艺术家")
                     jump_url = news.get("jumpUrl", "")
                     preview_url = news.get("preview", "")
-                    
+
                     formatted_content = (
                         f"这是一张来自【{tag}】的音乐分享卡片：\n"
                         f"标题: {title}\n"

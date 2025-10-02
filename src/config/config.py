@@ -44,7 +44,7 @@ from src.config.official_configs import (
     CommandConfig,
     PlanningSystemConfig,
     AffinityFlowConfig,
-    ProactiveThinkingConfig
+    ProactiveThinkingConfig,
 )
 
 from .api_ada_configs import (

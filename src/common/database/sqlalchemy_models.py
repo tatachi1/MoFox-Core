@@ -781,6 +781,7 @@ async def get_db_session() -> AsyncGenerator[Optional[AsyncSession], None]:
         session = SessionLocal()
         # 对于 SQLite，在会话开始时设置 PRAGMA
         from src.config.config import global_config
+
         if global_config.database.database_type == "sqlite":
             await session.execute(text("PRAGMA busy_timeout = 60000"))
             await session.execute(text("PRAGMA foreign_keys = ON"))

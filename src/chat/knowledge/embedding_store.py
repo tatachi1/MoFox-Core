@@ -161,7 +161,7 @@ class EmbeddingStore:
 
     @staticmethod
     def _get_embeddings_batch_threaded(
-            strs: List[str], chunk_size: int = 10, max_workers: int = 10, progress_callback=None
+        strs: List[str], chunk_size: int = 10, max_workers: int = 10, progress_callback=None
     ) -> List[Tuple[str, List[float]]]:
         """使用多线程批量获取嵌入向量
 

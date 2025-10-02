@@ -2,12 +2,12 @@ from typing import Dict, List, Optional, Any
 import time
 from src.plugin_system.base.base_chatter import BaseChatter
 from src.common.data_models.message_manager_data_model import StreamContext
-from src.plugins.built_in.affinity_flow_chatter.planner import ChatterActionPlanner as ActionPlanner
 from src.chat.planner_actions.action_manager import ChatterActionManager
-from src.plugin_system.base.component_types import ChatType, ComponentType
+from src.plugin_system.base.component_types import ChatType
 from src.common.logger import get_logger
 
 logger = get_logger("chatter_manager")
+
 
 class ChatterManager:
     def __init__(self, action_manager: ChatterActionManager):
@@ -27,6 +27,7 @@ class ChatterManager:
         """从组件注册表自动注册已注册的chatter组件"""
         try:
             from src.plugin_system.core.component_registry import component_registry
+
             # 获取所有CHATTER类型的组件
             chatter_components = component_registry.get_enabled_chatter_registry()
             for chatter_name, chatter_class in chatter_components.items():
@@ -70,7 +71,7 @@ class ChatterManager:
 
         inactive_streams = []
         for stream_id, instance in self.instances.items():
-            if hasattr(instance, 'get_activity_time'):
+            if hasattr(instance, "get_activity_time"):
                 activity_time = instance.get_activity_time()
                 if (current_time - activity_time) > max_inactive_seconds:
                     inactive_streams.append(stream_id)
@@ -91,6 +92,7 @@ class ChatterManager:
         if not chatter_class:
             # 如果没有找到精确匹配，尝试查找支持ALL类型的chatter
             from src.plugin_system.base.component_types import ChatType
+
             all_chatter_class = self.get_chatter_class(ChatType.ALL)
             if all_chatter_class:
                 chatter_class = all_chatter_class
@@ -110,6 +112,7 @@ class ChatterManager:
             # 从 mood_manager 获取最新的 chat_stream 并同步回 StreamContext
             try:
                 from src.mood.mood_manager import mood_manager
+
                 mood = mood_manager.get_mood_by_chat_id(stream_id)
                 if mood and mood.chat_stream:
                     context.chat_stream = mood.chat_stream
@@ -125,6 +128,7 @@ class ChatterManager:
             # 在处理完成后，清除该流的未读消息
             try:
                 from src.chat.message_manager.message_manager import message_manager
+
                 await message_manager.clear_stream_unread_messages(stream_id)
             except Exception as clear_e:
                 logger.error(f"清除流 {stream_id} 未读消息时发生错误: {clear_e}")

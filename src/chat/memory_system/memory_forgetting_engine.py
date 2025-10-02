@@ -6,8 +6,8 @@
 
 import time
 import asyncio
-from typing import List, Dict, Optional, Set, Tuple
-from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Tuple
+from datetime import datetime
 from dataclasses import dataclass
 
 from src.common.logger import get_logger
@@ -19,6 +19,7 @@ logger = get_logger(__name__)
 @dataclass
 class ForgettingStats:
     """遗忘统计信息"""
+
     total_checked: int = 0
     marked_for_forgetting: int = 0
     actually_forgotten: int = 0
@@ -30,34 +31,35 @@ class ForgettingStats:
 @dataclass
 class ForgettingConfig:
     """遗忘引擎配置"""
+
     # 检查频率配置
-    check_interval_hours: int = 24        # 定期检查间隔（小时）
-    batch_size: int = 100                 # 批处理大小
+    check_interval_hours: int = 24  # 定期检查间隔（小时）
+    batch_size: int = 100  # 批处理大小
 
     # 遗忘阈值配置
-    base_forgetting_days: float = 30.0    # 基础遗忘天数
-    min_forgetting_days: float = 7.0      # 最小遗忘天数
-    max_forgetting_days: float = 365.0    # 最大遗忘天数
+    base_forgetting_days: float = 30.0  # 基础遗忘天数
+    min_forgetting_days: float = 7.0  # 最小遗忘天数
+    max_forgetting_days: float = 365.0  # 最大遗忘天数
 
     # 重要程度权重
     critical_importance_bonus: float = 45.0  # 关键重要性额外天数
-    high_importance_bonus: float = 30.0      # 高重要性额外天数
-    normal_importance_bonus: float = 15.0    # 一般重要性额外天数
-    low_importance_bonus: float = 0.0        # 低重要性额外天数
+    high_importance_bonus: float = 30.0  # 高重要性额外天数
+    normal_importance_bonus: float = 15.0  # 一般重要性额外天数
+    low_importance_bonus: float = 0.0  # 低重要性额外天数
 
     # 置信度权重
     verified_confidence_bonus: float = 30.0  # 已验证置信度额外天数
-    high_confidence_bonus: float = 20.0      # 高置信度额外天数
-    medium_confidence_bonus: float = 10.0    # 中等置信度额外天数
-    low_confidence_bonus: float = 0.0        # 低置信度额外天数
+    high_confidence_bonus: float = 20.0  # 高置信度额外天数
+    medium_confidence_bonus: float = 10.0  # 中等置信度额外天数
+    low_confidence_bonus: float = 0.0  # 低置信度额外天数
 
     # 激活频率权重
     activation_frequency_weight: float = 0.5  # 每次激活增加的天数权重
-    max_frequency_bonus: float = 10.0        # 最大激活频率奖励天数
+    max_frequency_bonus: float = 10.0  # 最大激活频率奖励天数
 
     # 休眠配置
-    dormant_threshold_days: int = 90        # 休眠状态判定天数
-    force_forget_dormant_days: int = 180    # 强制遗忘休眠记忆的天数
+    dormant_threshold_days: int = 90  # 休眠状态判定天数
+    force_forget_dormant_days: int = 180  # 强制遗忘休眠记忆的天数
 
 
 class MemoryForgettingEngine:
@@ -107,13 +109,12 @@ class MemoryForgettingEngine:
         # 激活频率权重
         frequency_bonus = min(
             memory.metadata.activation_frequency * self.config.activation_frequency_weight,
-            self.config.max_frequency_bonus
+            self.config.max_frequency_bonus,
         )
         threshold += frequency_bonus
 
         # 确保在合理范围内
-        return max(self.config.min_forgetting_days,
-                  min(threshold, self.config.max_forgetting_days))
+        return max(self.config.min_forgetting_days, min(threshold, self.config.max_forgetting_days))
 
     def should_forget_memory(self, memory: MemoryChunk, current_time: Optional[float] = None) -> bool:
         """
@@ -265,8 +266,8 @@ class MemoryForgettingEngine:
                     "actually_forgotten": self.stats.actually_forgotten,
                     "dormant_memories": self.stats.dormant_memories,
                     "check_duration": self.stats.check_duration,
-                    "last_check_time": self.stats.last_check_time
-                }
+                    "last_check_time": self.stats.last_check_time,
+                },
             }
 
     def is_forgetting_check_needed(self) -> bool:
@@ -302,7 +303,9 @@ class MemoryForgettingEngine:
 
             # 如果启用自动清理，执行实际的遗忘操作
             if enable_auto_cleanup and (result["normal_forgetting"] or result["force_forgetting"]):
-                logger.info(f"检测到 {len(result['normal_forgetting'])} 条普通遗忘和 {len(result['force_forgetting'])} 条强制遗忘记忆")
+                logger.info(
+                    f"检测到 {len(result['normal_forgetting'])} 条普通遗忘和 {len(result['force_forgetting'])} 条强制遗忘记忆"
+                )
                 # 这里可以调用实际的删除逻辑
                 # await self.cleanup_forgotten_memories(result["normal_forgetting"] + result["force_forgetting"])
 
@@ -318,14 +321,16 @@ class MemoryForgettingEngine:
             "marked_for_forgetting": self.stats.marked_for_forgetting,
             "actually_forgotten": self.stats.actually_forgotten,
             "dormant_memories": self.stats.dormant_memories,
-            "last_check_time": datetime.fromtimestamp(self.stats.last_check_time).isoformat() if self.stats.last_check_time else None,
+            "last_check_time": datetime.fromtimestamp(self.stats.last_check_time).isoformat()
+            if self.stats.last_check_time
+            else None,
             "last_check_duration": self.stats.check_duration,
             "config": {
                 "check_interval_hours": self.config.check_interval_hours,
                 "base_forgetting_days": self.config.base_forgetting_days,
                 "min_forgetting_days": self.config.min_forgetting_days,
-                "max_forgetting_days": self.config.max_forgetting_days
-            }
+                "max_forgetting_days": self.config.max_forgetting_days,
+            },
         }
 
     def reset_stats(self):

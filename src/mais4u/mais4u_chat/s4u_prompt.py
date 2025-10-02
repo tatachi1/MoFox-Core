@@ -4,6 +4,7 @@ from src.chat.utils.prompt import Prompt, global_prompt_manager
 from src.chat.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
 import time
 from src.chat.utils.utils import get_recent_group_speaker
+
 # 旧的Hippocampus系统已被移除，现在使用增强记忆系统
 # from src.chat.memory_system.enhanced_memory_manager import enhanced_memory_manager
 import random
@@ -171,14 +172,16 @@ class PromptBuilder:
                 query_text=text,
                 user_id="system",  # 系统查询
                 scope_id="system",
-                limit=5
+                limit=5,
             )
 
             related_memory_info = ""
             if enhanced_memories:
                 for memory_chunk in enhanced_memories:
                     related_memory_info += memory_chunk.display or memory_chunk.text_content or ""
-                return await global_prompt_manager.format_prompt("memory_prompt", memory_info=related_memory_info.strip())
+                return await global_prompt_manager.format_prompt(
+                    "memory_prompt", memory_info=related_memory_info.strip()
+                )
             return ""
 
         except Exception as e:

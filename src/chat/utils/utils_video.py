@@ -35,7 +35,7 @@ logger = get_logger("utils_video")
 # Rust模块可用性检测
 RUST_VIDEO_AVAILABLE = False
 try:
-    import rust_video # pyright: ignore[reportMissingImports]
+    import rust_video  # pyright: ignore[reportMissingImports]
 
     RUST_VIDEO_AVAILABLE = True
     logger.info("✅ Rust 视频处理模块加载成功")
@@ -222,7 +222,7 @@ class VideoAnalyzer:
             return None
 
     async def _store_video_result(
-        self, video_hash: str,  description: str, metadata: Optional[Dict] = None
+        self, video_hash: str, description: str, metadata: Optional[Dict] = None
     ) -> Optional[Videos]:
         """存储视频分析结果到数据库"""
         # 检查描述是否为错误信息，如果是则不保存

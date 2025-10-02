@@ -12,7 +12,7 @@ from src.common.data_models.info_data_model import InterestScore
 from src.chat.interest_system import bot_interest_manager
 from src.common.logger import get_logger
 from src.config.config import global_config
-from src.plugins.built_in.affinity_flow_chatter.relationship_tracker import ChatterRelationshipTracker
+
 logger = get_logger("chatter_interest_scoring")
 
 # 定义颜色
@@ -45,7 +45,7 @@ class ChatterInterestScoringSystem:
         self.probability_boost_per_no_reply = (
             affinity_config.no_reply_threshold_adjustment / affinity_config.max_no_reply_count
         )  # 每次不回复增加的概率
-        
+
         # 用户关系数据
         self.user_relationships: Dict[str, float] = {}  # user_id -> relationship_score
 

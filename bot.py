@@ -21,7 +21,7 @@ initialize_logging()
 from src.main import MainSystem  # noqa
 from src import BaseMain  # noqa
 from src.manager.async_task_manager import async_task_manager  # noqa
-from src.chat.knowledge.knowledge_lib import initialize_lpmm_knowledge # noqa
+from src.chat.knowledge.knowledge_lib import initialize_lpmm_knowledge  # noqa
 from src.config.config import global_config  # noqa
 from src.common.database.database import initialize_sql_database  # noqa
 from src.common.database.sqlalchemy_models import initialize_database as init_db  # noqa
@@ -269,4 +269,3 @@ if __name__ == "__main__":
         # 在程序退出前暂停，让你有机会看到输出
         # input("按 Enter 键退出...")  # <--- 添加这行
         sys.exit(exit_code)  # <--- 使用记录的退出码
-    

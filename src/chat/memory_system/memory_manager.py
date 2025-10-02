@@ -9,12 +9,9 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 
 from src.common.logger import get_logger
-from src.config.config import global_config
 from src.chat.memory_system.memory_system import MemorySystem
 from src.chat.memory_system.memory_chunk import MemoryChunk, MemoryType
-from src.chat.memory_system.memory_system import (
-    initialize_memory_system
-)
+from src.chat.memory_system.memory_system import initialize_memory_system
 
 logger = get_logger(__name__)
 
@@ -22,6 +19,7 @@ logger = get_logger(__name__)
 @dataclass
 class MemoryResult:
     """记忆查询结果"""
+
     content: str
     memory_type: str
     confidence: float
@@ -67,6 +65,7 @@ class MemoryManager:
             # 获取LLM模型
             from src.llm_models.utils_model import LLMRequest
             from src.config.config import model_config
+
             llm_model = LLMRequest(model_set=model_config.model_task_config.utils, request_type="memory")
 
             # 初始化记忆系统
@@ -121,7 +120,7 @@ class MemoryManager:
         max_memory_num: int = 3,
         max_memory_length: int = 2,
         time_weight: float = 1.0,
-        keyword_weight: float = 1.0
+        keyword_weight: float = 1.0,
     ) -> List[Tuple[str, str]]:
         """从文本获取相关记忆 - 兼容原有接口"""
         if not self.is_initialized or not self.memory_system:
@@ -131,14 +130,11 @@ class MemoryManager:
             # 使用增强记忆系统检索
             context = {
                 "chat_id": chat_id,
-                "expected_memory_types": [MemoryType.PERSONAL_FACT, MemoryType.EVENT, MemoryType.PREFERENCE]
+                "expected_memory_types": [MemoryType.PERSONAL_FACT, MemoryType.EVENT, MemoryType.PREFERENCE],
             }
 
             relevant_memories = await self.memory_system.retrieve_relevant_memories(
-                query=text,
-                user_id=user_id,
-                context=context,
-                limit=max_memory_num
+                query=text, user_id=user_id, context=context, limit=max_memory_num
             )
 
             # 转换为原有格式 (topic, content)
@@ -156,11 +152,7 @@ class MemoryManager:
             return []
 
     async def get_memory_from_topic(
-        self,
-        valid_keywords: List[str],
-        max_memory_num: int = 3,
-        max_memory_length: int = 2,
-        max_depth: int = 3
+        self, valid_keywords: List[str], max_memory_num: int = 3, max_memory_length: int = 2, max_depth: int = 3
     ) -> List[Tuple[str, str]]:
         """从关键词获取记忆 - 兼容原有接口"""
         if not self.is_initialized or not self.memory_system:
@@ -177,15 +169,15 @@ class MemoryManager:
                     MemoryType.PERSONAL_FACT,
                     MemoryType.EVENT,
                     MemoryType.PREFERENCE,
-                    MemoryType.OPINION
-                ]
+                    MemoryType.OPINION,
+                ],
             }
 
             relevant_memories = await self.memory_system.retrieve_relevant_memories(
                 query_text=query_text,
                 user_id="default_user",  # 可以根据实际需要传递
                 context=context,
-                limit=max_memory_num
+                limit=max_memory_num,
             )
 
             # 转换为原有格式 (topic, content)
@@ -216,11 +208,7 @@ class MemoryManager:
             return []
 
     async def process_conversation(
-        self,
-        conversation_text: str,
-        context: Dict[str, Any],
-        user_id: str,
-        timestamp: Optional[float] = None
+        self, conversation_text: str, context: Dict[str, Any], user_id: str, timestamp: Optional[float] = None
     ) -> List[MemoryChunk]:
         """处理对话并构建记忆 - 新增功能"""
         if not self.is_initialized or not self.memory_system:
@@ -247,11 +235,7 @@ class MemoryManager:
             return []
 
     async def get_enhanced_memory_context(
-        self,
-        query_text: str,
-        user_id: str,
-        context: Optional[Dict[str, Any]] = None,
-        limit: int = 5
+        self, query_text: str, user_id: str, context: Optional[Dict[str, Any]] = None, limit: int = 5
     ) -> List[MemoryResult]:
         """获取增强记忆上下文 - 新增功能"""
         if not self.is_initialized or not self.memory_system:
@@ -259,10 +243,7 @@ class MemoryManager:
 
         try:
             relevant_memories = await self.memory_system.retrieve_relevant_memories(
-                query=query_text,
-                user_id=None,
-                context=context or {},
-                limit=limit
+                query=query_text, user_id=None, context=context or {}, limit=limit
             )
 
             results = []
@@ -276,7 +257,7 @@ class MemoryManager:
                     timestamp=memory.metadata.created_at,
                     source="enhanced_memory",
                     relevance_score=memory.metadata.relevance_score,
-                    structure=structure
+                    structure=structure,
                 )
                 results.append(result)
 
@@ -342,7 +323,9 @@ class MemoryManager:
                 return None
             return f"{subject}的职业是{profession}"
         if predicate == "lives_in":
-            location = self._extract_from_object(obj_value, ["location", "city", "place"]) or self._format_object(obj_value)
+            location = self._extract_from_object(obj_value, ["location", "city", "place"]) or self._format_object(
+                obj_value
+            )
             location = self._clean_text(location)
             if not location:
                 return None
@@ -385,7 +368,9 @@ class MemoryManager:
                 return None
             return f"{subject}最喜欢{favorite}"
         if predicate == "mentioned_event":
-            event_text = self._extract_from_object(obj_value, ["event_text", "description"]) or self._format_object(obj_value)
+            event_text = self._extract_from_object(obj_value, ["event_text", "description"]) or self._format_object(
+                obj_value
+            )
             event_text = self._clean_text(self._truncate(event_text))
             if not event_text:
                 return None

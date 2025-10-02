@@ -80,6 +80,7 @@ class MainSystem:
             logger.info("收到退出信号，正在优雅关闭系统...")
 
             import asyncio
+
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
@@ -108,6 +109,7 @@ class MainSystem:
             # 停止消息管理器
             try:
                 from src.chat.message_manager import message_manager
+
                 await message_manager.stop()
                 logger.info("🛑 消息管理器已停止")
             except Exception as e:
@@ -243,7 +245,6 @@ MoFox_Bot(第三方修改版)
         # 处理所有缓存的事件订阅（插件加载完成后）
         event_manager.process_all_pending_subscriptions()
 
-  
         # 初始化表情管理器
         get_emoji_manager().initialize()
         logger.info("表情包管理器初始化成功")

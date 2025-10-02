@@ -810,23 +810,23 @@ class ModuleColoredConsoleRenderer:
                 thought_color = "\033[38;5;218m"
                 # 分割消息内容
                 prefix, thought = event_content.split("内心思考:", 1)
-                
+
                 # 前缀部分（“决定进行回复，”）使用模块颜色
                 if module_color:
                     prefix_colored = f"{module_color}{prefix.strip()}{RESET_COLOR}"
                 else:
                     prefix_colored = prefix.strip()
-                
+
                 # “内心思考”部分换行并使用专属颜色
                 thought_colored = f"\n\n{thought_color}内心思考:{thought.strip()}{RESET_COLOR}\n"
-                
+
                 # 重新组合
                 # parts.append(prefix_colored + thought_colored)
                 # 将前缀和思考内容作为独立的part添加，避免它们之间出现多余的空格
                 if prefix_colored:
                     parts.append(prefix_colored)
                 parts.append(thought_colored)
-                
+
             elif module_color:
                 event_content = f"{module_color}{event_content}{RESET_COLOR}"
                 parts.append(event_content)

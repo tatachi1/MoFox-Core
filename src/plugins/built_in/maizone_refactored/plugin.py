@@ -87,6 +87,7 @@ class MaiZoneRefactoredPlugin(BasePlugin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
     async def on_plugin_loaded(self):
         """插件加载完成后的回调，初始化服务并启动后台任务"""
         # --- 注册权限节点 ---

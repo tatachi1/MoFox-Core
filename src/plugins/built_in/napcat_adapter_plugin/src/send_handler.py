@@ -3,7 +3,6 @@ import time
 import random
 import websockets as Server
 import uuid
-import asyncio
 from maim_message import (
     UserInfo,
     GroupInfo,
@@ -96,7 +95,9 @@ class SendHandler:
             logger.error("无法识别的消息类型")
             return
         logger.info("尝试发送到napcat")
-        logger.debug(f"准备发送到napcat的消息体: action='{action}', {id_name}='{target_id}', message='{processed_message}'")
+        logger.debug(
+            f"准备发送到napcat的消息体: action='{action}', {id_name}='{target_id}', message='{processed_message}'"
+        )
         response = await self.send_message_to_napcat(
             action,
             {

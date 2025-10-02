@@ -4,7 +4,6 @@
 用于在现有系统中无缝集成增强记忆功能
 """
 
-import asyncio
 from typing import Dict, Any, Optional
 
 from src.common.logger import get_logger
@@ -14,11 +13,7 @@ logger = get_logger(__name__)
 
 
 async def process_user_message_memory(
-    message_content: str,
-    user_id: str,
-    chat_id: str,
-    message_id: str,
-    context: Optional[Dict[str, Any]] = None
+    message_content: str, user_id: str, chat_id: str, message_id: str, context: Optional[Dict[str, Any]] = None
 ) -> bool:
     """
     处理用户消息并构建记忆
@@ -35,11 +30,7 @@ async def process_user_message_memory(
     """
     try:
         success = await enhanced_memory_hooks.process_message_for_memory(
-            message_content=message_content,
-            user_id=user_id,
-            chat_id=chat_id,
-            message_id=message_id,
-            context=context
+            message_content=message_content, user_id=user_id, chat_id=chat_id, message_id=message_id, context=context
         )
 
         if success:
@@ -53,11 +44,7 @@ async def process_user_message_memory(
 
 
 async def get_relevant_memories_for_response(
-    query_text: str,
-    user_id: str,
-    chat_id: str,
-    limit: int = 5,
-    extra_context: Optional[Dict[str, Any]] = None
+    query_text: str, user_id: str, chat_id: str, limit: int = 5, extra_context: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     为回复获取相关记忆
@@ -74,29 +61,17 @@ async def get_relevant_memories_for_response(
     """
     try:
         memories = await enhanced_memory_hooks.get_memory_for_response(
-            query_text=query_text,
-            user_id=user_id,
-            chat_id=chat_id,
-            limit=limit,
-            extra_context=extra_context
+            query_text=query_text, user_id=user_id, chat_id=chat_id, limit=limit, extra_context=extra_context
         )
 
-        result = {
-            "has_memories": len(memories) > 0,
-            "memories": memories,
-            "memory_count": len(memories)
-        }
+        result = {"has_memories": len(memories) > 0, "memories": memories, "memory_count": len(memories)}
 
         logger.debug(f"为回复获取到 {len(memories)} 条相关记忆")
         return result
 
     except Exception as e:
         logger.error(f"获取回复记忆失败: {e}")
-        return {
-            "has_memories": False,
-            "memories": [],
-            "memory_count": 0
-        }
+        return {"has_memories": False, "memories": [], "memory_count": 0}
 
 
 def format_memories_for_prompt(memories: Dict[str, Any]) -> str:
@@ -152,16 +127,13 @@ def get_memory_system_status() -> Dict[str, Any]:
         "enabled": enhanced_memory_hooks.enabled,
         "enhanced_system_initialized": enhanced_memory_manager.is_initialized,
         "processed_messages_count": len(enhanced_memory_hooks.processed_messages),
-        "system_type": "enhanced_memory_system"
+        "system_type": "enhanced_memory_system",
     }
 
 
 # 便捷函数
 async def remember_message(
-    message: str,
-    user_id: str = "default_user",
-    chat_id: str = "default_chat",
-    context: Optional[Dict[str, Any]] = None
+    message: str, user_id: str = "default_user", chat_id: str = "default_chat", context: Optional[Dict[str, Any]] = None
 ) -> bool:
     """
     便捷的记忆构建函数
@@ -175,13 +147,10 @@ async def remember_message(
         bool: 是否成功
     """
     import uuid
+
     message_id = str(uuid.uuid4())
     return await process_user_message_memory(
-        message_content=message,
-        user_id=user_id,
-        chat_id=chat_id,
-        message_id=message_id,
-        context=context
+        message_content=message, user_id=user_id, chat_id=chat_id, message_id=message_id, context=context
     )
 
 
@@ -190,7 +159,7 @@ async def recall_memories(
     user_id: str = "default_user",
     chat_id: str = "default_chat",
     limit: int = 5,
-    context: Optional[Dict[str, Any]] = None
+    context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     便捷的记忆检索函数
@@ -205,9 +174,5 @@ async def recall_memories(
         Dict: 记忆信息
     """
     return await get_relevant_memories_for_response(
-        query_text=query,
-        user_id=user_id,
-        chat_id=chat_id,
-        limit=limit,
-        extra_context=context
+        query_text=query, user_id=user_id, chat_id=chat_id, limit=limit, extra_context=context
     )

@@ -40,7 +40,7 @@ class ActionActivationType(Enum):
 # 聊天模式枚举
 class ChatMode(Enum):
     """聊天模式枚举"""
-    
+
     FOCUS = "focus"  # 专注模式
     NORMAL = "normal"  # Normal聊天模式
     PROACTIVE = "proactive"  # 主动思考模式

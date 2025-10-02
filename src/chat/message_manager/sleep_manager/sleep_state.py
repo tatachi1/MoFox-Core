@@ -25,6 +25,7 @@ class SleepContext:
     """
     睡眠上下文，负责封装和管理所有与睡眠相关的状态，并处理其持久化。
     """
+
     def __init__(self):
         """初始化睡眠上下文，并从本地存储加载初始状态。"""
         self.current_state: SleepState = SleepState.AWAKE

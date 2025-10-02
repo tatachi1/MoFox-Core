@@ -3,6 +3,7 @@
 """
 轻量烟雾测试：初始化 MemorySystem 并运行一次检索，验证 MemoryMetadata.source 访问不再报错
 """
+
 import asyncio
 import sys
 import os
@@ -10,6 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.chat.memory_system.memory_system import MemorySystem
+
 
 async def main():
     ms = MemorySystem()
@@ -19,5 +21,6 @@ async def main():
     for i, m in enumerate(results, 1):
         print(f"{i}. id={m.metadata.memory_id} source={getattr(m.metadata, 'source', None)}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())

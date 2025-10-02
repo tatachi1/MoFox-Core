@@ -131,7 +131,9 @@ class BotInterestManager:
                 self.current_interests = generated_interests
                 active_count = len(generated_interests.get_active_tags())
                 logger.info(f"成功生成 {active_count} 个新兴趣标签。")
-                tags_info = [f"  - '{tag.tag_name}' (权重: {tag.weight:.2f})" for tag in generated_interests.get_active_tags()]
+                tags_info = [
+                    f"  - '{tag.tag_name}' (权重: {tag.weight:.2f})" for tag in generated_interests.get_active_tags()
+                ]
                 tags_str = "\n".join(tags_info)
                 logger.info(f"当前兴趣标签:\n{tags_str}")
 
@@ -639,11 +641,19 @@ class BotInterestManager:
 
             async with get_db_session() as session:
                 # 查询最新的兴趣标签配置
-                db_interests = (await session.execute(
-                    select(DBBotPersonalityInterests)
-                    .where(DBBotPersonalityInterests.personality_id == personality_id)
-                    .order_by(DBBotPersonalityInterests.version.desc(), DBBotPersonalityInterests.last_updated.desc())
-                )).scalars().first()
+                db_interests = (
+                    (
+                        await session.execute(
+                            select(DBBotPersonalityInterests)
+                            .where(DBBotPersonalityInterests.personality_id == personality_id)
+                            .order_by(
+                                DBBotPersonalityInterests.version.desc(), DBBotPersonalityInterests.last_updated.desc()
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
 
                 if db_interests:
                     logger.debug(f"在数据库中找到兴趣标签配置, 版本: {db_interests.version}")
@@ -728,10 +738,17 @@ class BotInterestManager:
 
             async with get_db_session() as session:
                 # 检查是否已存在相同personality_id的记录
-                existing_record = (await session.execute(
-                    select(DBBotPersonalityInterests)
-                    .where(DBBotPersonalityInterests.personality_id == interests.personality_id)
-                )).scalars().first()
+                existing_record = (
+                    (
+                        await session.execute(
+                            select(DBBotPersonalityInterests).where(
+                                DBBotPersonalityInterests.personality_id == interests.personality_id
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
 
                 if existing_record:
                     # 更新现有记录
@@ -763,10 +780,17 @@ class BotInterestManager:
 
             # 验证保存是否成功
             async with get_db_session() as session:
-                saved_record = (await session.execute(
-                    select(DBBotPersonalityInterests)
-                    .where(DBBotPersonalityInterests.personality_id == interests.personality_id)
-                )).scalars().first()
+                saved_record = (
+                    (
+                        await session.execute(
+                            select(DBBotPersonalityInterests).where(
+                                DBBotPersonalityInterests.personality_id == interests.personality_id
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
                 if saved_record:
                     logger.info(f"✅ 验证成功：数据库中存在personality_id为 {interests.personality_id} 的记录")
                     logger.info(f"   版本: {saved_record.version}")

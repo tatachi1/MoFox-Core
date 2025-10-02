@@ -3,7 +3,6 @@ import time
 from typing import Optional, TYPE_CHECKING
 from src.common.logger import get_logger
 from src.config.config import global_config
-from src.manager.local_store_manager import local_storage
 from src.chat.message_manager.sleep_manager.wakeup_context import WakeUpContext
 
 if TYPE_CHECKING:
@@ -51,7 +50,7 @@ class WakeUpManager:
         if not self.enabled:
             logger.info("唤醒度系统已禁用，跳过启动")
             return
-        
+
         self.is_running = True
         if not self._decay_task or self._decay_task.done():
             self._decay_task = asyncio.create_task(self._decay_loop())
@@ -88,6 +87,7 @@ class WakeUpManager:
                 self.context.is_angry = False
                 # 通知情绪管理系统清除愤怒状态
                 from src.mood.mood_manager import mood_manager
+
                 if self.angry_chat_id:
                     mood_manager.clear_angry_from_wakeup(self.angry_chat_id)
                     self.angry_chat_id = None
@@ -104,7 +104,9 @@ class WakeUpManager:
                     logger.debug(f"唤醒度衰减: {old_value:.1f} -> {self.context.wakeup_value:.1f}")
                     self.context.save()
 
-    def add_wakeup_value(self, is_private_chat: bool, is_mentioned: bool = False, chat_id: Optional[str] = None) -> bool:
+    def add_wakeup_value(
+        self, is_private_chat: bool, is_mentioned: bool = False, chat_id: Optional[str] = None
+    ) -> bool:
         """
         增加唤醒度值
 
@@ -173,6 +175,7 @@ class WakeUpManager:
 
         # 通知情绪管理系统进入愤怒状态
         from src.mood.mood_manager import mood_manager
+
         mood_manager.set_angry_from_wakeup(chat_id)
 
         # 通知SleepManager重置睡眠状态
@@ -194,6 +197,7 @@ class WakeUpManager:
                 self.context.is_angry = False
                 # 通知情绪管理系统清除愤怒状态
                 from src.mood.mood_manager import mood_manager
+
                 if self.angry_chat_id:
                     mood_manager.clear_angry_from_wakeup(self.angry_chat_id)
                     self.angry_chat_id = None

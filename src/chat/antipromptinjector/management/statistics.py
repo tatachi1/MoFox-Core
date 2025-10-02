@@ -31,9 +31,11 @@ class AntiInjectionStatistics:
         try:
             async with get_db_session() as session:
                 # 获取最新的统计记录，如果没有则创建
-                stats = (await session.execute(
-                    select(AntiInjectionStats).order_by(AntiInjectionStats.id.desc())
-                )).scalars().first()
+                stats = (
+                    (await session.execute(select(AntiInjectionStats).order_by(AntiInjectionStats.id.desc())))
+                    .scalars()
+                    .first()
+                )
                 if not stats:
                     stats = AntiInjectionStats()
                     session.add(stats)
@@ -49,9 +51,11 @@ class AntiInjectionStatistics:
         """更新统计数据"""
         try:
             async with get_db_session() as session:
-                stats = (await session.execute(
-                    select(AntiInjectionStats).order_by(AntiInjectionStats.id.desc())
-                )).scalars().first()
+                stats = (
+                    (await session.execute(select(AntiInjectionStats).order_by(AntiInjectionStats.id.desc())))
+                    .scalars()
+                    .first()
+                )
                 if not stats:
                     stats = AntiInjectionStats()
                     session.add(stats)

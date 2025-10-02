@@ -8,7 +8,7 @@
     readable_text = message_api.build_readable_messages(messages)
 """
 
-from typing import List, Dict, Any, Tuple, Optional, Coroutine
+from typing import List, Dict, Any, Tuple, Optional
 from src.config.config import global_config
 import time
 from src.chat.utils.chat_message_builder import (
@@ -181,9 +181,7 @@ async def get_messages_by_time_in_chat_for_users(
         raise ValueError("chat_id 不能为空")
     if not isinstance(chat_id, str):
         raise ValueError("chat_id 必须是字符串类型")
-    return await get_raw_msg_by_timestamp_with_chat_users(
-        chat_id, start_time, end_time, person_ids, limit, limit_mode
-    )
+    return await get_raw_msg_by_timestamp_with_chat_users(chat_id, start_time, end_time, person_ids, limit, limit_mode)
 
 
 async def get_random_chat_messages(
@@ -384,9 +382,7 @@ async def count_new_messages(chat_id: str, start_time: float = 0.0, end_time: Op
     return await num_new_messages_since(chat_id, start_time, end_time)
 
 
-async def count_new_messages_for_users(
-    chat_id: str, start_time: float, end_time: float, person_ids: List[str]
-) -> int:
+async def count_new_messages_for_users(chat_id: str, start_time: float, end_time: float, person_ids: List[str]) -> int:
     """
     计算指定聊天中指定用户从开始时间到结束时间的新消息数量
 

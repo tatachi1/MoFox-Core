@@ -6,7 +6,6 @@
 
 import difflib
 import orjson
-import time
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -15,7 +14,7 @@ from src.llm_models.utils_model import LLMRequest
 from src.config.config import global_config, model_config
 from src.common.logger import get_logger
 from src.chat.utils.prompt import Prompt, global_prompt_manager
-from src.chat.memory_system.memory_manager import memory_manager, MemoryResult
+from src.chat.memory_system.memory_manager import MemoryResult
 
 logger = get_logger("memory_activator")
 
@@ -127,8 +126,8 @@ class MemoryActivator:
             for result in memory_results:
                 # 检查是否已存在相似内容的记忆
                 exists = any(
-                    m["content"] == result.content or
-                    difflib.SequenceMatcher(None, m["content"], result.content).ratio() >= 0.7
+                    m["content"] == result.content
+                    or difflib.SequenceMatcher(None, m["content"], result.content).ratio() >= 0.7
                     for m in self.running_memory
                 )
                 if not exists:
@@ -140,7 +139,7 @@ class MemoryActivator:
                         "confidence": result.confidence,
                         "importance": result.importance,
                         "source": result.source,
-                        "relevance_score": result.relevance_score  # 添加相关度评分
+                        "relevance_score": result.relevance_score,  # 添加相关度评分
                     }
                     self.running_memory.append(memory_entry)
                     logger.debug(f"添加新记忆: {result.memory_type} - {result.content}")
@@ -168,17 +167,14 @@ class MemoryActivator:
                 return []
 
             # 构建查询上下文
-            context = {
-                "keywords": keywords,
-                "query_intent": "conversation_response"
-            }
+            context = {"keywords": keywords, "query_intent": "conversation_response"}
 
             # 查询记忆
             memories = await memory_system.retrieve_relevant_memories(
                 query_text=query_text,
                 user_id="global",  # 使用全局作用域
                 context=context,
-                limit=5
+                limit=5,
             )
 
             # 转换为 MemoryResult 格式
@@ -191,7 +187,7 @@ class MemoryActivator:
                     importance=memory.metadata.importance.value,
                     timestamp=memory.metadata.created_at,
                     source="unified_memory",
-                    relevance_score=memory.metadata.relevance_score
+                    relevance_score=memory.metadata.relevance_score,
                 )
                 memory_results.append(result)
 
@@ -214,16 +210,10 @@ class MemoryActivator:
             if not memory_system or memory_system.status.value != "ready":
                 return None
 
-            context = {
-                "query_intent": "instant_response",
-                "chat_id": chat_id
-            }
+            context = {"query_intent": "instant_response", "chat_id": chat_id}
 
             memories = await memory_system.retrieve_relevant_memories(
-                query_text=target_message,
-                user_id="global",
-                context=context,
-                limit=1
+                query_text=target_message, user_id="global", context=context, limit=1
             )
 
             if memories:

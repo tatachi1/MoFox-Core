@@ -4,7 +4,6 @@
 """
 
 from dataclasses import asdict
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from src.plugins.built_in.affinity_flow_chatter.plan_executor import ChatterPlanExecutor
@@ -90,15 +89,16 @@ class ChatterActionPlanner:
         try:
             # 在规划前，先进行动作修改
             from src.chat.planner_actions.action_modifier import ActionModifier
+
             action_modifier = ActionModifier(self.action_manager, self.chat_id)
             await action_modifier.modify_actions()
-            
+
             # 1. 生成初始 Plan
             initial_plan = await self.generator.generate(context.chat_mode)
 
             # 确保Plan中包含所有当前可用的动作
             initial_plan.available_actions = self.action_manager.get_using_actions()
-            
+
             unread_messages = context.get_unread_messages() if context else []
             # 2. 使用新的兴趣度管理系统进行评分
             score = 0.0
@@ -117,7 +117,9 @@ class ChatterActionPlanner:
                         message_interest = interest_score.total_score
 
                         message.interest_value = message_interest
-                        message.should_reply = message_interest > global_config.affinity_flow.non_reply_action_interest_threshold
+                        message.should_reply = (
+                            message_interest > global_config.affinity_flow.non_reply_action_interest_threshold
+                        )
 
                         interest_updates.append(
                             {

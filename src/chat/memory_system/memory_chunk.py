@@ -8,8 +8,7 @@ import time
 import uuid
 import orjson
 from typing import Dict, List, Optional, Any, Union, Iterable
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from dataclasses import dataclass, field
 from enum import Enum
 import hashlib
 
@@ -21,33 +20,36 @@ logger = get_logger(__name__)
 
 class MemoryType(Enum):
     """记忆类型分类"""
-    PERSONAL_FACT = "personal_fact"      # 个人事实（姓名、职业、住址等）
-    EVENT = "event"                     # 事件（重要经历、约会等）
-    PREFERENCE = "preference"           # 偏好（喜好、习惯等）
-    OPINION = "opinion"                 # 观点（对事物的看法）
-    RELATIONSHIP = "relationship"       # 关系（与他人的关系）
-    EMOTION = "emotion"                 # 情感状态
-    KNOWLEDGE = "knowledge"             # 知识信息
-    SKILL = "skill"                     # 技能能力
-    GOAL = "goal"                       # 目标计划
-    EXPERIENCE = "experience"           # 经验教训
-    CONTEXTUAL = "contextual"            # 上下文信息
+
+    PERSONAL_FACT = "personal_fact"  # 个人事实（姓名、职业、住址等）
+    EVENT = "event"  # 事件（重要经历、约会等）
+    PREFERENCE = "preference"  # 偏好（喜好、习惯等）
+    OPINION = "opinion"  # 观点（对事物的看法）
+    RELATIONSHIP = "relationship"  # 关系（与他人的关系）
+    EMOTION = "emotion"  # 情感状态
+    KNOWLEDGE = "knowledge"  # 知识信息
+    SKILL = "skill"  # 技能能力
+    GOAL = "goal"  # 目标计划
+    EXPERIENCE = "experience"  # 经验教训
+    CONTEXTUAL = "contextual"  # 上下文信息
 
 
 class ConfidenceLevel(Enum):
     """置信度等级"""
-    LOW = 1        # 低置信度，可能不准确
-    MEDIUM = 2     # 中等置信度，有一定依据
-    HIGH = 3       # 高置信度，有明确来源
-    VERIFIED = 4   # 已验证，非常可靠
+
+    LOW = 1  # 低置信度，可能不准确
+    MEDIUM = 2  # 中等置信度，有一定依据
+    HIGH = 3  # 高置信度，有明确来源
+    VERIFIED = 4  # 已验证，非常可靠
 
 
 class ImportanceLevel(Enum):
     """重要性等级"""
-    LOW = 1        # 低重要性，普通信息
-    NORMAL = 2     # 一般重要性，日常信息
-    HIGH = 3       # 高重要性，重要信息
-    CRITICAL = 4   # 关键重要性，核心信息
+
+    LOW = 1  # 低重要性，普通信息
+    NORMAL = 2  # 一般重要性，日常信息
+    HIGH = 3  # 高重要性，重要信息
+    CRITICAL = 4  # 关键重要性，核心信息
 
 
 @dataclass
@@ -61,12 +63,7 @@ class ContentStructure:
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
-        return {
-            "subject": self.subject,
-            "predicate": self.predicate,
-            "object": self.object,
-            "display": self.display
-        }
+        return {"subject": self.subject, "predicate": self.predicate, "object": self.object, "display": self.display}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ContentStructure":
@@ -75,7 +72,7 @@ class ContentStructure:
             subject=data.get("subject", ""),
             predicate=data.get("predicate", ""),
             object=data.get("object", ""),
-            display=data.get("display", "")
+            display=data.get("display", ""),
         )
 
     def to_subject_list(self) -> List[str]:
@@ -98,24 +95,25 @@ class ContentStructure:
 @dataclass
 class MemoryMetadata:
     """记忆元数据 - 简化版本"""
+
     # 基础信息
-    memory_id: str                  # 唯一标识符
-    user_id: str                    # 用户ID
-    chat_id: Optional[str] = None   # 聊天ID（群聊或私聊）
+    memory_id: str  # 唯一标识符
+    user_id: str  # 用户ID
+    chat_id: Optional[str] = None  # 聊天ID（群聊或私聊）
 
     # 时间信息
-    created_at: float = 0.0         # 创建时间戳
-    last_accessed: float = 0.0      # 最后访问时间
-    last_modified: float = 0.0      # 最后修改时间
+    created_at: float = 0.0  # 创建时间戳
+    last_accessed: float = 0.0  # 最后访问时间
+    last_modified: float = 0.0  # 最后修改时间
 
     # 激活频率管理
-    last_activation_time: float = 0.0    # 最后激活时间
-    activation_frequency: int = 0        # 激活频率（单位时间内的激活次数）
-    total_activations: int = 0           # 总激活次数
+    last_activation_time: float = 0.0  # 最后激活时间
+    activation_frequency: int = 0  # 激活频率（单位时间内的激活次数）
+    total_activations: int = 0  # 总激活次数
 
     # 统计信息
-    access_count: int = 0           # 访问次数
-    relevance_score: float = 0.0    # 相关度评分
+    access_count: int = 0  # 访问次数
+    relevance_score: float = 0.0  # 相关度评分
 
     # 信心和重要性（核心字段）
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
@@ -123,10 +121,10 @@ class MemoryMetadata:
 
     # 遗忘机制相关
     forgetting_threshold: float = 0.0  # 遗忘阈值（动态计算）
-    last_forgetting_check: float = 0.0 # 上次遗忘检查时间
+    last_forgetting_check: float = 0.0  # 上次遗忘检查时间
 
     # 来源信息
-    source_context: Optional[str] = None    # 来源上下文片段
+    source_context: Optional[str] = None  # 来源上下文片段
     # 兼容旧字段: 一些代码或旧版本可能直接访问 metadata.source
     source: Optional[str] = None
 
@@ -153,13 +151,13 @@ class MemoryMetadata:
             self.last_forgetting_check = current_time
 
         # 兼容性：如果旧字段 source 被使用，保证 source 与 source_context 同步
-        if not getattr(self, 'source', None) and getattr(self, 'source_context', None):
+        if not getattr(self, "source", None) and getattr(self, "source_context", None):
             try:
                 self.source = str(self.source_context)
             except Exception:
                 self.source = None
         # 如果有 source 字段但 source_context 为空，也同步回去
-        if not getattr(self, 'source_context', None) and getattr(self, 'source', None):
+        if not getattr(self, "source_context", None) and getattr(self, "source", None):
             try:
                 self.source_context = str(self.source)
             except Exception:
@@ -177,7 +175,6 @@ class MemoryMetadata:
 
     def _update_activation_frequency(self, current_time: float):
         """更新激活频率（24小时内的激活次数）"""
-        from datetime import datetime, timedelta
 
         # 如果超过24小时，重置激活频率
         if current_time - self.last_activation_time > 86400:  # 24小时 = 86400秒
@@ -251,7 +248,7 @@ class MemoryMetadata:
             "importance": self.importance.value,
             "forgetting_threshold": self.forgetting_threshold,
             "last_forgetting_check": self.last_forgetting_check,
-            "source_context": self.source_context
+            "source_context": self.source_context,
         }
 
     @classmethod
@@ -273,7 +270,7 @@ class MemoryMetadata:
             importance=ImportanceLevel(data.get("importance", ImportanceLevel.NORMAL.value)),
             forgetting_threshold=data.get("forgetting_threshold", 0.0),
             last_forgetting_check=data.get("last_forgetting_check", 0),
-            source_context=data.get("source_context")
+            source_context=data.get("source_context"),
         )
 
 
@@ -285,21 +282,21 @@ class MemoryChunk:
     metadata: MemoryMetadata
 
     # 内容结构
-    content: ContentStructure         # 主谓宾结构
-    memory_type: MemoryType          # 记忆类型
+    content: ContentStructure  # 主谓宾结构
+    memory_type: MemoryType  # 记忆类型
 
     # 扩展信息
-    keywords: List[str] = field(default_factory=list)      # 关键词列表
-    tags: List[str] = field(default_factory=list)         # 标签列表
-    categories: List[str] = field(default_factory=list)   # 分类列表
+    keywords: List[str] = field(default_factory=list)  # 关键词列表
+    tags: List[str] = field(default_factory=list)  # 标签列表
+    categories: List[str] = field(default_factory=list)  # 分类列表
 
     # 语义信息
-    embedding: Optional[List[float]] = None               # 语义向量
-    semantic_hash: Optional[str] = None                  # 语义哈希值
+    embedding: Optional[List[float]] = None  # 语义向量
+    semantic_hash: Optional[str] = None  # 语义哈希值
 
     # 关联信息
     related_memories: List[str] = field(default_factory=list)  # 关联记忆ID列表
-    temporal_context: Optional[Dict[str, Any]] = None   # 时间上下文
+    temporal_context: Optional[Dict[str, Any]] = None  # 时间上下文
 
     def __post_init__(self):
         """后初始化处理"""
@@ -317,7 +314,7 @@ class MemoryChunk:
             embedding_str = ",".join(map(str, [round(x, 6) for x in self.embedding]))
 
             hash_input = f"{content_str}|{embedding_str}"
-            hash_object = hashlib.sha256(hash_input.encode('utf-8'))
+            hash_object = hashlib.sha256(hash_input.encode("utf-8"))
             self.semantic_hash = hash_object.hexdigest()[:16]
 
         except Exception as e:
@@ -430,7 +427,7 @@ class MemoryChunk:
             "embedding": self.embedding,
             "semantic_hash": self.semantic_hash,
             "related_memories": self.related_memories,
-            "temporal_context": self.temporal_context
+            "temporal_context": self.temporal_context,
         }
 
     @classmethod
@@ -449,14 +446,14 @@ class MemoryChunk:
             embedding=data.get("embedding"),
             semantic_hash=data.get("semantic_hash"),
             related_memories=data.get("related_memories", []),
-            temporal_context=data.get("temporal_context")
+            temporal_context=data.get("temporal_context"),
         )
 
         return chunk
 
     def to_json(self) -> str:
         """转换为JSON字符串"""
-        return orjson.dumps(self.to_dict(), ensure_ascii=False).decode('utf-8')
+        return orjson.dumps(self.to_dict(), ensure_ascii=False).decode("utf-8")
 
     @classmethod
     def from_json(cls, json_str: str) -> "MemoryChunk":
@@ -530,7 +527,7 @@ class MemoryChunk:
             MemoryType.SKILL: "🛠️",
             MemoryType.GOAL: "🎯",
             MemoryType.EXPERIENCE: "💡",
-            MemoryType.CONTEXTUAL: "📝"
+            MemoryType.CONTEXTUAL: "📝",
         }
 
         emoji = type_emoji.get(self.memory_type, "📝")
@@ -581,7 +578,7 @@ def create_memory_chunk(
     importance: ImportanceLevel = ImportanceLevel.NORMAL,
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM,
     display: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> MemoryChunk:
     """便捷的内存块创建函数"""
     metadata = MemoryMetadata(
@@ -593,7 +590,7 @@ def create_memory_chunk(
         last_modified=0,
         confidence=confidence,
         importance=importance,
-        source_context=source_context
+        source_context=source_context,
     )
 
     subjects: List[str]
@@ -607,18 +604,8 @@ def create_memory_chunk(
 
     display_text = display or _build_display_text(subjects, predicate, obj)
 
-    content = ContentStructure(
-        subject=subject_payload,
-        predicate=predicate,
-        object=obj,
-        display=display_text
-    )
+    content = ContentStructure(subject=subject_payload, predicate=predicate, object=obj, display=display_text)
 
-    chunk = MemoryChunk(
-        metadata=metadata,
-        content=content,
-        memory_type=memory_type,
-        **kwargs
-    )
+    chunk = MemoryChunk(metadata=metadata, content=content, memory_type=memory_type, **kwargs)
 
     return chunk

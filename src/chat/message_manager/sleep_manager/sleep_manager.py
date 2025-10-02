@@ -1,6 +1,6 @@
 import asyncio
 import random
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from typing import Optional, TYPE_CHECKING
 
 from src.common.logger import get_logger
@@ -21,6 +21,7 @@ class SleepManager:
     它实现了一个状态机，根据预设的时间表、睡眠压力和随机因素，
     在不同的睡眠状态（如清醒、准备入睡、睡眠、失眠）之间进行切换。
     """
+
     def __init__(self):
         """
         初始化睡眠管理器。
@@ -97,7 +98,7 @@ class SleepManager:
             logger.info(f"进入理论休眠时间 '{activity}'，开始进行睡眠决策...")
         else:
             logger.info("进入理论休眠时间，开始进行睡眠决策...")
-        
+
         if global_config.sleep_system.enable_flexible_sleep:
             # --- 新的弹性睡眠逻辑 ---
             if wakeup_manager:
@@ -112,7 +113,7 @@ class SleepManager:
                     pressure_diff = (pressure_threshold - sleep_pressure) / pressure_threshold
                     # 延迟分钟数，压力越低，延迟越长
                     delay_minutes = int(pressure_diff * max_delay_minutes)
-                    
+
                     # 确保总延迟不超过当日最大值
                     remaining_delay = max_delay_minutes - self.context.total_delayed_minutes_today
                     delay_minutes = min(delay_minutes, remaining_delay)
@@ -151,9 +152,10 @@ class SleepManager:
             if wakeup_manager and global_config.sleep_system.enable_pre_sleep_notification:
                 asyncio.create_task(NotificationSender.send_goodnight_notification(wakeup_manager.context))
             self.context.current_state = SleepState.SLEEPING
-       
 
-    def _handle_preparing_sleep(self, now: datetime, is_in_theoretical_sleep: bool, wakeup_manager: Optional["WakeUpManager"]):
+    def _handle_preparing_sleep(
+        self, now: datetime, is_in_theoretical_sleep: bool, wakeup_manager: Optional["WakeUpManager"]
+    ):
         """处理“准备入睡”状态下的逻辑。"""
         # 如果在准备期间离开了理论睡眠时间，则取消入睡
         if not is_in_theoretical_sleep:
@@ -166,16 +168,22 @@ class SleepManager:
             logger.info("睡眠缓冲期结束，正式进入休眠状态。")
             self.context.current_state = SleepState.SLEEPING
             self._last_fully_slept_log_time = now.timestamp()
-            
+
             # 设置一个随机的延迟，用于触发“睡后失眠”检查
             delay_minutes_range = global_config.sleep_system.insomnia_trigger_delay_minutes
             delay_minutes = random.randint(delay_minutes_range[0], delay_minutes_range[1])
             self.context.sleep_buffer_end_time = now + timedelta(minutes=delay_minutes)
             logger.info(f"已设置睡后失眠检查，将在 {delay_minutes} 分钟后触发。")
-            
+
             self.context.save()
 
-    def _handle_sleeping(self, now: datetime, is_in_theoretical_sleep: bool, activity: Optional[str], wakeup_manager: Optional["WakeUpManager"]):
+    def _handle_sleeping(
+        self,
+        now: datetime,
+        is_in_theoretical_sleep: bool,
+        activity: Optional[str],
+        wakeup_manager: Optional["WakeUpManager"],
+    ):
         """处理“正在睡觉”状态下的逻辑。"""
         # 如果理论睡眠时间结束，则自然醒来
         if not is_in_theoretical_sleep:
@@ -198,14 +206,16 @@ class SleepManager:
 
                 if insomnia_reason:
                     self.context.current_state = SleepState.INSOMNIA
-                    
+
                     # 设置失眠的持续时间
                     duration_minutes_range = global_config.sleep_system.insomnia_duration_minutes
                     duration_minutes = random.randint(*duration_minutes_range)
                     self.context.sleep_buffer_end_time = now + timedelta(minutes=duration_minutes)
-                    
+
                     # 发送失眠通知
-                    asyncio.create_task(NotificationSender.send_insomnia_notification(wakeup_manager.context, insomnia_reason))
+                    asyncio.create_task(
+                        NotificationSender.send_insomnia_notification(wakeup_manager.context, insomnia_reason)
+                    )
                     logger.info(f"进入失眠状态 (原因: {insomnia_reason})，将持续 {duration_minutes} 分钟。")
                 else:
                     # 睡眠压力正常，不触发失眠，清除检查时间点

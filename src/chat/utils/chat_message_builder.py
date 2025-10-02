@@ -13,6 +13,7 @@ from src.chat.utils.utils import translate_timestamp_to_human_readable, assign_m
 from src.common.database.sqlalchemy_database_api import get_db_session
 from sqlalchemy import select, and_
 from src.common.logger import get_logger
+
 logger = get_logger("chat_message_builder")
 
 install(extra_lines=3)
@@ -274,21 +275,52 @@ async def get_actions_by_timestamp_with_chat(
 
     async with get_db_session() as session:
         if limit > 0:
+            result = await session.execute(
+                select(ActionRecords)
+                .where(
+                    and_(
+                        ActionRecords.chat_id == chat_id,
+                        ActionRecords.time >= timestamp_start,
+                        ActionRecords.time <= timestamp_end,
+                    )
+                )
+                .order_by(ActionRecords.time.desc())
+                .limit(limit)
+            )
+            actions = list(result.scalars())
+            actions_result = []
+            for action in reversed(actions):
+                action_dict = {
+                    "id": action.id,
+                    "action_id": action.action_id,
+                    "time": action.time,
+                    "action_name": action.action_name,
+                    "action_data": action.action_data,
+                    "action_done": action.action_done,
+                    "action_build_into_prompt": action.action_build_into_prompt,
+                    "action_prompt_display": action.action_prompt_display,
+                    "chat_id": action.chat_id,
+                    "chat_info_stream_id": action.chat_info_stream_id,
+                    "chat_info_platform": action.chat_info_platform,
+                }
+                actions_result.append(action_dict)
+                actions_result.append(action_dict)
+            else:  # earliest
                 result = await session.execute(
                     select(ActionRecords)
                     .where(
                         and_(
                             ActionRecords.chat_id == chat_id,
-                            ActionRecords.time >= timestamp_start,
-                            ActionRecords.time <= timestamp_end,
+                            ActionRecords.time > timestamp_start,
+                            ActionRecords.time < timestamp_end,
                         )
                     )
-                    .order_by(ActionRecords.time.desc())
+                    .order_by(ActionRecords.time.asc())
                     .limit(limit)
                 )
                 actions = list(result.scalars())
                 actions_result = []
-                for action in reversed(actions):
+                for action in actions:
                     action_dict = {
                         "id": action.id,
                         "action_id": action.action_id,
@@ -303,37 +335,6 @@ async def get_actions_by_timestamp_with_chat(
                         "chat_info_platform": action.chat_info_platform,
                     }
                     actions_result.append(action_dict)
-                    actions_result.append(action_dict)
-                else:  # earliest
-                    result = await session.execute(
-                        select(ActionRecords)
-                        .where(
-                            and_(
-                                ActionRecords.chat_id == chat_id,
-                                ActionRecords.time > timestamp_start,
-                                ActionRecords.time < timestamp_end,
-                            )
-                        )
-                        .order_by(ActionRecords.time.asc())
-                        .limit(limit)
-                    )
-                    actions = list(result.scalars())
-                    actions_result = []
-                    for action in actions:
-                        action_dict = {
-                            "id": action.id,
-                            "action_id": action.action_id,
-                            "time": action.time,
-                            "action_name": action.action_name,
-                            "action_data": action.action_data,
-                            "action_done": action.action_done,
-                            "action_build_into_prompt": action.action_build_into_prompt,
-                            "action_prompt_display": action.action_prompt_display,
-                            "chat_id": action.chat_id,
-                            "chat_info_stream_id": action.chat_info_stream_id,
-                            "chat_info_platform": action.chat_info_platform,
-                        }
-                        actions_result.append(action_dict)
         else:
             result = await session.execute(
                 select(ActionRecords)
@@ -457,7 +458,9 @@ async def get_raw_msg_before_timestamp(timestamp: float, limit: int = 0) -> List
     return await find_messages(message_filter=filter_query, sort=sort_order, limit=limit)
 
 
-async def get_raw_msg_before_timestamp_with_chat(chat_id: str, timestamp: float, limit: int = 0) -> List[Dict[str, Any]]:
+async def get_raw_msg_before_timestamp_with_chat(
+    chat_id: str, timestamp: float, limit: int = 0
+) -> List[Dict[str, Any]]:
     """获取指定时间戳之前的消息，按时间升序排序，返回消息列表
     limit: 限制返回的消息数量，0为不限制
     """
@@ -466,7 +469,9 @@ async def get_raw_msg_before_timestamp_with_chat(chat_id: str, timestamp: float,
     return await find_messages(message_filter=filter_query, sort=sort_order, limit=limit)
 
 
-async def get_raw_msg_before_timestamp_with_users(timestamp: float, person_ids: list, limit: int = 0) -> List[Dict[str, Any]]:
+async def get_raw_msg_before_timestamp_with_users(
+    timestamp: float, person_ids: list, limit: int = 0
+) -> List[Dict[str, Any]]:
     """获取指定时间戳之前的消息，按时间升序排序，返回消息列表
     limit: 限制返回的消息数量，0为不限制
     """
@@ -475,7 +480,9 @@ async def get_raw_msg_before_timestamp_with_users(timestamp: float, person_ids: 
     return await find_messages(message_filter=filter_query, sort=sort_order, limit=limit)
 
 
-async def num_new_messages_since(chat_id: str, timestamp_start: float = 0.0, timestamp_end: Optional[float] = None) -> int:
+async def num_new_messages_since(
+    chat_id: str, timestamp_start: float = 0.0, timestamp_end: Optional[float] = None
+) -> int:
     """
     检查特定聊天从 timestamp_start (不含) 到 timestamp_end (不含) 之间有多少新消息。
     如果 timestamp_end 为 None，则检查从 timestamp_start (不含) 到当前时间的消息。
@@ -830,7 +837,7 @@ async def build_pic_mapping_info(pic_id_mapping: Dict[str, str]) -> str:
             async with get_db_session() as session:
                 result = await session.execute(select(Images).where(Images.image_id == pic_id))
                 image = result.scalar_one_or_none()
-                if image and hasattr(image, 'description') and image.description:
+                if image and hasattr(image, "description") and image.description:
                     description = image.description
         except Exception as e:
             # 如果查询失败，保持默认描述
@@ -1017,24 +1024,29 @@ async def build_readable_messages(
 
         async with get_db_session() as session:
             # 获取这个时间范围内的动作记录，并匹配chat_id
-            actions_in_range = (await session.execute(
-                select(ActionRecords)
-                .where(
-                    and_(
-                        ActionRecords.time >= min_time, ActionRecords.time <= max_time, ActionRecords.chat_id == chat_id
+            actions_in_range = (
+                await session.execute(
+                    select(ActionRecords)
+                    .where(
+                        and_(
+                            ActionRecords.time >= min_time,
+                            ActionRecords.time <= max_time,
+                            ActionRecords.chat_id == chat_id,
+                        )
                     )
                     .order_by(ActionRecords.time)
                 )
-                .order_by(ActionRecords.time)
-            )).scalars()
+            ).scalars()
 
             # 获取最新消息之后的第一个动作记录
-            action_after_latest = (await session.execute(
-                select(ActionRecords)
-                .where(and_(ActionRecords.time > max_time, ActionRecords.chat_id == chat_id))
-                .order_by(ActionRecords.time)
-                .limit(1)
-            )).scalars()
+            action_after_latest = (
+                await session.execute(
+                    select(ActionRecords)
+                    .where(and_(ActionRecords.time > max_time, ActionRecords.chat_id == chat_id))
+                    .order_by(ActionRecords.time)
+                    .limit(1)
+                )
+            ).scalars()
 
             # 合并两部分动作记录，并转为 dict，避免 DetachedInstanceError
             actions = [
@@ -1225,9 +1237,7 @@ async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
                 except Exception:
                     return "?"
 
-            content = await replace_user_references_async(
-                content, platform, anon_name_resolver, replace_bot_name=False
-            )
+            content = await replace_user_references_async(content, platform, anon_name_resolver, replace_bot_name=False)
 
             header = f"{anon_name}说 "
             output_lines.append(header)

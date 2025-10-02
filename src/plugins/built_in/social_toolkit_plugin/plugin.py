@@ -16,8 +16,6 @@ from src.person_info.person_info import get_person_info_manager
 from dateutil.parser import parse as parse_datetime
 from src.manager.async_task_manager import AsyncTask, async_task_manager
 from src.plugin_system.apis import send_api, llm_api, generator_api
-from src.plugin_system.base.component_types import ComponentType
-from typing import Optional
 from src.chat.message_receive.chat_stream import ChatStream
 import asyncio
 import datetime

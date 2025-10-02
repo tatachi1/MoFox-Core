@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 from src.common.data_models.message_manager_data_model import StreamContext
 from .component_types import ChatType
 from src.plugin_system.base.component_types import ChatterInfo, ComponentType
 
 if TYPE_CHECKING:
     from src.chat.planner_actions.action_manager import ChatterActionManager
-    from src.plugins.built_in.affinity_flow_chatter.planner import ChatterActionPlanner as ActionPlanner
+
 
 class BaseChatter(ABC):
     chatter_name: str = ""
@@ -15,7 +15,7 @@ class BaseChatter(ABC):
     """Chatter组件的描述"""
     chat_types: List[ChatType] = [ChatType.PRIVATE, ChatType.GROUP]
 
-    def __init__(self, stream_id: str, action_manager: 'ChatterActionManager'):
+    def __init__(self, stream_id: str, action_manager: "ChatterActionManager"):
         """
         初始化聊天处理器
 
@@ -45,11 +45,10 @@ class BaseChatter(ABC):
         Returns:
             ChatterInfo对象
         """
-        
+
         return ChatterInfo(
             name=cls.chatter_name,
             description=cls.chatter_description or "No description provided.",
             chat_type_allow=cls.chat_types[0],
             component_type=ComponentType.CHATTER,
         )
-

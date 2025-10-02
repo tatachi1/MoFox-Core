@@ -4,7 +4,6 @@
 用于在消息处理过程中自动构建和检索记忆
 """
 
-import asyncio
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
@@ -19,8 +18,7 @@ class EnhancedMemoryHooks:
     """增强记忆系统钩子 - 自动处理消息的记忆构建和检索"""
 
     def __init__(self):
-        self.enabled = (global_config.memory.enable_memory and
-                       global_config.memory.enable_enhanced_memory)
+        self.enabled = global_config.memory.enable_memory and global_config.memory.enable_enhanced_memory
         self.processed_messages = set()  # 避免重复处理
 
     async def process_message_for_memory(
@@ -29,7 +27,7 @@ class EnhancedMemoryHooks:
         user_id: str,
         chat_id: str,
         message_id: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         处理消息并构建记忆
@@ -76,7 +74,7 @@ class EnhancedMemoryHooks:
                 "timestamp": datetime.now().timestamp(),
                 "message_type": "user_message",
                 **bot_context,
-                **(context or {})
+                **(context or {}),
             }
 
             # 处理对话并构建记忆
@@ -84,7 +82,7 @@ class EnhancedMemoryHooks:
                 conversation_text=message_content,
                 context=memory_context,
                 user_id=user_id,
-                timestamp=memory_context["timestamp"]
+                timestamp=memory_context["timestamp"],
             )
 
             # 标记消息已处理
@@ -108,7 +106,7 @@ class EnhancedMemoryHooks:
         user_id: str,
         chat_id: str,
         limit: int = 5,
-        extra_context: Optional[Dict[str, Any]] = None
+        extra_context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         为回复获取相关记忆
@@ -134,9 +132,7 @@ class EnhancedMemoryHooks:
             context = {
                 "chat_id": chat_id,
                 "query_intent": "response_generation",
-                "expected_memory_types": [
-                    "personal_fact", "event", "preference", "opinion"
-                ]
+                "expected_memory_types": ["personal_fact", "event", "preference", "opinion"],
             }
 
             if extra_context:
@@ -144,10 +140,7 @@ class EnhancedMemoryHooks:
 
             # 获取相关记忆
             enhanced_results = await enhanced_memory_manager.get_enhanced_memory_context(
-                query_text=query_text,
-                user_id=user_id,
-                context=context,
-                limit=limit
+                query_text=query_text, user_id=user_id, context=context, limit=limit
             )
 
             # 转换为字典格式

@@ -290,9 +290,7 @@ class QZoneService:
             comment_content = comment.get("content", "")
 
             try:
-                reply_content = await self.content_service.generate_comment_reply(
-                    content, comment_content, nickname
-                )
+                reply_content = await self.content_service.generate_comment_reply(content, comment_content, nickname)
                 if reply_content:
                     success = await api_client["reply"](fid, qq_account, nickname, reply_content, comment_tid)
                     if success:
@@ -532,7 +530,9 @@ class QZoneService:
     async def _get_api_client(self, qq_account: str, stream_id: Optional[str]) -> Optional[Dict]:
         cookies = await self.cookie_service.get_cookies(qq_account, stream_id)
         if not cookies:
-            logger.error("获取API客户端失败：未能获取到Cookie。请检查Napcat连接是否正常，或是否存在有效的本地Cookie文件。")
+            logger.error(
+                "获取API客户端失败：未能获取到Cookie。请检查Napcat连接是否正常，或是否存在有效的本地Cookie文件。"
+            )
             return None
 
         p_skey = cookies.get("p_skey") or cookies.get("p_skey".upper())
@@ -726,7 +726,8 @@ class QZoneService:
                                         return {"pic_bo": picbo, "richval": richval}
                                     except Exception as e:
                                         logger.error(
-                                            f"从上传结果中提取图片参数失败: {e}, 上传结果: {upload_result}", exc_info=True
+                                            f"从上传结果中提取图片参数失败: {e}, 上传结果: {upload_result}",
+                                            exc_info=True,
                                         )
                                         return None
                                 else:
@@ -764,7 +765,9 @@ class QZoneService:
                 json_data = orjson.loads(res_text)
 
                 if json_data.get("code") != 0:
-                    logger.warning(f"获取说说列表API返回错误: code={json_data.get('code')}, message={json_data.get('message')}")
+                    logger.warning(
+                        f"获取说说列表API返回错误: code={json_data.get('code')}, message={json_data.get('message')}"
+                    )
                     return []
 
                 feeds_list = []
@@ -797,7 +800,7 @@ class QZoneService:
                         for c in commentlist:
                             if not isinstance(c, dict):
                                 continue
-                            
+
                             # 添加主评论
                             comments.append(
                                 {
@@ -822,7 +825,7 @@ class QZoneService:
                                             "parent_tid": c.get("tid"),  # 父ID是主评论的ID
                                         }
                                     )
-                    
+
                     feeds_list.append(
                         {
                             "tid": msg.get("tid", ""),

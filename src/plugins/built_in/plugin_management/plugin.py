@@ -260,7 +260,6 @@ class ManagementCommand(PlusCommand):
         except Exception as e:
             await self.send_text(f"❌ 强制重载过程中发生错误: {str(e)}")
 
-  
     async def _add_dir(self, dir_path: str):
         """添加插件目录"""
         await self.send_text(f"📁 正在添加插件目录: `{dir_path}`")
@@ -501,13 +500,13 @@ class PluginManagementPlugin(BasePlugin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # 注册权限节点
-        
+
     async def on_plugin_loaded(self):
         await permission_api.register_permission_node(
-                "plugin.management.admin",
-                "插件管理：可以管理插件和组件的加载、卸载、启用、禁用等操作",
-                "plugin_management",
-                False,
+            "plugin.management.admin",
+            "插件管理：可以管理插件和组件的加载、卸载、启用、禁用等操作",
+            "plugin_management",
+            False,
         )
 
     def get_plugin_components(self) -> List[Tuple[PlusCommandInfo, Type[PlusCommand]]]:

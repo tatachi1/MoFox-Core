@@ -352,7 +352,7 @@ class ExpressionLearner:
                             create_date=current_time,  # 手动设置创建日期
                         )
                         session.add(new_expression)
-                
+
                 # 限制最大数量
                 exprs_result = await session.execute(
                     select(Expression)
@@ -456,11 +456,10 @@ class ExpressionLearnerManager:
 
         self._ensure_expression_directories()
 
-
     async def get_expression_learner(self, chat_id: str) -> ExpressionLearner:
         await self._auto_migrate_json_to_db()
         await self._migrate_old_data_create_date()
-        
+
         if chat_id not in self.expression_learners:
             self.expression_learners[chat_id] = ExpressionLearner(chat_id)
         return self.expression_learners[chat_id]
@@ -604,7 +603,9 @@ class ExpressionLearnerManager:
         try:
             async with get_db_session() as session:
                 # 查找所有create_date为空的表达方式
-                old_expressions_result = await session.execute(select(Expression).where(Expression.create_date.is_(None)))
+                old_expressions_result = await session.execute(
+                    select(Expression).where(Expression.create_date.is_(None))
+                )
                 old_expressions = old_expressions_result.scalars().all()
                 updated_count = 0
 

@@ -304,12 +304,14 @@ class RelationshipBuilder:
         if not self.person_engaged_cache:
             return f"{self.log_prefix} 关系缓存为空"
 
-        status_lines = [f"{self.log_prefix} 关系缓存状态：",
-                        f"最后处理消息时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.last_processed_message_time)) if self.last_processed_message_time > 0 else '未设置'}",
-                        f"最后清理时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.last_cleanup_time)) if self.last_cleanup_time > 0 else '未执行'}",
-                        f"总用户数：{len(self.person_engaged_cache)}",
-                        f"清理配置：{'启用' if SEGMENT_CLEANUP_CONFIG['enable_cleanup'] else '禁用'} (最大保存{SEGMENT_CLEANUP_CONFIG['max_segment_age_days']}天, 每用户最多{SEGMENT_CLEANUP_CONFIG['max_segments_per_user']}段)",
-                        ""]
+        status_lines = [
+            f"{self.log_prefix} 关系缓存状态：",
+            f"最后处理消息时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.last_processed_message_time)) if self.last_processed_message_time > 0 else '未设置'}",
+            f"最后清理时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.last_cleanup_time)) if self.last_cleanup_time > 0 else '未执行'}",
+            f"总用户数：{len(self.person_engaged_cache)}",
+            f"清理配置：{'启用' if SEGMENT_CLEANUP_CONFIG['enable_cleanup'] else '禁用'} (最大保存{SEGMENT_CLEANUP_CONFIG['max_segment_age_days']}天, 每用户最多{SEGMENT_CLEANUP_CONFIG['max_segments_per_user']}段)",
+            "",
+        ]
 
         for person_id, segments in self.person_engaged_cache.items():
             total_count = self._get_total_message_count(person_id)
@@ -370,7 +372,7 @@ class RelationshipBuilder:
         for person_id, segments in self.person_engaged_cache.items():
             total_message_count = self._get_total_message_count(person_id)
             person_name = get_person_info_manager().get_value(person_id, "person_name") or person_id
- 
+
             if total_message_count >= max_build_threshold or (
                 total_message_count >= 5 and (immediate_build == person_id or immediate_build == "all")
             ):
@@ -429,7 +431,9 @@ class RelationshipBuilder:
                 start_date = time.strftime("%Y-%m-%d %H:%M", time.localtime(start_time))
 
                 # 获取该段的消息（包含边界）
-                segment_messages = await get_raw_msg_by_timestamp_with_chat_inclusive(self.chat_id, start_time, end_time)
+                segment_messages = await get_raw_msg_by_timestamp_with_chat_inclusive(
+                    self.chat_id, start_time, end_time
+                )
                 logger.debug(
                     f"消息段: {start_date} - {time.strftime('%Y-%m-%d %H:%M', time.localtime(end_time))}, 消息数: {len(segment_messages)}"
                 )

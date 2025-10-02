@@ -100,7 +100,7 @@ class ChatterPlanFilter:
                         # 预解析 action_type 来进行判断
                         thinking = item.get("thinking", "未提供思考过程")
                         actions_obj = item.get("actions", {})
-                        
+
                         # 处理actions字段可能是字典或列表的情况
                         if isinstance(actions_obj, dict):
                             action_type = actions_obj.get("action_type", "no_action")
@@ -116,14 +116,12 @@ class ChatterPlanFilter:
 
                         if action_type in reply_action_types:
                             if not reply_action_added:
-                                final_actions.extend(
-                                    await self._parse_single_action(item, used_message_id_list, plan)
-                                )
+                                final_actions.extend(await self._parse_single_action(item, used_message_id_list, plan))
                                 reply_action_added = True
                         else:
                             # 非回复类动作直接添加
                             final_actions.extend(await self._parse_single_action(item, used_message_id_list, plan))
-                        
+
                         if thinking and thinking != "未提供思考过程":
                             logger.info(f"\n{SAKURA_PINK}思考: {thinking}{RESET_COLOR}\n")
                         plan.decided_actions = self._filter_no_actions(final_actions)
@@ -154,6 +152,7 @@ class ChatterPlanFilter:
             schedule_block = ""
             # 优先检查是否被吵醒
             from src.chat.message_manager.message_manager import message_manager
+
             angry_prompt_addition = ""
             wakeup_mgr = message_manager.wakeup_manager
 
@@ -161,7 +160,7 @@ class ChatterPlanFilter:
             # 检查1: 直接从 wakeup_manager 获取
             if wakeup_mgr.is_in_angry_state():
                 angry_prompt_addition = wakeup_mgr.get_angry_prompt_addition()
-            
+
             # 检查2: 如果上面没获取到，再从 mood_manager 确认
             if not angry_prompt_addition:
                 chat_mood_for_check = mood_manager.get_mood_by_chat_id(plan.chat_id)
@@ -274,7 +273,9 @@ class ChatterPlanFilter:
             is_group_chat = plan.chat_type == ChatType.GROUP
             chat_context_description = "你现在正在一个群聊中"
             if not is_group_chat and plan.target_info:
-                chat_target_name = plan.target_info.get("person_name") or plan.target_info.get("user_nickname") or "对方"
+                chat_target_name = (
+                    plan.target_info.get("person_name") or plan.target_info.get("user_nickname") or "对方"
+                )
                 chat_context_description = f"你正在和 {chat_target_name} 私聊"
 
             action_options_block = await self._build_action_options(plan.available_actions)
@@ -315,12 +316,12 @@ class ChatterPlanFilter:
         """构建已读/未读历史消息块"""
         try:
             # 从message_manager获取真实的已读/未读消息
-            from src.chat.message_manager.message_manager import message_manager
             from src.chat.utils.utils import assign_message_ids
             from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
 
             # 获取聊天流的上下文
             from src.plugin_system.apis.chat_api import get_chat_manager
+
             chat_manager = get_chat_manager()
             chat_stream = chat_manager.get_stream(plan.chat_id)
             if not chat_stream:
@@ -333,6 +334,7 @@ class ChatterPlanFilter:
             read_messages = stream_context.context.history_messages  # 已读消息存储在history_messages中
             if not read_messages:
                 from src.common.data_models.database_data_model import DatabaseMessages
+
                 # 如果内存中没有已读消息（比如刚启动），则从数据库加载最近的上下文
                 fallback_messages_dicts = await get_raw_msg_before_timestamp_with_chat(
                     chat_id=plan.chat_id,
@@ -414,7 +416,7 @@ class ChatterPlanFilter:
                             processed_plain_text=msg_dict.get("processed_plain_text", ""),
                             key_words=msg_dict.get("key_words", "[]"),
                             is_mentioned=msg_dict.get("is_mentioned", False),
-                            **{"user_info": user_info_dict}  # 通过kwargs传入user_info
+                            **{"user_info": user_info_dict},  # 通过kwargs传入user_info
                         )
                     else:
                         # 如果没有user_info字段，使用平铺的字段（flatten()方法返回的格式）
@@ -425,13 +427,12 @@ class ChatterPlanFilter:
                             user_platform=msg_dict.get("user_platform", ""),
                             processed_plain_text=msg_dict.get("processed_plain_text", ""),
                             key_words=msg_dict.get("key_words", "[]"),
-                            is_mentioned=msg_dict.get("is_mentioned", False)
+                            is_mentioned=msg_dict.get("is_mentioned", False),
                         )
 
                     # 计算消息兴趣度
                     interest_score_obj = await chatter_interest_scoring_system._calculate_single_message_score(
-                        message=db_message,
-                        bot_nickname=global_config.bot.nickname
+                        message=db_message, bot_nickname=global_config.bot.nickname
                     )
                     interest_score = interest_score_obj.total_score
 
@@ -454,7 +455,7 @@ class ChatterPlanFilter:
         try:
             # 从新的actions结构中获取动作信息
             actions_obj = action_json.get("actions", {})
-            
+
             # 处理actions字段可能是字典或列表的情况
             actions_to_process = []
             if isinstance(actions_obj, dict):
@@ -463,19 +464,23 @@ class ChatterPlanFilter:
                 actions_to_process.extend(actions_obj)
 
             if not actions_to_process:
-                 actions_to_process.append({"action_type": "no_action", "reason": "actions格式错误"})
+                actions_to_process.append({"action_type": "no_action", "reason": "actions格式错误"})
 
             for single_action_obj in actions_to_process:
                 if not isinstance(single_action_obj, dict):
                     continue
 
                 action = single_action_obj.get("action_type", "no_action")
-                reasoning = single_action_obj.get("reasoning", "未提供原因") # 兼容旧的reason字段
+                reasoning = single_action_obj.get("reasoning", "未提供原因")  # 兼容旧的reason字段
                 action_data = single_action_obj.get("action_data", {})
-                
+
                 # 为了向后兼容，如果action_data不存在，则从顶层字段获取
                 if not action_data:
-                    action_data = {k: v for k, v in single_action_obj.items() if k not in ["action_type", "reason", "reasoning", "thinking"]}
+                    action_data = {
+                        k: v
+                        for k, v in single_action_obj.items()
+                        if k not in ["action_type", "reason", "reasoning", "thinking"]
+                    }
 
                 # 保留原始的thinking字段（如果有）
                 thinking = action_json.get("thinking", "")
@@ -501,7 +506,9 @@ class ChatterPlanFilter:
                                 # reply动作必须有目标消息，使用最新消息作为兜底
                                 target_message_dict = self._get_latest_message(message_id_list)
                                 if target_message_dict:
-                                    logger.info(f"[{action}] 使用最新消息作为目标: {target_message_dict.get('message_id')}")
+                                    logger.info(
+                                        f"[{action}] 使用最新消息作为目标: {target_message_dict.get('message_id')}"
+                                    )
                                 else:
                                     logger.error(f"[{action}] 无法找到任何目标消息，降级为no_action")
                                     action = "no_action"
@@ -509,15 +516,21 @@ class ChatterPlanFilter:
 
                             elif action in ["poke_user", "set_emoji_like"]:
                                 # 这些动作可以尝试其他策略
-                                target_message_dict = self._find_poke_notice(message_id_list) or self._get_latest_message(message_id_list)
+                                target_message_dict = self._find_poke_notice(
+                                    message_id_list
+                                ) or self._get_latest_message(message_id_list)
                                 if target_message_dict:
-                                    logger.info(f"[{action}] 使用替代消息作为目标: {target_message_dict.get('message_id')}")
+                                    logger.info(
+                                        f"[{action}] 使用替代消息作为目标: {target_message_dict.get('message_id')}"
+                                    )
 
                             else:
                                 # 其他动作使用最新消息或跳过
                                 target_message_dict = self._get_latest_message(message_id_list)
                                 if target_message_dict:
-                                    logger.info(f"[{action}] 使用最新消息作为目标: {target_message_dict.get('message_id')}")
+                                    logger.info(
+                                        f"[{action}] 使用最新消息作为目标: {target_message_dict.get('message_id')}"
+                                    )
                     else:
                         # 如果LLM没有指定target_message_id，进行特殊处理
                         if action == "poke_user":
@@ -615,7 +628,7 @@ class ChatterPlanFilter:
                     query_text=query,
                     user_id="system",  # 系统查询
                     scope_id="system",
-                    limit=5
+                    limit=5,
                 )
 
                 if not enhanced_memories:
@@ -628,7 +641,9 @@ class ChatterPlanFilter:
                     memory_type = memory_chunk.memory_type.value if memory_chunk.memory_type else "unknown"
                     retrieved_memories.append((memory_type, content))
 
-                memory_statements = [f"关于'{topic}', 你记得'{memory_item}'。" for topic, memory_item in retrieved_memories]
+                memory_statements = [
+                    f"关于'{topic}', 你记得'{memory_item}'。" for topic, memory_item in retrieved_memories
+                ]
 
             except Exception as e:
                 logger.warning(f"增强记忆系统检索失败，使用默认回复: {e}")
@@ -650,12 +665,17 @@ class ChatterPlanFilter:
                     if action_name == "set_emoji_like" and p_name == "emoji":
                         # 特殊处理set_emoji_like的emoji参数
                         from src.plugins.built_in.social_toolkit_plugin.qq_emoji_list import qq_face
-                        emoji_options = [re.search(r"\[表情：(.+?)\]", name).group(1) for name in qq_face.values() if re.search(r"\[表情：(.+?)\]", name)]
+
+                        emoji_options = [
+                            re.search(r"\[表情：(.+?)\]", name).group(1)
+                            for name in qq_face.values()
+                            if re.search(r"\[表情：(.+?)\]", name)
+                        ]
                         example_value = f"<从'{', '.join(emoji_options[:10])}...'中选择一个>"
                     else:
                         example_value = f"<{p_desc}>"
                     params_json_list.append(f'        "{p_name}": "{example_value}"')
-            
+
             # 基础动作信息
             action_description = action_info.description
             action_require = "\n".join(f"- {req}" for req in action_info.action_require)
@@ -668,11 +688,11 @@ class ChatterPlanFilter:
             # 将参数列表合并到JSON示例中
             if params_json_list:
                 # 移除最后一行的逗号
-                json_example_lines.extend([line.rstrip(',') for line in params_json_list])
+                json_example_lines.extend([line.rstrip(",") for line in params_json_list])
 
             json_example_lines.append('        "reason": "<执行该动作的详细原因>"')
             json_example_lines.append("    }")
-            
+
             # 使用逗号连接内部元素，除了最后一个
             json_parts = []
             for i, line in enumerate(json_example_lines):
@@ -680,14 +700,14 @@ class ChatterPlanFilter:
                 if line.strip() in ["{", "}"]:
                     json_parts.append(line)
                     continue
-                
+
                 # 检查是否是最后一个需要逗号的元素
                 is_last_item = True
-                for next_line in json_example_lines[i+1:]:
+                for next_line in json_example_lines[i + 1 :]:
                     if next_line.strip() not in ["}"]:
                         is_last_item = False
                         break
-                
+
                 if not is_last_item:
                     json_parts.append(f"{line},")
                 else:
@@ -715,7 +735,7 @@ class ChatterPlanFilter:
 
         # 1. 标准化处理：去除可能的格式干扰
         original_id = str(message_id).strip()
-        normalized_id = original_id.strip('<>"\'').strip()
+        normalized_id = original_id.strip("<>\"'").strip()
 
         if not normalized_id:
             return None
@@ -733,12 +753,13 @@ class ChatterPlanFilter:
 
         # 处理包含在文本中的ID格式 (如 "消息m123" -> 提取 m123)
         import re
+
         # 尝试提取各种格式的ID
         id_patterns = [
-            r'm\d+',  # m123格式
-            r'\d+',   # 纯数字格式
-            r'buffered-[a-f0-9-]+',  # buffered-xxxx格式
-            r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}',  # UUID格式
+            r"m\d+",  # m123格式
+            r"\d+",  # 纯数字格式
+            r"buffered-[a-f0-9-]+",  # buffered-xxxx格式
+            r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",  # UUID格式
         ]
 
         for pattern in id_patterns:
@@ -773,12 +794,12 @@ class ChatterPlanFilter:
         # 4. 尝试模糊匹配（数字部分匹配）
         for candidate in candidate_ids:
             # 提取数字部分进行模糊匹配
-            number_part = re.sub(r'[^0-9]', '', candidate)
+            number_part = re.sub(r"[^0-9]", "", candidate)
             if number_part:
                 for item in message_id_list:
                     if isinstance(item, dict):
                         item_id = item.get("id", "")
-                        item_number = re.sub(r'[^0-9]', '', item_id)
+                        item_number = re.sub(r"[^0-9]", "", item_id)
 
                         # 数字部分匹配
                         if item_number == number_part:
@@ -789,7 +810,7 @@ class ChatterPlanFilter:
                         message_obj = item.get("message")
                         if isinstance(message_obj, dict):
                             orig_mid = message_obj.get("message_id") or message_obj.get("id")
-                            orig_number = re.sub(r'[^0-9]', '', str(orig_mid)) if orig_mid else ""
+                            orig_number = re.sub(r"[^0-9]", "", str(orig_mid)) if orig_mid else ""
                             if orig_number == number_part:
                                 logger.debug(f"模糊匹配成功(消息对象): {candidate} -> {orig_mid}")
                                 return message_obj

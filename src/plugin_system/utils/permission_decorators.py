@@ -79,9 +79,11 @@ def require_permission(permission_node: str, deny_message: Optional[str] = None)
 
         if not iscoroutinefunction(func):
             logger.warning(f"函数 {func.__name__} 使用 require_permission 但非异步，已强制阻止执行")
+
             async def blocked(*_a, **_k):
                 logger.error("同步函数不再支持权限装饰器，请改为 async def")
                 return None
+
             return blocked
         return async_wrapper
 
@@ -146,9 +148,11 @@ def require_master(deny_message: Optional[str] = None):
 
         if not iscoroutinefunction(func):
             logger.warning(f"函数 {func.__name__} 使用 require_master 但非异步，已强制阻止执行")
+
             async def blocked(*_a, **_k):
                 logger.error("同步函数不再支持 require_master，请改为 async def")
                 return None
+
             return blocked
         return async_wrapper
 
@@ -164,7 +168,9 @@ class PermissionChecker:
 
     @staticmethod
     def check_permission(chat_stream: ChatStream, permission_node: str) -> bool:
-        raise RuntimeError("PermissionChecker.check_permission 已移除同步支持，请直接 await permission_api.check_permission")
+        raise RuntimeError(
+            "PermissionChecker.check_permission 已移除同步支持，请直接 await permission_api.check_permission"
+        )
 
     @staticmethod
     def is_master(chat_stream: ChatStream) -> bool:

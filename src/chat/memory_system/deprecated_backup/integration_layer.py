@@ -12,7 +12,7 @@ from enum import Enum
 
 from src.common.logger import get_logger
 from src.chat.memory_system.enhanced_memory_core import EnhancedMemorySystem
-from src.chat.memory_system.memory_chunk import MemoryChunk, MemoryType, ConfidenceLevel, ImportanceLevel
+from src.chat.memory_system.memory_chunk import MemoryChunk
 from src.llm_models.utils_model import LLMRequest
 
 logger = get_logger(__name__)
@@ -20,13 +20,15 @@ logger = get_logger(__name__)
 
 class IntegrationMode(Enum):
     """集成模式"""
-    REPLACE = "replace"           # 完全替换现有记忆系统
+
+    REPLACE = "replace"  # 完全替换现有记忆系统
     ENHANCED_ONLY = "enhanced_only"  # 仅使用增强记忆系统
 
 
 @dataclass
 class IntegrationConfig:
     """集成配置"""
+
     mode: IntegrationMode = IntegrationMode.ENHANCED_ONLY
     enable_enhanced_memory: bool = True
     memory_value_threshold: float = 0.6
@@ -51,7 +53,7 @@ class MemoryIntegrationLayer:
             "enhanced_queries": 0,
             "memory_creations": 0,
             "average_response_time": 0.0,
-            "success_rate": 0.0
+            "success_rate": 0.0,
         }
 
         # 初始化锁
@@ -88,6 +90,7 @@ class MemoryIntegrationLayer:
 
             # 创建增强记忆系统配置
             from src.chat.memory_system.enhanced_memory_core import MemorySystemConfig
+
             memory_config = MemorySystemConfig.from_global_config()
 
             # 使用集成配置覆盖部分值
@@ -96,9 +99,7 @@ class MemoryIntegrationLayer:
             memory_config.final_recall_limit = self.config.max_retrieval_results
 
             # 创建增强记忆系统
-            self.enhanced_memory = EnhancedMemorySystem(
-                config=memory_config
-            )
+            self.enhanced_memory = EnhancedMemorySystem(config=memory_config)
 
             # 如果外部提供了LLM模型，注入到系统中
             if self.llm_model is not None:
@@ -112,10 +113,7 @@ class MemoryIntegrationLayer:
             logger.error(f"❌ 增强记忆系统初始化失败: {e}", exc_info=True)
             raise
 
-    async def process_conversation(
-        self,
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def process_conversation(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """处理对话记忆，仅使用上下文信息"""
         if not self._initialized or not self.enhanced_memory:
             return {"success": False, "error": "Memory system not available"}
@@ -154,7 +152,7 @@ class MemoryIntegrationLayer:
         query: str,
         user_id: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> List[MemoryChunk]:
         """检索相关记忆"""
         if not self._initialized or not self.enhanced_memory:
@@ -163,10 +161,7 @@ class MemoryIntegrationLayer:
         try:
             limit = limit or self.config.max_retrieval_results
             memories = await self.enhanced_memory.retrieve_relevant_memories(
-                query=query,
-                user_id=None,
-                context=context or {},
-                limit=limit
+                query=query, user_id=None, context=context or {}, limit=limit
             )
 
             memory_count = len(memories)
@@ -191,7 +186,7 @@ class MemoryIntegrationLayer:
                 "status": "initialized",
                 "mode": self.config.mode.value,
                 "enhanced_memory": enhanced_status,
-                "integration_stats": self.integration_stats.copy()
+                "integration_stats": self.integration_stats.copy(),
             }
 
         except Exception as e:

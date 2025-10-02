@@ -17,7 +17,7 @@ MEMORY_TYPE_CHINESE_MAPPING = {
     "goal": "目标计划",
     "experience": "经验教训",
     "contextual": "上下文信息",
-    "unknown": "未知"
+    "unknown": "未知",
 }
 
 # 置信度等级到中文标签的映射表
@@ -30,7 +30,7 @@ CONFIDENCE_LEVEL_CHINESE_MAPPING = {
     "MEDIUM": "中等置信度",
     "HIGH": "高置信度",
     "VERIFIED": "已验证",
-    "unknown": "未知"
+    "unknown": "未知",
 }
 
 # 重要性等级到中文标签的映射表
@@ -43,7 +43,7 @@ IMPORTANCE_LEVEL_CHINESE_MAPPING = {
     "NORMAL": "一般重要性",
     "HIGH": "高重要性",
     "CRITICAL": "关键重要性",
-    "unknown": "未知"
+    "unknown": "未知",
 }
 
 
@@ -69,7 +69,7 @@ def get_confidence_level_chinese_label(level) -> str:
         str: 对应的中文标签，如果找不到则返回"未知"
     """
     # 处理枚举实例
-    if hasattr(level, 'value'):
+    if hasattr(level, "value"):
         level = level.value
 
     # 处理数字
@@ -94,7 +94,7 @@ def get_importance_level_chinese_label(level) -> str:
         str: 对应的中文标签，如果找不到则返回"未知"
     """
     # 处理枚举实例
-    if hasattr(level, 'value'):
+    if hasattr(level, "value"):
         level = level.value
 
     # 处理数字

@@ -3,7 +3,16 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 from src.common.logger import get_logger
-from src.plugin_system.apis import chat_api, person_api, schedule_api, send_api, llm_api, message_api, generator_api, database_api
+from src.plugin_system.apis import (
+    chat_api,
+    person_api,
+    schedule_api,
+    send_api,
+    llm_api,
+    message_api,
+    generator_api,
+    database_api,
+)
 from src.config.config import global_config, model_config
 from src.person_info.person_info import get_person_info_manager
 
@@ -39,17 +48,16 @@ class ProactiveThinkerExecutor:
         # 2. 决策阶段
         decision_result = await self._make_decision(context, start_mode)
 
-
         if not decision_result or not decision_result.get("should_reply"):
             reason = decision_result.get("reason", "未提供") if decision_result else "决策过程返回None"
             logger.info(f"决策结果为：不回复。原因: {reason}")
             await database_api.store_action_info(
-            chat_stream=self._get_stream_from_id(stream_id),
-            action_name="proactive_decision",
-            action_prompt_display=f"主动思考决定不回复,原因: {reason}",
-            action_done = True,
-            action_data=decision_result
-        )
+                chat_stream=self._get_stream_from_id(stream_id),
+                action_name="proactive_decision",
+                action_prompt_display=f"主动思考决定不回复,原因: {reason}",
+                action_done=True,
+                action_data=decision_result,
+            )
             return
 
         # 3. 规划与执行阶段
@@ -59,15 +67,17 @@ class ProactiveThinkerExecutor:
             chat_stream=self._get_stream_from_id(stream_id),
             action_name="proactive_decision",
             action_prompt_display=f"主动思考决定回复,原因: {reason},话题:{topic}",
-            action_done = True,
-            action_data=decision_result
+            action_done=True,
+            action_data=decision_result,
         )
         logger.info(f"决策结果为：回复。话题: {topic}")
-        
+
         plan_prompt = self._build_plan_prompt(context, start_mode, topic, reason)
-        
-        is_success, response, _, _ = await llm_api.generate_with_model(prompt=plan_prompt, model_config=model_config.model_task_config.utils)
-        
+
+        is_success, response, _, _ = await llm_api.generate_with_model(
+            prompt=plan_prompt, model_config=model_config.model_task_config.utils
+        )
+
         if is_success and response:
             stream = self._get_stream_from_id(stream_id)
             if stream:
@@ -104,33 +114,41 @@ class ProactiveThinkerExecutor:
         if not user_info or not user_info.platform or not user_info.user_id:
             logger.warning(f"Stream {stream_id} 的 user_info 不完整")
             return None
-        
+
         person_id = person_api.get_person_id(user_info.platform, int(user_info.user_id))
         person_info_manager = get_person_info_manager()
 
         # 获取日程
         schedules = await schedule_api.ScheduleAPI.get_today_schedule()
-        schedule_context = "\n".join([f"- {s['title']} ({s['start_time']}-{s['end_time']})" for s in schedules]) if schedules else "今天没有日程安排。"
+        schedule_context = (
+            "\n".join([f"- {s['title']} ({s['start_time']}-{s['end_time']})" for s in schedules])
+            if schedules
+            else "今天没有日程安排。"
+        )
 
         # 获取关系信息
         short_impression = await person_info_manager.get_value(person_id, "short_impression") or "无"
         impression = await person_info_manager.get_value(person_id, "impression") or "无"
         attitude = await person_info_manager.get_value(person_id, "attitude") or 50
-        
+
         # 获取最近聊天记录
         recent_messages = await message_api.get_recent_messages(stream_id, limit=10)
-        recent_chat_history = await message_api.build_readable_messages_to_str(recent_messages) if recent_messages else "无"
-        
+        recent_chat_history = (
+            await message_api.build_readable_messages_to_str(recent_messages) if recent_messages else "无"
+        )
+
         # 获取最近的动作历史
         action_history = await database_api.db_query(
             database_api.MODEL_MAPPING["ActionRecords"],
             filters={"chat_id": stream_id, "action_name": "proactive_decision"},
             limit=3,
-            order_by=["-time"]
+            order_by=["-time"],
         )
         action_history_context = "无"
         if isinstance(action_history, list):
-            action_history_context = "\n".join([f"- {a['action_data']}" for a in action_history if isinstance(a, dict)]) or "无"
+            action_history_context = (
+                "\n".join([f"- {a['action_data']}" for a in action_history if isinstance(a, dict)]) or "无"
+            )
 
         return {
             "person_id": person_id,
@@ -138,47 +156,43 @@ class ProactiveThinkerExecutor:
             "schedule_context": schedule_context,
             "recent_chat_history": recent_chat_history,
             "action_history_context": action_history_context,
-            "relationship": {
-                "short_impression": short_impression,
-                "impression": impression,
-                "attitude": attitude
-            },
+            "relationship": {"short_impression": short_impression, "impression": impression, "attitude": attitude},
             "persona": {
                 "core": global_config.personality.personality_core,
                 "side": global_config.personality.personality_side,
                 "identity": global_config.personality.identity,
             },
-            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
     async def _make_decision(self, context: Dict[str, Any], start_mode: str) -> Optional[Dict[str, Any]]:
         """
         决策模块：判断是否应该主动发起对话，以及聊什么话题
         """
-        persona = context['persona']
-        user_info = context['user_info']
-        relationship = context['relationship']
+        persona = context["persona"]
+        user_info = context["user_info"]
+        relationship = context["relationship"]
 
         prompt = f"""
 # 角色
 你的名字是{global_config.bot.nickname}，你的人设如下：
-- 核心人设: {persona['core']}
-- 侧面人设: {persona['side']}
-- 身份: {persona['identity']}
+- 核心人设: {persona["core"]}
+- 侧面人设: {persona["side"]}
+- 身份: {persona["identity"]}
 
 # 任务
-现在是 {context['current_time']}，你需要根据当前的情境，决定是否要主动向用户 '{user_info.user_nickname}' 发起对话。
+现在是 {context["current_time"]}，你需要根据当前的情境，决定是否要主动向用户 '{user_info.user_nickname}' 发起对话。
 
 # 情境分析
-1.  **启动模式**: {start_mode} ({'初次见面/很久未见' if start_mode == 'cold_start' else '日常唤醒'})
+1.  **启动模式**: {start_mode} ({"初次见面/很久未见" if start_mode == "cold_start" else "日常唤醒"})
 2.  **你的日程**:
-{context['schedule_context']}
+{context["schedule_context"]}
 3.  **你和Ta的关系**:
-    - 简短印象: {relationship['short_impression']}
-    - 详细印象: {relationship['impression']}
-    - 好感度: {relationship['attitude']}/100
+    - 简短印象: {relationship["short_impression"]}
+    - 详细印象: {relationship["impression"]}
+    - 好感度: {relationship["attitude"]}/100
 4.  **最近的聊天摘要**:
-{context['recent_chat_history']}
+{context["recent_chat_history"]}
 
 # 决策指令
 请综合以上所有信息，做出决策。你的决策需要以JSON格式输出，包含以下字段：
@@ -204,9 +218,11 @@ class ProactiveThinkerExecutor:
 
 请输出你的决策:
 """
-        
-        is_success, response, _, _ = await llm_api.generate_with_model(prompt=prompt, model_config=model_config.model_task_config.utils)
-        
+
+        is_success, response, _, _ = await llm_api.generate_with_model(
+            prompt=prompt, model_config=model_config.model_task_config.utils
+        )
+
         if not is_success:
             return {"should_reply": False, "reason": "决策模型生成失败"}
 
@@ -222,17 +238,17 @@ class ProactiveThinkerExecutor:
         """
         根据启动模式和决策话题，构建最终的规划提示词
         """
-        persona = context['persona']
-        user_info = context['user_info']
-        relationship = context['relationship']
+        persona = context["persona"]
+        user_info = context["user_info"]
+        relationship = context["relationship"]
 
         if start_mode == "cold_start":
             prompt = f"""
 # 角色
 你的名字是{global_config.bot.nickname}，你的人设如下：
-- 核心人设: {persona['core']}
-- 侧面人设: {persona['side']}
-- 身份: {persona['identity']}
+- 核心人设: {persona["core"]}
+- 侧面人设: {persona["side"]}
+- 身份: {persona["identity"]}
 
 # 任务
 你需要主动向一个新朋友 '{user_info.user_nickname}' 发起对话。这是你们的第一次交流，或者很久没聊了。
@@ -240,9 +256,9 @@ class ProactiveThinkerExecutor:
 # 决策上下文
 - **决策理由**: {reason}
 - **你和Ta的关系**:
-    - 简短印象: {relationship['short_impression']}
-    - 详细印象: {relationship['impression']}
-    - 好感度: {relationship['attitude']}/100
+    - 简短印象: {relationship["short_impression"]}
+    - 详细印象: {relationship["impression"]}
+    - 好感度: {relationship["attitude"]}/100
 
 # 对话指引
 - 你的目标是“破冰”，让对话自然地开始。
@@ -254,26 +270,26 @@ class ProactiveThinkerExecutor:
             prompt = f"""
 # 角色
 你的名字是{global_config.bot.nickname}，你的人设如下：
-- 核心人设: {persona['core']}
-- 侧面人设: {persona['side']}
-- 身份: {persona['identity']}
+- 核心人设: {persona["core"]}
+- 侧面人设: {persona["side"]}
+- 身份: {persona["identity"]}
 
 # 任务
-现在是 {context['current_time']}，你需要主动向你的朋友 '{user_info.user_nickname}' 发起对话。
+现在是 {context["current_time"]}，你需要主动向你的朋友 '{user_info.user_nickname}' 发起对话。
 
 # 决策上下文
 - **决策理由**: {reason}
 
 # 情境分析
 1.  **你的日程**:
-{context['schedule_context']}
+{context["schedule_context"]}
 2.  **你和Ta的关系**:
-    - 详细印象: {relationship['impression']}
-    - 好感度: {relationship['attitude']}/100
+    - 详细印象: {relationship["impression"]}
+    - 好感度: {relationship["attitude"]}/100
 3.  **最近的聊天摘要**:
-{context['recent_chat_history']}
+{context["recent_chat_history"]}
 4.  **你最近的相关动作**:
-{context['action_history_context']}
+{context["action_history_context"]}
 
 # 对话指引
 - 你决定和Ta聊聊关于“{topic}”的话题。

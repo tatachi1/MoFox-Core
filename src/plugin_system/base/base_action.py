@@ -2,7 +2,7 @@ import time
 import asyncio
 
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, List, Dict, Any
+from typing import Tuple, Optional, List, Dict
 
 from src.common.logger import get_logger
 from src.chat.message_receive.chat_stream import ChatStream
@@ -25,7 +25,7 @@ class BaseAction(ABC):
     - parallel_action: 是否允许并行执行
     - random_activation_probability: 随机激活概率
     - llm_judge_prompt: LLM判断提示词
-    
+
     二步Action相关属性：
     - is_two_step_action: 是否为二步Action
     - step_one_description: 第一步的描述
@@ -435,7 +435,9 @@ class BaseAction(ABC):
 
             # 确保获取的是Action组件
             if component_info.component_type != ComponentType.ACTION:
-                logger.error(f"{log_prefix} 尝试调用的组件 '{action_name}' 不是一个Action，而是一个 '{component_info.component_type.value}'")
+                logger.error(
+                    f"{log_prefix} 尝试调用的组件 '{action_name}' 不是一个Action，而是一个 '{component_info.component_type.value}'"
+                )
                 return False, f"组件 '{action_name}' 不是一个有效的Action"
 
             plugin_config = component_registry.get_plugin_config(component_info.plugin_name)
@@ -528,20 +530,20 @@ class BaseAction(ABC):
             # 第一步：展示可用的子Action
             available_actions = [sub_action[0] for sub_action in self.sub_actions]
             description = self.step_one_description or f"{self.action_name}支持以下操作"
-            
+
             actions_list = "\n".join([f"- {action}: {desc}" for action, desc, _ in self.sub_actions])
             response = f"{description}\n\n可用操作：\n{actions_list}\n\n请选择要执行的操作。"
-            
+
             return True, response
         else:
             # 验证选择的子Action是否有效
             valid_actions = [sub_action[0] for sub_action in self.sub_actions]
             if selected_action not in valid_actions:
                 return False, f"无效的操作选择: {selected_action}。可用操作: {valid_actions}"
-            
+
             # 保存选择的子Action
             self._selected_sub_action = selected_action
-            
+
             # 调用第二步执行
             return await self.execute_step_two(selected_action)
 
@@ -572,7 +574,7 @@ class BaseAction(ABC):
         # 如果是二步Action，自动处理第一步
         if self.is_two_step_action:
             return await self.handle_step_one()
-        
+
         # 普通Action由子类实现
         pass
 

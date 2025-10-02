@@ -140,5 +140,7 @@ class CookieService:
             self._save_cookies_to_file(qq_account, cookies)
             return cookies
 
-        logger.error(f"为 {qq_account} 获取Cookie的所有方法均失败。请确保Napcat HTTP服务或Adapter连接至少有一个正常工作，或存在有效的本地Cookie文件。")
+        logger.error(
+            f"为 {qq_account} 获取Cookie的所有方法均失败。请确保Napcat HTTP服务或Adapter连接至少有一个正常工作，或存在有效的本地Cookie文件。"
+        )
         return None

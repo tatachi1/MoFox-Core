@@ -82,22 +82,26 @@ async def check_and_migrate_database():
                                 if dialect.name == "sqlite" and isinstance(default_arg, bool):
                                     # SQLite 将布尔值存储为 0 或 1
                                     default_value = "1" if default_arg else "0"
-                                elif hasattr(compiler, 'render_literal_value'):
+                                elif hasattr(compiler, "render_literal_value"):
                                     try:
                                         # 尝试使用 render_literal_value
                                         default_value = compiler.render_literal_value(default_arg, column.type)
                                     except AttributeError:
                                         # 如果失败，则回退到简单的字符串转换
-                                        default_value = f"'{default_arg}'" if isinstance(default_arg, str) else str(default_arg)
+                                        default_value = (
+                                            f"'{default_arg}'" if isinstance(default_arg, str) else str(default_arg)
+                                        )
                                 else:
                                     # 对于没有 render_literal_value 的旧版或特定方言
-                                    default_value = f"'{default_arg}'" if isinstance(default_arg, str) else str(default_arg)
-                                
+                                    default_value = (
+                                        f"'{default_arg}'" if isinstance(default_arg, str) else str(default_arg)
+                                    )
+
                                 sql += f" DEFAULT {default_value}"
 
                             if not column.nullable:
                                 sql += " NOT NULL"
-                            
+
                             conn.execute(text(sql))
                             logger.info(f"成功向表 '{table_name}' 添加列 '{column_name}'。")
 
@@ -131,4 +135,3 @@ async def check_and_migrate_database():
                 continue
 
     logger.info("数据库结构检查与自动迁移完成。")
-

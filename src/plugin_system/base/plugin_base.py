@@ -294,9 +294,7 @@ class PluginBase(ABC):
         changed = False
 
         # 内部递归函数
-        def _sync_dicts(
-            schema_dict: Dict[str, Any], user_dict: Dict[str, Any], parent_key: str = ""
-        ) -> Dict[str, Any]:
+        def _sync_dicts(schema_dict: Dict[str, Any], user_dict: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
             nonlocal changed
             synced_dict = schema_dict.copy()
 
