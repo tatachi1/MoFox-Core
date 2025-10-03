@@ -104,61 +104,31 @@ class ProactiveThinkerExecutor:
 
     async def _gather_context(self, stream_id: str) -> dict[str, Any] | None:
         """
-        收集构建提示词所需的所有上下文信息
+        收集构建提示词所需的所有上下文信息.
+        根据聊天流是私聊还是群聊, 收集不同的上下文.
         """
         stream = self._get_stream_from_id(stream_id)
         if not stream:
             logger.warning(f"无法找到 stream_id 为 {stream_id} 的聊天流")
             return None
 
-        user_info = stream.user_info
-        if not user_info or not user_info.platform or not user_info.user_id:
-            logger.warning(f"Stream {stream_id} 的 user_info 不完整")
-            return None
-
-        person_id = person_api.get_person_id(user_info.platform, int(user_info.user_id))
-        person_info_manager = get_person_info_manager()
-
-        # 获取日程
+        # 1. 收集通用信息 (日程, 聊天历史, 动作历史)
         schedules = await schedule_api.ScheduleAPI.get_today_schedule()
-        schedule_context = (
-            "\n".join(
-                [
-                    f"- {s.get('time_range', '未知时间')}: {s.get('activity', '未知活动')}"
-                    for s in schedules
-                ]
-            )
-            if schedules
-            else "今天没有日程安排。"
-        )
-
-        # 获取关系信息
-        short_impression = await person_info_manager.get_value(person_id, "short_impression") or "无"
-        impression = await person_info_manager.get_value(person_id, "impression") or "无"
-        attitude = await person_info_manager.get_value(person_id, "attitude") or 50
-
-        # 获取最近聊天记录
+        schedule_context = "\n".join([f"- {s.get('time_range', '未知时间')}: {s.get('activity', '未知活动')}" for s in schedules]) if schedules else "今天没有日程安排。"
+        
         recent_messages = await message_api.get_recent_messages(stream_id, limit=10)
-        recent_chat_history = (
-            await message_api.build_readable_messages_to_str(recent_messages) if recent_messages else "无"
-        )
-
-        # 获取最近的动作历史
-        action_history = await database_api.db_query(
+        recent_chat_history = await message_api.build_readable_messages_to_str(recent_messages) if recent_messages else "无"
+        
+        action_history_list = await database_api.db_query(
             database_api.MODEL_MAPPING["ActionRecords"],
             filters={"chat_id": stream_id, "action_name": "proactive_decision"},
             limit=3,
             order_by=["-time"],
         )
-        action_history_context = "无"
-        if isinstance(action_history, list):
-            action_history_context = (
-                "\n".join([f"- {a['action_data']}" for a in action_history if isinstance(a, dict)]) or "无"
-            )
+        action_history_context = "\n".join([f"- {a['action_data']}" for a in action_history_list if isinstance(a, dict)]) if isinstance(action_history_list, list) else "无"
 
-        return {
-            "person_id": person_id,
-            "user_info": user_info,
+        # 2. 构建基础上下文
+        base_context = {
             "schedule_context": schedule_context,
             "recent_chat_history": recent_chat_history,
             "action_history_context": action_history_context,
@@ -170,21 +140,63 @@ class ProactiveThinkerExecutor:
             "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-    async def _make_decision(self, context: dict[str, Any], start_mode: str) -> dict[str, Any] | None:
-        """
-        决策模块：判断是否应该主动发起对话，以及聊什么话题
-        """
-        persona = context["persona"]
-        user_info = context["user_info"]
-        relationship = context["relationship"]
+        # 3. 根据聊天类型补充特定上下文
+        if stream.group_info:  # 群聊场景
+            base_context.update({
+                "chat_type": "group",
+                "group_info": {
+                    "group_name": stream.group_info.group_name,
+                    "group_id": stream.group_info.group_id
+                }
+            })
+            return base_context
+        elif stream.user_info:  # 私聊场景
+            user_info = stream.user_info
+            if not user_info.platform or not user_info.user_id:
+                logger.warning(f"Stream {stream_id} 的 user_info 不完整")
+                return None
 
+            person_id = person_api.get_person_id(user_info.platform, int(user_info.user_id))
+            person_info_manager = get_person_info_manager()
+
+            # 获取关系信息
+            short_impression = await person_info_manager.get_value(person_id, "short_impression") or "无"
+            impression = await person_info_manager.get_value(person_id, "impression") or "无"
+            attitude = await person_info_manager.get_value(person_id, "attitude") or 50
+
+            base_context.update({
+                "chat_type": "private",
+                "person_id": person_id,
+                "user_info": user_info,
+                "relationship": {
+                    "short_impression": short_impression,
+                    "impression": impression,
+                    "attitude": attitude
+                }
+            })
+            return base_context
+        else:
+            logger.warning(f"Stream {stream_id} 既没有 group_info 也没有 user_info")
+            return None
+
+    def _build_decision_prompt(self, context: dict[str, Any], start_mode: str) -> str:
+        """ 根据上下文构建决策prompt """
+        chat_type = context["chat_type"]
+        persona = context["persona"]
+
+        # 构建通用头部
         prompt = f"""
 # 角色
 你的名字是{global_config.bot.nickname}，你的人设如下：
 - 核心人设: {persona["core"]}
 - 侧面人设: {persona["side"]}
 - 身份: {persona["identity"]}
-
+"""
+        # 根据聊天类型构建任务和情境
+        if chat_type == "private":
+            user_info = context["user_info"]
+            relationship = context["relationship"]
+            prompt += f"""
 # 任务
 现在是 {context["current_time"]}，你需要根据当前的情境，决定是否要主动向用户 '{user_info.user_nickname}' 发起对话。
 
@@ -198,7 +210,24 @@ class ProactiveThinkerExecutor:
     - 好感度: {relationship["attitude"]}/100
 4.  **最近的聊天摘要**:
 {context["recent_chat_history"]}
+"""
+        elif chat_type == "group":
+            group_info = context["group_info"]
+            prompt += f"""
+# 任务
+现在是 {context["current_time"]}，你需要根据当前的情境，决定是否要主动向群聊 '{group_info["group_name"]}' 发起对话。
 
+# 情境分析
+1.  **启动模式**: {start_mode} ({"首次加入/很久未发言" if start_mode == "cold_start" else "日常唤醒"})
+2.  **你的日程**:
+{context["schedule_context"]}
+3.  **群聊信息**:
+    - 群名称: {group_info["group_name"]}
+4.  **最近的聊天摘要**:
+{context["recent_chat_history"]}
+"""
+        # 构建通用尾部
+        prompt += """
 # 决策指令
 请综合以上所有信息，做出决策。你的决策需要以JSON格式输出，包含以下字段：
 - `should_reply`: bool, 是否应该发起对话。
@@ -209,22 +238,34 @@ class ProactiveThinkerExecutor:
 示例1 (应该回复):
 {{
   "should_reply": true,
-  "topic": "提醒Ta今天下午有'项目会议'的日程",
-  "reason": "现在是上午，Ta下午有个重要会议，我觉得应该主动提醒一下，这会显得我很贴心。"
+  "topic": "提醒大家今天下午有'项目会议'的日程",
+  "reason": "现在是上午，下午有个重要会议，我觉得应该主动提醒一下大家，这会显得我很贴心。"
 }}
 
 示例2 (不应回复):
 {{
   "should_reply": false,
   "topic": null,
-  "reason": "虽然我们的关系不错，但现在是深夜，而且Ta今天的日程都已经完成了，我没有合适的理由去打扰Ta。"
+  "reason": "虽然群里很活跃，但现在是深夜，而且最近的聊天话题我也不熟悉，没有合适的理由去打扰大家。"
 }}
 ---
 
 请输出你的决策:
 """
+        return prompt
+
+    async def _make_decision(self, context: dict[str, Any], start_mode: str) -> dict[str, Any] | None:
+        """
+        决策模块：判断是否应该主动发起对话，以及聊什么话题
+        """
+        if context["chat_type"] not in ["private", "group"]:
+             return {"should_reply": False, "reason": "未知的聊天类型"}
+
+        prompt = self._build_decision_prompt(context, start_mode)
+
         if global_config.debug.show_prompt:
-            logger.info(f"主动思考规划器原始提示词:{prompt}")
+            logger.info(f"主动思考决策器原始提示词:{prompt}")
+
         is_success, response, _, _ = await llm_api.generate_with_model(
             prompt=prompt, model_config=model_config.model_task_config.utils
         )
@@ -233,31 +274,21 @@ class ProactiveThinkerExecutor:
             return {"should_reply": False, "reason": "决策模型生成失败"}
 
         try:
-            # 假设LLM返回JSON格式的决策结果
             if global_config.debug.show_prompt:
-                logger.info(f"主动思考规划器响应:{response}")
+                logger.info(f"主动思考决策器响应:{response}")
             decision = orjson.loads(response)
             return decision
         except orjson.JSONDecodeError:
             logger.error(f"决策LLM返回的JSON格式无效: {response}")
             return {"should_reply": False, "reason": "决策模型返回格式错误"}
 
-    def _build_plan_prompt(self, context: dict[str, Any], start_mode: str, topic: str, reason: str) -> str:
-        """
-        根据启动模式和决策话题，构建最终的规划提示词
-        """
-        persona = context["persona"]
+    def _build_private_plan_prompt(self, context: dict[str, Any], start_mode: str, topic: str, reason: str) -> str:
+        """ 构建私聊的规划Prompt """
         user_info = context["user_info"]
         relationship = context["relationship"]
-
+        
         if start_mode == "cold_start":
-            prompt = f"""
-# 角色
-你的名字是{global_config.bot.nickname}，你的人设如下：
-- 核心人设: {persona["core"]}
-- 侧面人设: {persona["side"]}
-- 身份: {persona["identity"]}
-
+            return f"""
 # 任务
 你需要主动向一个新朋友 '{user_info.user_nickname}' 发起对话。这是你们的第一次交流，或者很久没聊了。
 
@@ -272,16 +303,9 @@ class ProactiveThinkerExecutor:
 - 你的目标是“破冰”，让对话自然地开始。
 - 你应该围绕这个话题展开: {topic}
 - 你的语气应该符合你的人设，友好且真诚。
-- 直接输出你要说的第一句话，不要包含任何额外的前缀或解释。
 """
         else:  # wake_up
-            prompt = f"""
-# 角色
-你的名字是{global_config.bot.nickname}，你的人设如下：
-- 核心人设: {persona["core"]}
-- 侧面人设: {persona["side"]}
-- 身份: {persona["identity"]}
-
+            return f"""
 # 任务
 现在是 {context["current_time"]}，你需要主动向你的朋友 '{user_info.user_nickname}' 发起对话。
 
@@ -303,8 +327,58 @@ class ProactiveThinkerExecutor:
 - 你决定和Ta聊聊关于“{topic}”的话题。
 - 请结合以上所有情境信息，自然地开启对话。
 - 你的语气应该符合你的人设以及你对Ta的好感度。
-- 直接输出你要说的第一句话，不要包含任何额外的前缀或解释。
 """
+
+    def _build_group_plan_prompt(self, context: dict[str, Any], topic: str, reason: str) -> str:
+        """ 构建群聊的规划Prompt """
+        group_info = context["group_info"]
+        return f"""
+# 任务
+现在是 {context["current_time"]}，你需要主动向群聊 '{group_info["group_name"]}' 发起对话。
+
+# 决策上下文
+- **决策理由**: {reason}
+
+# 情境分析
+1.  **你的日程**:
+{context["schedule_context"]}
+2.  **群聊信息**:
+    - 群名称: {group_info["group_name"]}
+3.  **最近的聊天摘要**:
+{context["recent_chat_history"]}
+4.  **你最近的相关动作**:
+{context["action_history_context"]}
+
+# 对话指引
+- 你决定和大家聊聊关于“{topic}”的话题。
+- 你的语气应该更活泼、更具包容性，以吸引更多群成员参与讨论。
+- 请结合以上所有情境信息，自然地开启对话。
+"""
+
+    def _build_plan_prompt(self, context: dict[str, Any], start_mode: str, topic: str, reason: str) -> str:
+        """
+        根据启动模式和决策话题，构建最终的规划提示词
+        """
+        persona = context["persona"]
+        chat_type = context["chat_type"]
+
+        # 1. 构建通用角色头部
+        prompt = f"""
+# 角色
+你的名字是{global_config.bot.nickname}，你的人设如下：
+- 核心人设: {persona["core"]}
+- 侧面人设: {persona["side"]}
+- 身份: {persona["identity"]}
+"""
+        # 2. 根据聊天类型构建特定内容
+        if chat_type == "private":
+            prompt += self._build_private_plan_prompt(context, start_mode, topic, reason)
+        elif chat_type == "group":
+            prompt += self._build_group_plan_prompt(context, topic, reason)
+
+        # 3. 添加通用结尾
+        prompt += "\n- 直接输出你要说的第一句话，不要包含任何额外的前缀或解释。"
+
         if global_config.debug.show_prompt:
             logger.info(f"主动思考回复器原始提示词:{prompt}")
         return prompt
