@@ -475,11 +475,11 @@ class ExpressionLearnerManager:
             os.path.join(base_dir, "learnt_grammar"),
         ]
 
-        for directory in directories_to_create:
-            try:
+        try:
+            for directory in directories_to_create:
                 os.makedirs(directory, exist_ok=True)
-                logger.debug(f"确保目录存在: {directory}")
-            except Exception as e:
+            logger.debug(f"确保目录存在: {directory}")
+        except Exception as e:
                 logger.error(f"创建目录失败 {directory}: {e}")
 
     @staticmethod
