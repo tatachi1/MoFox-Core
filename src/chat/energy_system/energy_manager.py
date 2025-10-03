@@ -365,7 +365,7 @@ class EnergyManager:
         # 计算与阈值的相对位置
         if energy >= high_threshold:
             # 高能量区域：指数增强
-            adjusted = 0.7 + (energy - 0.7) ** 0.8
+            adjusted = 0.7 + max(0, energy - 0.7) ** 0.8
         elif energy >= reply_threshold:
             # 中等能量区域：线性保持
             adjusted = energy
