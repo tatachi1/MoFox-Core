@@ -29,7 +29,10 @@ class ProactiveThinkerExecutor:
     """
 
     def __init__(self):
-        # 可以在此初始化所需模块，例如LLM请求器等
+        """
+        初始化 ProactiveThinkerExecutor 实例。
+        目前无需初始化操作。
+        """
         pass
 
     async def execute(self, stream_id: str, start_mode: str = "wake_up"):
@@ -91,21 +94,37 @@ class ProactiveThinkerExecutor:
                 logger.warning(f"无法发送消息，因为找不到 stream_id 为 {stream_id} 的聊天流")
 
     def _get_stream_from_id(self, stream_id: str):
-        """根据stream_id解析并获取stream对象"""
+        """
+        根据 stream_id 解析并获取对应的聊天流对象。
+
+        Args:
+            stream_id: 聊天流的唯一标识符，格式为 "platform:chat_id:stream_type"。
+
+        Returns:
+            对应的 ChatStream 对象，如果解析失败或找不到则返回 None。
+        """
         try:
             platform, chat_id, stream_type = stream_id.split(":")
             if stream_type == "private":
                 return chat_api.ChatManager.get_private_stream_by_user_id(platform=platform, user_id=chat_id)
             elif stream_type == "group":
-                return chat_api.ChatManager.get_group_stream_by_group_id(platform=platform,group_id=chat_id)
+                return chat_api.ChatManager.get_group_stream_by_group_id(platform=platform, group_id=chat_id)
         except Exception as e:
             logger.error(f"解析 stream_id ({stream_id}) 或获取 stream 失败: {e}")
         return None
 
     async def _gather_context(self, stream_id: str) -> dict[str, Any] | None:
         """
-        收集构建提示词所需的所有上下文信息.
-        根据聊天流是私聊还是群聊, 收集不同的上下文.
+        收集构建决策和规划提示词所需的所有上下文信息。
+
+        此函数会根据聊天流是私聊还是群聊，收集不同的信息，
+        包括但不限于日程、聊天历史、人设、关系信息等。
+
+        Args:
+            stream_id: 聊天流ID。
+
+        Returns:
+            一个包含所有上下文信息的字典，如果找不到聊天流则返回 None。
         """
         stream = self._get_stream_from_id(stream_id)
         if not stream:
@@ -114,18 +133,28 @@ class ProactiveThinkerExecutor:
 
         # 1. 收集通用信息 (日程, 聊天历史, 动作历史)
         schedules = await schedule_api.ScheduleAPI.get_today_schedule()
-        schedule_context = "\n".join([f"- {s.get('time_range', '未知时间')}: {s.get('activity', '未知活动')}" for s in schedules]) if schedules else "今天没有日程安排。"
-        
+        schedule_context = (
+            "\n".join([f"- {s.get('time_range', '未知时间')}: {s.get('activity', '未知活动')}" for s in schedules])
+            if schedules
+            else "今天没有日程安排。"
+        )
+
         recent_messages = await message_api.get_recent_messages(stream_id, limit=10)
-        recent_chat_history = await message_api.build_readable_messages_to_str(recent_messages) if recent_messages else "无"
-        
+        recent_chat_history = (
+            await message_api.build_readable_messages_to_str(recent_messages) if recent_messages else "无"
+        )
+
         action_history_list = await database_api.db_query(
             database_api.MODEL_MAPPING["ActionRecords"],
             filters={"chat_id": stream_id, "action_name": "proactive_decision"},
             limit=3,
             order_by=["-time"],
         )
-        action_history_context = "\n".join([f"- {a['action_data']}" for a in action_history_list if isinstance(a, dict)]) if isinstance(action_history_list, list) else "无"
+        action_history_context = (
+            "\n".join([f"- {a['action_data']}" for a in action_history_list if isinstance(a, dict)])
+            if isinstance(action_history_list, list)
+            else "无"
+        )
 
         # 2. 构建基础上下文
         base_context = {
@@ -142,13 +171,12 @@ class ProactiveThinkerExecutor:
 
         # 3. 根据聊天类型补充特定上下文
         if stream.group_info:  # 群聊场景
-            base_context.update({
-                "chat_type": "group",
-                "group_info": {
-                    "group_name": stream.group_info.group_name,
-                    "group_id": stream.group_info.group_id
+            base_context.update(
+                {
+                    "chat_type": "group",
+                    "group_info": {"group_name": stream.group_info.group_name, "group_id": stream.group_info.group_id},
                 }
-            })
+            )
             return base_context
         elif stream.user_info:  # 私聊场景
             user_info = stream.user_info
@@ -164,23 +192,34 @@ class ProactiveThinkerExecutor:
             impression = await person_info_manager.get_value(person_id, "impression") or "无"
             attitude = await person_info_manager.get_value(person_id, "attitude") or 50
 
-            base_context.update({
-                "chat_type": "private",
-                "person_id": person_id,
-                "user_info": user_info,
-                "relationship": {
-                    "short_impression": short_impression,
-                    "impression": impression,
-                    "attitude": attitude
+            base_context.update(
+                {
+                    "chat_type": "private",
+                    "person_id": person_id,
+                    "user_info": user_info,
+                    "relationship": {
+                        "short_impression": short_impression,
+                        "impression": impression,
+                        "attitude": attitude,
+                    },
                 }
-            })
+            )
             return base_context
         else:
             logger.warning(f"Stream {stream_id} 既没有 group_info 也没有 user_info")
             return None
 
     def _build_decision_prompt(self, context: dict[str, Any], start_mode: str) -> str:
-        """ 根据上下文构建决策prompt """
+        """
+        根据收集到的上下文信息，构建用于决策的提示词。
+
+        Args:
+            context: 包含所有上下文信息的字典。
+            start_mode: 启动模式 ('cold_start' 或 'wake_up')。
+
+        Returns:
+            构建完成的决策提示词字符串。
+        """
         chat_type = context["chat_type"]
         persona = context["persona"]
 
@@ -256,10 +295,18 @@ class ProactiveThinkerExecutor:
 
     async def _make_decision(self, context: dict[str, Any], start_mode: str) -> dict[str, Any] | None:
         """
-        决策模块：判断是否应该主动发起对话，以及聊什么话题
+        调用 LLM 进行决策，判断是否应该主动发起对话，以及聊什么话题。
+
+        Args:
+            context: 包含所有上下文信息的字典。
+            start_mode: 启动模式。
+
+        Returns:
+            一个包含决策结果的字典 (例如: {"should_reply": bool, "topic": str, "reason": str})，
+            如果决策过程失败则返回 None 或包含错误信息的字典。
         """
         if context["chat_type"] not in ["private", "group"]:
-             return {"should_reply": False, "reason": "未知的聊天类型"}
+            return {"should_reply": False, "reason": "未知的聊天类型"}
 
         prompt = self._build_decision_prompt(context, start_mode)
 
@@ -283,10 +330,20 @@ class ProactiveThinkerExecutor:
             return {"should_reply": False, "reason": "决策模型返回格式错误"}
 
     def _build_private_plan_prompt(self, context: dict[str, Any], start_mode: str, topic: str, reason: str) -> str:
-        """ 构建私聊的规划Prompt """
+        """
+        为私聊场景构建生成对话内容的规划提示词。
+
+        Args:
+            context: 上下文信息字典。
+            start_mode: 启动模式。
+            topic: 决策模块决定的话题。
+            reason: 决策模块给出的理由。
+
+        Returns:
+            构建完成的私聊规划提示词字符串。
+        """
         user_info = context["user_info"]
         relationship = context["relationship"]
-        
         if start_mode == "cold_start":
             return f"""
 # 任务
@@ -330,7 +387,17 @@ class ProactiveThinkerExecutor:
 """
 
     def _build_group_plan_prompt(self, context: dict[str, Any], topic: str, reason: str) -> str:
-        """ 构建群聊的规划Prompt """
+        """
+        为群聊场景构建生成对话内容的规划提示词。
+
+        Args:
+            context: 上下文信息字典。
+            topic: 决策模块决定的话题。
+            reason: 决策模块给出的理由。
+
+        Returns:
+            构建完成的群聊规划提示词字符串。
+        """
         group_info = context["group_info"]
         return f"""
 # 任务
@@ -357,7 +424,16 @@ class ProactiveThinkerExecutor:
 
     def _build_plan_prompt(self, context: dict[str, Any], start_mode: str, topic: str, reason: str) -> str:
         """
-        根据启动模式和决策话题，构建最终的规划提示词
+        根据聊天类型、启动模式和决策结果，构建最终生成对话内容的规划提示词。
+
+        Args:
+            context: 上下文信息字典。
+            start_mode: 启动模式。
+            topic: 决策模块决定的话题。
+            reason: 决策模块给出的理由。
+
+        Returns:
+            最终的规划提示词字符串。
         """
         persona = context["persona"]
         chat_type = context["chat_type"]
