@@ -245,6 +245,16 @@ MoFox_Bot(第三方修改版)
         # start_api_server()
         # logger.info("API服务器启动成功")
 
+        # 注册API路由
+        try:
+            from src.api.message_router import router as message_router
+            self.server.register_router(message_router, prefix="/api")
+            logger.info("API路由注册成功")
+        except ImportError as e:
+            logger.error(f"导入API路由失败: {e}")
+        except Exception as e:
+            logger.error(f"注册API路由时发生错误: {e}")
+
         # 加载所有actions，包括默认的和插件的
         plugin_manager.load_all_plugins()
 
