@@ -140,7 +140,7 @@ class ProactiveThinkerExecutor:
             else "今天没有日程安排。"
         )
 
-        recent_messages = await message_api.get_recent_messages(stream_id, limit=10)
+        recent_messages = await message_api.get_recent_messages(stream.stream_id)
         recent_chat_history = (
             await message_api.build_readable_messages_to_str(recent_messages) if recent_messages else "无"
         )
@@ -386,10 +386,18 @@ class ProactiveThinkerExecutor:
 
 # 决策上下文
 - **决策理由**: {reason}
-- **你和Ta的关系**:
+
+# 情境分析
+1.  **你的日程**:
+{context["schedule_context"]}
+2.  **你和Ta的关系**:
     - 简短印象: {relationship["short_impression"]}
     - 详细印象: {relationship["impression"]}
     - 好感度: {relationship["attitude"]}/100
+3.  **最近的聊天摘要**:
+{context["recent_chat_history"]}
+4.  **你最近的相关动作**:
+{context["action_history_context"]}
 
 # 对话指引
 - 你的目标是“破冰”，让对话自然地开始。
