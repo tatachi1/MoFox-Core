@@ -98,7 +98,7 @@ class InterestManager:
                 logger.error(f"注册兴趣值计算组件失败: {e}", exc_info=True)
                 return False
 
-    async def calculate_interest(self, message: "DatabaseMessages", timeout: float = 0.5) -> InterestCalculationResult:
+    async def calculate_interest(self, message: "DatabaseMessages", timeout: float = 2.0) -> InterestCalculationResult:
         """计算消息兴趣值
 
         Args:
@@ -126,14 +126,14 @@ class InterestManager:
             return result
         except asyncio.TimeoutError:
             # 超时返回默认结果，但计算仍在后台继续
-            logger.debug(f"兴趣值计算超时，消息 {getattr(message, 'message_id', '')} 将使用默认值")
+            logger.warning(f"兴趣值计算超时 ({timeout}s)，消息 {getattr(message, 'message_id', '')} 使用默认兴趣值 0.5")
             return InterestCalculationResult(
                 success=True,
                 message_id=getattr(message, 'message_id', ''),
-                interest_value=0.5,  # 默认中等兴趣值
+                interest_value=0.5,  # 固定默认兴趣值
                 should_reply=False,
                 should_act=False,
-                error_message="计算超时，使用默认值"
+                error_message=f"计算超时({timeout}s)，使用默认值"
             )
         except Exception as e:
             # 发生异常，返回默认结果
