@@ -68,6 +68,7 @@ uvicorn_server = None
 driver = None
 app = None
 loop = None
+main_system = None
 
 
 async def request_shutdown() -> bool:
@@ -99,8 +100,58 @@ def easter_egg():
 async def graceful_shutdown():
     try:
         logger.info("正在优雅关闭麦麦...")
+
+        # 首先停止服务器组件，避免网络连接被强制关闭
+        try:
+            global server
+            if server and hasattr(server, 'shutdown'):
+                logger.info("正在关闭服务器...")
+                await server.shutdown()
+        except Exception as e:
+            logger.warning(f"关闭服务器时出错: {e}")
+
+        # 停止聊天管理器
+        try:
+            from src.chat.message_receive.chat_stream import get_chat_manager
+            chat_manager = get_chat_manager()
+            if hasattr(chat_manager, '_stop_auto_save'):
+                logger.info("正在停止聊天管理器...")
+                chat_manager._stop_auto_save()
+        except Exception as e:
+            logger.warning(f"停止聊天管理器时出错: {e}")
+
+        # 停止情绪管理器
+        try:
+            from src.mood.mood_manager import mood_manager
+            if hasattr(mood_manager, 'stop'):
+                logger.info("正在停止情绪管理器...")
+                await mood_manager.stop()
+        except Exception as e:
+            logger.warning(f"停止情绪管理器时出错: {e}")
+
+        # 停止记忆系统
+        try:
+            from src.chat.memory_system.memory_manager import memory_manager
+            if hasattr(memory_manager, 'shutdown'):
+                logger.info("正在停止记忆系统...")
+                await memory_manager.shutdown()
+        except Exception as e:
+            logger.warning(f"停止记忆系统时出错: {e}")
+
+        # 停止MainSystem
+        try:
+            global main_system
+            if main_system and hasattr(main_system, 'shutdown'):
+                logger.info("正在停止MainSystem...")
+                await main_system.shutdown()
+        except Exception as e:
+            logger.warning(f"停止MainSystem时出错: {e}")
+
         # 停止所有异步任务
-        await async_task_manager.stop_and_wait_all_tasks()
+        try:
+            await async_task_manager.stop_and_wait_all_tasks()
+        except Exception as e:
+            logger.warning(f"停止异步任务管理器时出错: {e}")
 
         # 获取所有剩余任务，排除当前任务
         remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
@@ -233,6 +284,7 @@ if __name__ == "__main__":
         try:
             # 异步初始化数据库和表结构
             main_system = loop.run_until_complete(maibot.run())
+            global main_system
             loop.run_until_complete(maibot.initialize_database_async())
             # 执行初始化和任务调度
             loop.run_until_complete(main_system.initialize())

@@ -347,16 +347,55 @@ MoFox_Bot(第三方修改版)
 
     async def schedule_tasks(self):
         """调度定时任务"""
-        while True:
-            tasks = [
-                get_emoji_manager().start_periodic_check_register(),
-                self.app.run(),
-                self.server.run(),
-            ]
+        try:
+            while True:
+                tasks = [
+                    get_emoji_manager().start_periodic_check_register(),
+                    self.app.run(),
+                    self.server.run(),
+                ]
 
-            # 增强记忆系统不需要定时任务，已禁用原有记忆系统的定时任务
+                # 增强记忆系统不需要定时任务，已禁用原有记忆系统的定时任务
 
-            await asyncio.gather(*tasks)
+                await asyncio.gather(*tasks)
+        except Exception as e:
+            logger.error(f"调度任务发生异常: {e}")
+            raise
+
+    async def shutdown(self):
+        """关闭系统组件"""
+        logger.info("正在关闭MainSystem...")
+
+        # 关闭表情管理器
+        try:
+            get_emoji_manager().shutdown()
+            logger.info("表情管理器已关闭")
+        except Exception as e:
+            logger.warning(f"关闭表情管理器时出错: {e}")
+
+        # 关闭服务器
+        try:
+            if self.server:
+                await self.server.shutdown()
+                logger.info("服务器已关闭")
+        except Exception as e:
+            logger.warning(f"关闭服务器时出错: {e}")
+
+        # 关闭应用 (MessageServer可能没有shutdown方法)
+        try:
+            if self.app:
+                if hasattr(self.app, 'shutdown'):
+                    await self.app.shutdown()
+                    logger.info("应用已关闭")
+                elif hasattr(self.app, 'stop'):
+                    await self.app.stop()
+                    logger.info("应用已停止")
+                else:
+                    logger.info("应用没有shutdown方法，跳过关闭")
+        except Exception as e:
+            logger.warning(f"关闭应用时出错: {e}")
+
+        logger.info("MainSystem关闭完成")
 
     # 老记忆系统的定时任务已删除 - 增强记忆系统使用内置的维护机制
 

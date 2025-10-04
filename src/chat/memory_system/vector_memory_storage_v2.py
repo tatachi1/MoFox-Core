@@ -226,13 +226,22 @@ class VectorMemoryStorage:
         if self.config.auto_cleanup_interval > 0:
 
             def cleanup_worker():
-                while not self._stop_cleanup:
-                    try:
-                        time.sleep(self.config.auto_cleanup_interval)
-                        if not self._stop_cleanup:
-                            asyncio.create_task(self._perform_auto_cleanup())
-                    except Exception as e:
-                        logger.error(f"定时清理任务出错: {e}")
+                # 在新线程中创建事件循环
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+                try:
+                    while not self._stop_cleanup:
+                        try:
+                            time.sleep(self.config.auto_cleanup_interval)
+                            if not self._stop_cleanup:
+                                # 在线程的事件循环中运行异步清理任务
+                                loop.run_until_complete(self._perform_auto_cleanup())
+                        except Exception as e:
+                            logger.error(f"定时清理任务出错: {e}")
+                finally:
+                    loop.close()
+                    logger.debug("清理任务事件循环已关闭")
 
             self._cleanup_task = threading.Thread(target=cleanup_worker, daemon=True)
             self._cleanup_task.start()
