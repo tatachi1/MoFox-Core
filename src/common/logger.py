@@ -3,9 +3,11 @@
 import logging
 import threading
 import time
+import tarfile
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Optional, Dict
 
 import orjson
 import structlog
@@ -15,14 +17,69 @@ import tomlkit
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
 
-# 全局handler实例，避免重复创建
-_file_handler = None
-_console_handler = None
+# 全局handler实例，避免重复创建（可能为None表示禁用文件日志）
+_file_handler: Optional[logging.Handler] = None
+_console_handler: Optional[logging.Handler] = None
+
+# 动态 logger 元数据注册表 (name -> {alias:str|None, color:str|None})
+_LOGGER_META_LOCK = threading.Lock()
+_LOGGER_META: Dict[str, Dict[str, Optional[str]]] = {}
+
+
+def _normalize_color(color: Optional[str]) -> Optional[str]:
+    """接受 ANSI 码 / #RRGGBB / rgb(r,g,b) / 颜色名(直接返回) -> ANSI 码.
+    不做复杂解析，只支持 #RRGGBB 转 24bit ANSI。
+    """
+    if not color:
+        return None
+    color = color.strip()
+    if color.startswith("\033["):
+        return color  # 已经是ANSI
+    if color.startswith("#") and len(color) == 7:
+        try:
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            return f"\033[38;2;{r};{g};{b}m"
+        except ValueError:
+            return None
+    # 简单 rgb(r,g,b)
+    if color.lower().startswith("rgb(") and color.endswith(")"):
+        try:
+            nums = color[color.find("(") + 1 : -1].split(",")
+            r, g, b = (int(x) for x in nums[:3])
+            return f"\033[38;2;{r};{g};{b}m"
+        except Exception:  # noqa: BLE001
+            return None
+    # 其他情况直接返回，假设是短ANSI或名称（控制台渲染器不做翻译，仅输出）
+    return color
+
+
+def _register_logger_meta(name: str, *, alias: Optional[str] = None, color: Optional[str] = None):
+    """注册/更新 logger 元数据。"""
+    if not name:
+        return
+    with _LOGGER_META_LOCK:
+        meta = _LOGGER_META.setdefault(name, {"alias": None, "color": None})
+        if alias is not None:
+            meta["alias"] = alias
+        if color is not None:
+            meta["color"] = _normalize_color(color)
+
+
+def get_logger_meta(name: str) -> Dict[str, Optional[str]]:
+    with _LOGGER_META_LOCK:
+        return _LOGGER_META.get(name, {"alias": None, "color": None}).copy()
 
 
 def get_file_handler():
-    """获取文件handler单例"""
+    """获取文件handler单例; 当 retention=0 时返回 None (禁用文件输出)。"""
     global _file_handler
+
+    retention_days = LOG_CONFIG.get("file_retention_days", 30)
+    if retention_days == 0:
+        return None
+
     if _file_handler is None:
         # 确保日志目录存在
         LOG_DIR.mkdir(exist_ok=True)
@@ -34,14 +91,12 @@ def get_file_handler():
                 _file_handler = handler
                 return _file_handler
 
-        # 使用基于时间戳的handler，简单的轮转份数限制
         _file_handler = TimestampedFileHandler(
             log_dir=LOG_DIR,
             max_bytes=5 * 1024 * 1024,  # 5MB
             backup_count=30,
             encoding="utf-8",
         )
-        # 设置文件handler的日志级别
         file_level = LOG_CONFIG.get("file_log_level", LOG_CONFIG.get("log_level", "INFO"))
         _file_handler.setLevel(getattr(logging, file_level.upper(), logging.INFO))
     return _file_handler
@@ -59,7 +114,16 @@ def get_console_handler():
 
 
 class TimestampedFileHandler(logging.Handler):
-    """基于时间戳的文件处理器，简单的轮转份数限制"""
+    """基于时间戳的文件处理器，带简单大小轮转 + 旧文件压缩/保留策略。
+
+    新策略:
+      - 日志文件命名 app_YYYYmmdd_HHMMSS.log.jsonl
+      - 轮转时会尝试压缩所有不再写入的 .log.jsonl -> .tar.gz
+      - retention:
+          file_retention_days = -1  永不删除
+          file_retention_days = 0   上层禁用文件日志(不会实例化此类)
+          file_retention_days = N>0 删除早于 N 天 (针对 .tar.gz 与遗留未压缩文件)
+    """
 
     def __init__(self, log_dir, max_bytes=5 * 1024 * 1024, backup_count=30, encoding="utf-8"):
         super().__init__()
@@ -77,8 +141,15 @@ class TimestampedFileHandler(logging.Handler):
 
     def _init_current_file(self):
         """初始化当前日志文件"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.current_file = self.log_dir / f"app_{timestamp}.log.jsonl"
+        # 使用微秒保证同一秒内多次轮转也获得不同文件名
+        while True:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            candidate = self.log_dir / f"app_{timestamp}.log.jsonl"
+            if not candidate.exists():
+                self.current_file = candidate
+                break
+            # 极低概率碰撞，稍作等待
+            time.sleep(0.001)
         self.current_stream = open(self.current_file, "a", encoding=self.encoding)
 
     def _should_rollover(self):
@@ -88,34 +159,56 @@ class TimestampedFileHandler(logging.Handler):
         return False
 
     def _do_rollover(self):
-        """执行轮转：关闭当前文件，创建新文件"""
+        """执行轮转：关闭当前文件 -> 立即创建新文件 -> 压缩旧文件 -> 清理过期。
+
+        这样可以避免旧文件因为 self.current_file 仍指向它而被 _compress_stale_logs 跳过。
+        """
         if self.current_stream:
             self.current_stream.close()
+        # 记录旧文件引用，方便调试（暂不使用变量）
+        self._init_current_file()  # 先创建新文件，确保后续压缩不会跳过刚关闭的旧文件
+        try:
+            self._compress_stale_logs()
+            self._cleanup_old_files()
+        except Exception as e:  # noqa: BLE001
+            print(f"[日志轮转] 轮转过程出错: {e}")
 
-        # 清理旧文件
-        self._cleanup_old_files()
-
-        # 创建新文件
-        self._init_current_file()
+    def _compress_stale_logs(self):  # sourcery skip: extract-method
+        """将不再写入且未压缩的 .log.jsonl 文件压缩成 .tar.gz。"""
+        try:
+            for f in self.log_dir.glob("app_*.log.jsonl"):
+                if f == self.current_file:
+                    continue
+                tar_path = f.with_suffix(f.suffix + ".tar.gz")  # .log.jsonl.tar.gz
+                if tar_path.exists():
+                    continue
+                # 压缩
+                try:
+                    with tarfile.open(tar_path, "w:gz") as tf:  # noqa: SIM117
+                        tf.add(f, arcname=f.name)
+                    f.unlink(missing_ok=True)
+                except Exception as e:  # noqa: BLE001
+                    print(f"[日志压缩] 压缩 {f.name} 失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[日志压缩] 过程出错: {e}")
 
     def _cleanup_old_files(self):
-        """清理旧的日志文件，保留指定数量"""
+        """按 retention 天数删除压缩包/遗留文件。"""
+        retention_days = LOG_CONFIG.get("file_retention_days", 30)
+        if retention_days in (-1, 0):
+            return  # -1 永不删除；0 在外层已禁用
+        cutoff = datetime.now() - timedelta(days=retention_days)
         try:
-            # 获取所有日志文件
-            log_files = list(self.log_dir.glob("app_*.log.jsonl"))
-
-            # 按修改时间排序
-            log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-
-            # 删除超出数量限制的文件
-            for old_file in log_files[self.backup_count :]:
+            for f in self.log_dir.glob("app_*.log.jsonl*"):
+                if f == self.current_file:
+                    continue
                 try:
-                    old_file.unlink()
-                    print(f"[日志清理] 删除旧文件: {old_file.name}")
-                except Exception as e:
-                    print(f"[日志清理] 删除失败 {old_file}: {e}")
-
-        except Exception as e:
+                    mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                    if mtime < cutoff:
+                        f.unlink(missing_ok=True)
+                except Exception as e:  # noqa: BLE001
+                    print(f"[日志清理] 删除 {f} 失败: {e}")
+        except Exception as e:  # noqa: BLE001
             print(f"[日志清理] 清理过程出错: {e}")
 
     def emit(self, record):
@@ -194,6 +287,7 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
         "log_level": "INFO",  # 全局日志级别（向下兼容）
         "console_log_level": "INFO",  # 控制台日志级别
         "file_log_level": "DEBUG",  # 文件日志级别
+        "file_retention_days": 30,  # 文件日志保留天数，0=禁用文件日志，-1=永不删除
         "suppress_libraries": [
             "faiss",
             "httpx",
@@ -209,6 +303,9 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
         ],
         "library_log_levels": {"aiohttp": "WARNING"},
     }
+
+
+        # 误加的即刻线程启动已移除；真正的线程在 start_log_cleanup_task 中按午夜调度
 
     try:
         if config_path.exists():
@@ -327,8 +424,11 @@ def reconfigure_existing_loggers():
                     logger_obj.addHandler(handler)
 
 
-# 定义模块颜色映射
-MODULE_COLORS = {
+###########################
+# 默认颜色 / 别名 (仍然保留但可被动态覆盖)
+###########################
+
+DEFAULT_MODULE_COLORS = {
     # 核心模块
     "main": "\033[1;97m",  # 亮白色+粗体 (主程序)
     "api": "\033[92m",  # 亮绿色
@@ -526,8 +626,7 @@ MODULE_COLORS = {
     "event_manager": "\033[38;5;79m",  # 柔和的蓝绿色，稍微醒目但不刺眼
 }
 
-# 定义模块别名映射 - 将真实的logger名称映射到显示的别名
-MODULE_ALIASES = {
+DEFAULT_MODULE_ALIASES = {
     # 核心模块
     "individuality": "人格特质",
     "emoji": "表情包",
@@ -772,12 +871,17 @@ class ModuleColoredConsoleRenderer:
         # 获取模块颜色，用于full模式下的整体着色
         module_color = ""
         if self._colors and self._enable_module_colors and logger_name:
-            module_color = MODULE_COLORS.get(logger_name, "")
+            # 动态优先，其次默认表
+            meta = get_logger_meta(logger_name)
+            module_color = meta.get("color") or DEFAULT_MODULE_COLORS.get(logger_name, "")
 
         # 模块名称（带颜色和别名支持）
         if logger_name:
             # 获取别名，如果没有别名则使用原名称
-            display_name = MODULE_ALIASES.get(logger_name, logger_name)
+            # 若上面条件不成立需要再次获取 meta
+            if 'meta' not in locals():
+                meta = get_logger_meta(logger_name)
+            display_name = meta.get("alias") or DEFAULT_MODULE_ALIASES.get(logger_name, logger_name)
 
             if self._colors and self._enable_module_colors:
                 if module_color:
@@ -838,7 +942,7 @@ class ModuleColoredConsoleRenderer:
         # 处理其他字段
         extras = []
         for key, value in event_dict.items():
-            if key not in ("timestamp", "level", "logger_name", "event", "module", "lineno", "pathname"):
+            if key not in ("timestamp", "level", "logger_name", "event") and key not in ("color", "alias"):
                 # 确保值也转换为字符串
                 if isinstance(value, (dict, list)):
                     try:
@@ -866,15 +970,34 @@ class ModuleColoredConsoleRenderer:
 file_handler = get_file_handler()
 console_handler = get_console_handler()
 
+handlers = [h for h in (file_handler, console_handler) if h is not None]
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
-    handlers=[file_handler, console_handler],
+    handlers=handlers,
 )
 
 
+def add_logger_metadata(logger: Any, method_name: str, event_dict: dict):  # type: ignore[override]
+    """structlog 自定义处理器: 注入 color / alias 字段 (用于 JSON 输出)。"""
+    name = event_dict.get("logger_name")
+    if name:
+        meta = get_logger_meta(name)
+        # 默认 fallback
+        if meta.get("color") is None and name in DEFAULT_MODULE_COLORS:
+            meta["color"] = DEFAULT_MODULE_COLORS[name]
+        if meta.get("alias") is None and name in DEFAULT_MODULE_ALIASES:
+            meta["alias"] = DEFAULT_MODULE_ALIASES[name]
+        # 注入
+        if meta.get("color"):
+            event_dict["color"] = meta["color"]
+        if meta.get("alias"):
+            event_dict["alias"] = meta["alias"]
+    return event_dict
+
+
 def configure_structlog():
-    """配置structlog"""
+    """配置structlog，加入自定义 metadata 处理器。"""
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -889,7 +1012,7 @@ def configure_structlog():
             structlog.processors.StackInfoRenderer(),
             structlog.dev.set_exc_info,
             structlog.processors.TimeStamper(fmt=get_timestamp_format(), utc=False),
-            # 根据输出类型选择不同的渲染器
+            add_logger_metadata,  # 注入 color/alias
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -953,16 +1076,17 @@ def _immediate_setup():
         root_logger.removeHandler(handler)
 
     # 使用单例handler避免重复创建
-    file_handler = get_file_handler()
-    console_handler = get_console_handler()
+    file_handler_local = get_file_handler()
+    console_handler_local = get_console_handler()
 
-    # 重新添加配置好的handler
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
+    for h in (file_handler_local, console_handler_local):
+        if h is not None:
+            root_logger.addHandler(h)
 
     # 设置格式化器
-    file_handler.setFormatter(file_formatter)
-    console_handler.setFormatter(console_formatter)
+    if file_handler_local is not None:
+        file_handler_local.setFormatter(file_formatter)
+    console_handler_local.setFormatter(console_formatter)
 
     # 清理重复的handler
     remove_duplicate_handlers()
@@ -982,15 +1106,23 @@ raw_logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 binds: dict[str, Callable] = {}
 
 
-def get_logger(name: str | None) -> structlog.stdlib.BoundLogger:
-    """获取logger实例，支持按名称绑定"""
+def get_logger(name: str | None, *, color: Optional[str] = None, alias: Optional[str] = None) -> structlog.stdlib.BoundLogger:
+    """获取/创建 structlog logger。
+
+    新增:
+      - color: 传入 ANSI / #RRGGBB / rgb(r,g,b) 以注册显示颜色
+      - alias: 别名, 控制台模块显示 & JSON 中 alias 字段
+    多次调用可更新元数据 (后调用覆盖之前的 color/alias, 仅覆盖给定的)
+    """
     if name is None:
         return raw_logger
+    if color is not None or alias is not None:
+        _register_logger_meta(name, alias=alias, color=color)
     logger = binds.get(name)  # type: ignore
     if logger is None:
-        logger: structlog.stdlib.BoundLogger = structlog.get_logger(name).bind(logger_name=name)
+        logger = structlog.get_logger(name).bind(logger_name=name)  # type: ignore[assignment]
         binds[name] = logger
-    return logger
+    return logger  # type: ignore[return-value]
 
 
 def initialize_logging():
@@ -1015,52 +1147,93 @@ def initialize_logging():
     logger.info("日志系统已初始化:")
     logger.info(f"  - 控制台级别: {console_level}")
     logger.info(f"  - 文件级别: {file_level}")
-    logger.info("  - 轮转份数: 30个文件|自动清理: 30天前的日志")
+    retention_days = LOG_CONFIG.get("file_retention_days", 30)
+    if retention_days == 0:
+        retention_desc = "文件日志已禁用"
+    elif retention_days == -1:
+        retention_desc = "永不删除 (仅压缩旧文件)"
+    else:
+        retention_desc = f"保留 {retention_days} 天"
+    logger.info(f"  - 文件保留策略: {retention_desc}")
 
 
 def cleanup_old_logs():
-    """清理过期的日志文件"""
+    """压缩遗留未压缩的日志并按 retention 策略删除。"""
+    retention_days = LOG_CONFIG.get("file_retention_days", 30)
+    if retention_days == 0:
+        return  # 已禁用
     try:
-        cleanup_days = 30  # 硬编码30天
-        cutoff_date = datetime.now() - timedelta(days=cleanup_days)
+        # 先压缩(复用 handler 的逻辑, 但 handler 可能未创建——手动调用)
+        try:
+            for f in LOG_DIR.glob("app_*.log.jsonl"):
+                # 当前写入文件无法可靠识别(仅 handler 知道); 粗略策略: 如果修改时间>5分钟也压缩
+                if time.time() - f.stat().st_mtime < 300:
+                    continue
+                tar_path = f.with_suffix(f.suffix + ".tar.gz")
+                if tar_path.exists():
+                    continue
+                with tarfile.open(tar_path, "w:gz") as tf:  # noqa: SIM117
+                    tf.add(f, arcname=f.name)
+                f.unlink(missing_ok=True)
+        except Exception as e:  # noqa: BLE001
+            logger = get_logger("logger")
+            logger.warning(f"周期压缩日志时出错: {e}")
+
+        if retention_days == -1:
+            return  # 永不删除
+        cutoff_date = datetime.now() - timedelta(days=retention_days)
         deleted_count = 0
         deleted_size = 0
-
-        # 遍历日志目录
-        for log_file in LOG_DIR.glob("*.log*"):
+        for log_file in LOG_DIR.glob("app_*.log.jsonl*"):
             try:
                 file_time = datetime.fromtimestamp(log_file.stat().st_mtime)
                 if file_time < cutoff_date:
-                    file_size = log_file.stat().st_size
-                    log_file.unlink()
+                    size = log_file.stat().st_size
+                    log_file.unlink(missing_ok=True)
                     deleted_count += 1
-                    deleted_size += file_size
-            except Exception as e:
+                    deleted_size += size
+            except Exception as e:  # noqa: BLE001
                 logger = get_logger("logger")
                 logger.warning(f"清理日志文件 {log_file} 时出错: {e}")
-
-        if deleted_count > 0:
+        if deleted_count:
             logger = get_logger("logger")
-            logger.info(f"清理了 {deleted_count} 个过期日志文件，释放空间 {deleted_size / 1024 / 1024:.2f} MB")
-
-    except Exception as e:
+            logger.info(
+                f"清理 {deleted_count} 个过期日志 (≈{deleted_size / 1024 / 1024:.2f}MB), 保留策略={retention_days}天"
+            )
+    except Exception as e:  # noqa: BLE001
         logger = get_logger("logger")
         logger.error(f"清理旧日志文件时出错: {e}")
 
 
 def start_log_cleanup_task():
-    """启动日志清理任务"""
+    """启动日志压缩/清理任务：每天本地时间 00:00 运行一次。"""
+    retention_days = LOG_CONFIG.get("file_retention_days", 30)
+    if retention_days == 0:
+        return  # 文件日志禁用无需周期任务
+
+    def seconds_until_next_midnight() -> float:
+        now = datetime.now()
+        tomorrow = now + timedelta(days=1)
+        midnight = datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day)
+        return (midnight - now).total_seconds()
 
     def cleanup_task():
+        # 首次等待到下一个本地午夜
+        time.sleep(max(1, seconds_until_next_midnight()))
         while True:
-            cleanup_old_logs()
-            time.sleep(24 * 60 * 60)  # 每24小时执行一次
+            try:
+                cleanup_old_logs()
+            except Exception as e:  # noqa: BLE001
+                print(f"[日志任务] 执行清理出错: {e}")
+            # 再次等待到下一个午夜
+            time.sleep(max(1, seconds_until_next_midnight()))
 
-    cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
-    cleanup_thread.start()
-
+    threading.Thread(target=cleanup_task, daemon=True, name="log-cleanup").start()
     logger = get_logger("logger")
-    logger.info("已启动日志清理任务，将自动清理30天前的日志文件（轮转份数限制: 30个文件）")
+    if retention_days == -1:
+        logger.info("已启动日志任务: 每天 00:00 压缩旧日志(不删除)")
+    else:
+        logger.info(f"已启动日志任务: 每天 00:00 压缩并删除早于 {retention_days} 天的日志")
 
 
 def shutdown_logging():
