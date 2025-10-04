@@ -284,7 +284,6 @@ if __name__ == "__main__":
         try:
             # 异步初始化数据库和表结构
             main_system = loop.run_until_complete(maibot.run())
-            global main_system
             loop.run_until_complete(maibot.initialize_database_async())
             # 执行初始化和任务调度
             loop.run_until_complete(main_system.initialize())
