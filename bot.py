@@ -76,7 +76,7 @@ async def request_shutdown() -> bool:
     try:
         if loop and not loop.is_closed():
             try:
-                loop.run_until_complete(graceful_shutdown())
+                loop.run_until_complete(graceful_shutdown(maibot.main_system))
             except Exception as ge:  # 捕捉优雅关闭时可能发生的错误
                 logger.error(f"优雅关闭时发生错误: {ge}")
                 return False
@@ -97,18 +97,15 @@ def easter_egg():
     logger.info(rainbow_text)
 
 
-async def graceful_shutdown():
+async def graceful_shutdown(main_system_instance):
+    """优雅地关闭所有系统组件"""
     try:
         logger.info("正在优雅关闭麦麦...")
 
-        # 首先停止服务器组件，避免网络连接被强制关闭
-        try:
-            global server
-            if server and hasattr(server, 'shutdown'):
-                logger.info("正在关闭服务器...")
-                await server.shutdown()
-        except Exception as e:
-            logger.warning(f"关闭服务器时出错: {e}")
+        # 停止MainSystem中的组件，它会处理服务器等
+        if main_system_instance and hasattr(main_system_instance, 'shutdown'):
+            logger.info("正在关闭MainSystem...")
+            await main_system_instance.shutdown()
 
         # 停止聊天管理器
         try:
@@ -138,14 +135,6 @@ async def graceful_shutdown():
         except Exception as e:
             logger.warning(f"停止记忆系统时出错: {e}")
 
-        # 停止MainSystem
-        try:
-            global main_system
-            if main_system and hasattr(main_system, 'shutdown'):
-                logger.info("正在停止MainSystem...")
-                await main_system.shutdown()
-        except Exception as e:
-            logger.warning(f"停止MainSystem时出错: {e}")
 
         # 停止所有异步任务
         try:
@@ -177,6 +166,15 @@ async def graceful_shutdown():
 
         # 关闭日志系统，释放文件句柄
         shutdown_logging()
+
+        # 尝试停止事件循环
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.stop()
+                logger.info("事件循环已请求停止")
+        except RuntimeError:
+            pass  # 没有正在运行的事件循环
 
     except Exception as e:
         logger.error(f"麦麦关闭失败: {e}", exc_info=True)
@@ -305,17 +303,12 @@ if __name__ == "__main__":
         if "loop" in locals() and loop and not loop.is_closed():
             logger.info("开始执行最终关闭流程...")
             try:
-                loop.run_until_complete(graceful_shutdown())
+                # 传递main_system实例
+                loop.run_until_complete(graceful_shutdown(maibot.main_system))
             except Exception as ge:
                 logger.error(f"优雅关闭时发生错误: {ge}")
             loop.close()
             logger.info("事件循环已关闭")
-
-        # 关闭日志系统，释放文件句柄
-        try:
-            shutdown_logging()
-        except Exception as e:
-            print(f"关闭日志系统时出错: {e}")
 
         # 在程序退出前暂停，让你有机会看到输出
         # input("按 Enter 键退出...")  # <--- 添加这行

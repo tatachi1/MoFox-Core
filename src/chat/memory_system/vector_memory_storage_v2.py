@@ -964,6 +964,11 @@ class VectorMemoryStorage:
 
         logger.info("Vector记忆存储系统已停止")
 
+    def cleanup(self):
+        """清理资源，兼容旧接口"""
+        logger.info("正在清理VectorMemoryStorage资源...")
+        self.stop()
+
 
 # 全局实例（可选）
 _global_vector_storage = None

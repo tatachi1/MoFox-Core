@@ -402,6 +402,12 @@ class EmojiManager:
 
         logger.info("启动表情包管理器")
 
+    def shutdown(self) -> None:
+        """关闭EmojiManager，取消正在运行的任务"""
+        if self._scan_task and not self._scan_task.done():
+            self._scan_task.cancel()
+            logger.info("表情包扫描任务已取消")
+
     def initialize(self) -> None:
         """初始化数据库连接和表情目录"""
 
