@@ -21,7 +21,7 @@ dependencies = [
     "google>=3.0.0",
     "google-genai>=1.29.0",
     "httpx>=0.28.1",
-    "jieba>=0.42.1",
+    "rjieba>=0.42.1",
     "json-repair>=0.47.6",
     "json5>=0.12.1",
     "jsonlines>=4.0.0",
@@ -75,6 +75,7 @@ dependencies = [
     "aiomysql>=0.2.0",
     "aiosqlite>=0.21.0",
     "inkfox>=0.1.0",
+    "rrjieba>=0.1.13",
 ]
 
 [[tool.uv.index]]

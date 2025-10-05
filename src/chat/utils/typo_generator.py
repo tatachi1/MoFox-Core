@@ -9,7 +9,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-import jieba
+import rjieba
 import orjson
 from pypinyin import Style, pinyin
 
@@ -56,9 +56,9 @@ class ChineseTypoGenerator:
 
         # 使用内置的词频文件
         char_freq = defaultdict(int)
-        dict_path = os.path.join(os.path.dirname(jieba.__file__), "dict.txt")
+        dict_path = os.path.join(os.path.dirname(rjieba.__file__), "dict.txt")
 
-        # 读取jieba的词典文件
+        # 读取rjieba的词典文件
         with open(dict_path, encoding="utf-8") as f:
             for line in f:
                 word, freq = line.strip().split()[:2]
@@ -224,9 +224,9 @@ class ChineseTypoGenerator:
     @staticmethod
     def _segment_sentence(sentence):
         """
-        使用jieba分词，返回词语列表
+        使用rjieba分词，返回词语列表
         """
-        return list(jieba.cut(sentence))
+        return list(rjieba.cut(sentence))
 
     def _get_word_homophones(self, word):
         """
@@ -251,8 +251,8 @@ class ChineseTypoGenerator:
 
         all_combinations = itertools.product(*candidates)
 
-        # 获取jieba词典和词频信息
-        dict_path = os.path.join(os.path.dirname(jieba.__file__), "dict.txt")
+        # 获取rjieba词典和词频信息
+        dict_path = os.path.join(os.path.dirname(rjieba.__file__), "dict.txt")
         valid_words = {}  # 改用字典存储词语及其频率
         with open(dict_path, encoding="utf-8") as f:
             for line in f:

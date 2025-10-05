@@ -4,7 +4,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any
 
-import jieba
+import rjieba
 import orjson
 from json_repair import repair_json
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -624,9 +624,9 @@ class RelationshipManager:
         s1 = str(s1)
         s2 = str(s2)
 
-        # 1. 使用 jieba 进行分词
-        s1_words = " ".join(jieba.cut(s1))
-        s2_words = " ".join(jieba.cut(s2))
+        # 1. 使用 rjieba 进行分词
+        s1_words = " ".join(rjieba.cut(s1))
+        s2_words = " ".join(rjieba.cut(s2))
 
         # 2. 将两句话放入一个列表中
         corpus = [s1_words, s2_words]

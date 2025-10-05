@@ -299,7 +299,7 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
             "peewee",
             "openai",
             "uvicorn",
-            "jieba",
+            "rjieba",
         ],
         "library_log_levels": {"aiohttp": "WARNING"},
     }

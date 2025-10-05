@@ -9,7 +9,7 @@ customtkinter
 dotenv
 faiss-cpu
 fastapi
-jieba
+rjieba
 jsonlines
 maim_message
 quick_algo

@@ -90,7 +90,7 @@ idna==3.10
     #   yarl
 igraph==0.11.9
     # via python-igraph
-jieba==0.42.1
+rjieba==0.42.1
     # via -r requirements.txt
 jiter==0.10.0
     # via openai

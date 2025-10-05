@@ -226,9 +226,9 @@ class ImageManager:
             if emotion_result is None:
                 logger.warning("LLM未能生成情感标签，使用详细描述的前几个词")
                 # 降级处理：从详细描述中提取关键词
-                import jieba
+                import rjieba
 
-                words = list(jieba.cut(detailed_description))
+                words = list(rjieba.cut(detailed_description))
                 emotion_result = "，".join(words[:2]) if len(words) >= 2 else (words[0] if words else "表情")
 
             # 处理情感结果，取前1-2个最重要的标签

@@ -6,7 +6,7 @@ import time
 from collections import Counter
 from typing import Any
 
-import jieba
+import rjieba
 import numpy as np
 from maim_message import UserInfo
 
@@ -440,7 +440,7 @@ def cosine_similarity(v1, v2):
 def text_to_vector(text):
     """将文本转换为词频向量"""
     # 分词
-    words = jieba.lcut(text)
+    words = rjieba.lcut(text)
     return Counter(words)
 
 

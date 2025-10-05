@@ -184,8 +184,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# jieba
-jieba.cache
+# rjieba
+rjieba.cache
 
 # .vscode
 !.vscode/settings.json

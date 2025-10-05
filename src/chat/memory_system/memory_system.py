@@ -19,7 +19,7 @@ from src.chat.memory_system.memory_builder import MemoryBuilder, MemoryExtractio
 from src.chat.memory_system.memory_chunk import MemoryChunk
 from src.chat.memory_system.memory_fusion import MemoryFusionEngine
 from src.chat.memory_system.memory_query_planner import MemoryQueryPlanner
-# 简化的记忆采样模式枚举
+# 记忆采样模式枚举
 class MemorySamplingMode(Enum):
     """记忆采样模式"""
     HIPPOCAMPUS = "hippocampus"  # 海马体模式：定时任务采样
@@ -162,6 +162,7 @@ class MemorySystem:
     async def initialize(self):
         """异步初始化记忆系统"""
         try:
+            logger.info("正在初始化记忆系统...")
 
             # 初始化LLM模型
             fallback_task = getattr(self.llm_model, "model_for_task", None) if self.llm_model else None
@@ -267,8 +268,11 @@ class MemorySystem:
                     logger.warning(f"海马体采样器初始化失败: {e}")
                     self.hippocampus_sampler = None
 
+            # 统一存储已经自动加载数据，无需额外加载
+            logger.info("✅ 简化版记忆系统初始化完成")
 
             self.status = MemorySystemStatus.READY
+            logger.info("✅ 记忆系统初始化完成")
 
         except Exception as e:
             self.status = MemorySystemStatus.ERROR
@@ -546,16 +550,18 @@ class MemorySystem:
         return existing_candidates
 
     async def process_conversation_memory(self, context: dict[str, Any]) -> dict[str, Any]:
-        """对外暴露的对话记忆处理接口，支持海马体、即时、所有三种采样模式"""
+        """对外暴露的对话记忆处理接口，支持海马体、精准记忆、自适应三种采样模式"""
         start_time = time.time()
 
         try:
             context = dict(context or {})
 
             # 获取配置的采样模式
-            sampling_mode = getattr(global_config.memory, 'memory_sampling_mode', 'immediate')
+            sampling_mode = getattr(global_config.memory, 'memory_sampling_mode', 'precision')
             current_mode = MemorySamplingMode(sampling_mode)
 
+
+            context['__sampling_mode'] = current_mode.value
             logger.debug(f"使用记忆采样模式: {current_mode.value}")
 
             # 根据采样模式处理记忆
@@ -991,7 +997,7 @@ class MemorySystem:
             from src.chat.message_receive.chat_stream import get_chat_manager
 
             chat_manager = get_chat_manager()
-            chat_stream = await chat_manager.get_stream(stream_id)
+            chat_stream = chat_manager.get_stream(stream_id)
 
             if not chat_stream or not hasattr(chat_stream, "context_manager"):
                 logger.debug(f"未找到stream_id={stream_id}的聊天流或上下文管理器")
@@ -1105,7 +1111,7 @@ class MemorySystem:
                 from src.chat.message_receive.chat_stream import get_chat_manager
 
                 chat_manager = get_chat_manager()
-                chat_stream = await chat_manager.get_stream(stream_id)
+                chat_stream = chat_manager.get_stream(stream_id)
                 if chat_stream and hasattr(chat_stream, "context_manager"):
                     history_limit = self._determine_history_limit(context)
                     messages = chat_stream.context_manager.get_messages(limit=history_limit, include_unread=True)
