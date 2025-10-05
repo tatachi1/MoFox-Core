@@ -14,6 +14,7 @@ from ..engines.bing_engine import BingSearchEngine
 from ..engines.ddg_engine import DDGSearchEngine
 from ..engines.exa_engine import ExaSearchEngine
 from ..engines.tavily_engine import TavilySearchEngine
+from ..engines.searxng_engine import SearXNGSearchEngine
 from ..utils.formatters import deduplicate_results, format_search_results
 
 logger = get_logger("web_search_tool")
@@ -49,6 +50,7 @@ class WebSurfingTool(BaseTool):
             "tavily": TavilySearchEngine(),
             "ddg": DDGSearchEngine(),
             "bing": BingSearchEngine(),
+            "searxng": SearXNGSearchEngine(),
         }
 
     async def execute(self, function_args: dict[str, Any]) -> dict[str, Any]:

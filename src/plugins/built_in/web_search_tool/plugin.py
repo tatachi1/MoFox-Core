@@ -42,12 +42,14 @@ class WEBSEARCHPLUGIN(BasePlugin):
             from .engines.ddg_engine import DDGSearchEngine
             from .engines.exa_engine import ExaSearchEngine
             from .engines.tavily_engine import TavilySearchEngine
+            from .engines.searxng_engine import SearXNGSearchEngine
 
             # 实例化所有搜索引擎，这会触发API密钥管理器的初始化
             exa_engine = ExaSearchEngine()
             tavily_engine = TavilySearchEngine()
             ddg_engine = DDGSearchEngine()
             bing_engine = BingSearchEngine()
+            searxng_engine = SearXNGSearchEngine()
 
             # 报告每个引擎的状态
             engines_status = {
@@ -55,6 +57,7 @@ class WEBSEARCHPLUGIN(BasePlugin):
                 "Tavily": tavily_engine.is_available(),
                 "DuckDuckGo": ddg_engine.is_available(),
                 "Bing": bing_engine.is_available(),
+                "SearXNG": searxng_engine.is_available(),
             }
 
             available_engines = [name for name, available in engines_status.items() if available]
