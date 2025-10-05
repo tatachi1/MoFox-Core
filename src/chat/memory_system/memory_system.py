@@ -19,6 +19,8 @@ from src.chat.memory_system.memory_builder import MemoryBuilder, MemoryExtractio
 from src.chat.memory_system.memory_chunk import MemoryChunk
 from src.chat.memory_system.memory_fusion import MemoryFusionEngine
 from src.chat.memory_system.memory_query_planner import MemoryQueryPlanner
+
+
 # 记忆采样模式枚举
 class MemorySamplingMode(Enum):
     """记忆采样模式"""
@@ -1580,11 +1582,13 @@ class MemorySystem:
                     logger.error(f"批量重建向量失败: {e}")
                     continue
 
-            # 保存重建的向量存储
-            await self.unified_storage.save_storage()
-
-            final_count = self.unified_storage.storage_stats.get("total_vectors", 0)
-            logger.info(f"✅ 向量存储重建完成，最终向量数量: {final_count}")
+            # 向量数据在 store_memories 中已保存，此处无需额外操作
+            if self.unified_storage:
+                storage_stats = self.unified_storage.get_storage_stats()
+                final_count = storage_stats.get("total_vectors", 0)
+                logger.info(f"✅ 向量存储重建完成，最终向量数量: {final_count}")
+            else:
+                logger.warning("向量存储重建完成，但无法获取最终向量数量，因为存储系统未初始化")
 
         except Exception as e:
             logger.error(f"向量存储重建失败: {e}", exc_info=True)
