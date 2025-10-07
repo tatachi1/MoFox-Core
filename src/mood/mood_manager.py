@@ -72,15 +72,15 @@ class ChatMood:
                     self.log_prefix = f"[{self.chat_stream.group_info.group_name if self.chat_stream.group_info else self.chat_stream.user_info.user_nickname}]"
 
                 # 初始化回归计数
-                if not hasattr(self, 'regression_count'):
+                if not hasattr(self, "regression_count"):
                     self.regression_count = 0
 
                 # 初始化情绪模型
-                if not hasattr(self, 'mood_model'):
+                if not hasattr(self, "mood_model"):
                     self.mood_model = LLMRequest(model_set=model_config.model_task_config.emotion, request_type="mood")
 
                 # 初始化最后变化时间
-                if not hasattr(self, 'last_change_time'):
+                if not hasattr(self, "last_change_time"):
                     self.last_change_time = 0
 
                 self._initialized = True
@@ -91,11 +91,11 @@ class ChatMood:
                 # 设置基础初始化状态，避免重复尝试
                 self.log_prefix = f"[{self.chat_id}]"
                 self._initialized = True
-                if not hasattr(self, 'regression_count'):
+                if not hasattr(self, "regression_count"):
                     self.regression_count = 0
-                if not hasattr(self, 'mood_model'):
+                if not hasattr(self, "mood_model"):
                     self.mood_model = LLMRequest(model_set=model_config.model_task_config.emotion, request_type="mood")
-                if not hasattr(self, 'last_change_time'):
+                if not hasattr(self, "last_change_time"):
                     self.last_change_time = 0
 
     async def update_mood_by_message(self, message: MessageRecv | DatabaseMessages, interested_rate: float):

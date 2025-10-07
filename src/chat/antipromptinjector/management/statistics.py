@@ -5,9 +5,9 @@
 """
 
 import datetime
-from typing import Any, Optional, TypeVar, cast
+from typing import Any, TypeVar, cast
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 
 from src.common.database.sqlalchemy_models import AntiInjectionStats, get_db_session
 from src.common.logger import get_logger
@@ -19,7 +19,7 @@ logger = get_logger("anti_injector.statistics")
 TNum = TypeVar("TNum", int, float)
 
 
-def _add_optional(a: Optional[TNum], b: TNum) -> TNum:
+def _add_optional(a: TNum | None, b: TNum) -> TNum:
     """安全相加：左值可能为 None。
 
     Args:
@@ -94,7 +94,7 @@ class AntiInjectionStatistics:
                     if key == "processing_time_delta":
                         # 处理时间累加 - 确保不为 None
                         delta = float(value)
-                        stats.processing_time_total = _add_optional(stats.processing_time_total, delta)  
+                        stats.processing_time_total = _add_optional(stats.processing_time_total, delta)
                         continue
                     elif key == "last_processing_time":
                         # 直接设置最后处理时间
@@ -109,7 +109,7 @@ class AntiInjectionStatistics:
                             "error_count",
                         ]:
                             # 累加类型的字段 - 统一用辅助函数
-                            current_value = cast(Optional[int], getattr(stats, key))
+                            current_value = cast(int | None, getattr(stats, key))
                             increment = int(value)
                             setattr(stats, key, _add_optional(current_value, increment))
                         else:
@@ -143,7 +143,7 @@ class AntiInjectionStatistics:
 
 
             # 计算派生统计信息 - 处理 None 值
-            total_messages = stats.total_messages or 0  
+            total_messages = stats.total_messages or 0
             detected_injections = stats.detected_injections or 0  # type: ignore[attr-defined]
             processing_time_total = stats.processing_time_total or 0.0  # type: ignore[attr-defined]
 

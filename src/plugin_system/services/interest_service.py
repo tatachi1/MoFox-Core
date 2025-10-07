@@ -3,7 +3,6 @@
 提供独立的兴趣管理功能，不依赖任何插件
 """
 
-from typing import Optional
 
 from src.chat.interest_system import bot_interest_manager
 from src.common.logger import get_logger
@@ -41,7 +40,7 @@ class InterestService:
             logger.error(f"初始化智能兴趣系统失败: {e}")
             self.is_initialized = False
 
-    async def calculate_interest_match(self, content: str, keywords: Optional[list[str]] = None):
+    async def calculate_interest_match(self, content: str, keywords: list[str] | None = None):
         """
         计算内容与兴趣的匹配度
 

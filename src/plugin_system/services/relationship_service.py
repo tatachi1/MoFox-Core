@@ -4,7 +4,6 @@
 """
 
 import time
-from typing import Optional
 
 from src.common.database.sqlalchemy_models import UserRelationships, get_db_session
 from src.common.logger import get_logger
@@ -110,7 +109,7 @@ class RelationshipService:
                 "user_name": ""
             }
 
-    async def update_user_relationship(self, user_id: str, relationship_score: float, relationship_text: Optional[str] = None, user_name: Optional[str] = None):
+    async def update_user_relationship(self, user_id: str, relationship_score: float, relationship_text: str | None = None, user_name: str | None = None):
         """
         更新用户关系数据
 
@@ -160,7 +159,7 @@ class RelationshipService:
         except Exception as e:
             logger.error(f"更新用户关系失败: {user_id}, 错误: {e}")
 
-    def _get_from_cache(self, user_id: str) -> Optional[dict]:
+    def _get_from_cache(self, user_id: str) -> dict | None:
         """从缓存获取数据"""
         if user_id in self._cache:
             cached_data = self._cache[user_id]
@@ -179,7 +178,7 @@ class RelationshipService:
             "last_updated": time.time()
         }
 
-    async def _fetch_from_database(self, user_id: str) -> Optional[UserRelationships]:
+    async def _fetch_from_database(self, user_id: str) -> UserRelationships | None:
         """从数据库获取关系数据"""
         try:
             async with get_db_session() as session:
@@ -217,7 +216,7 @@ class RelationshipService:
             "cache_keys": list(self._cache.keys())
         }
 
-    def clear_cache(self, user_id: Optional[str] = None):
+    def clear_cache(self, user_id: str | None = None):
         """清理缓存"""
         if user_id:
             if user_id in self._cache:

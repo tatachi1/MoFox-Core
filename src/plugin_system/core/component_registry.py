@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from re import Pattern
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 from src.common.logger import get_logger
 from src.plugin_system.base.base_action import BaseAction
@@ -119,7 +119,7 @@ class ComponentRegistry:
 
     def register_component(
         self, self_component_info: ComponentInfo, component_class: ComponentClassType
-    ) -> bool:  # noqa: C901 (保持原有结构, 以后可再拆)
+    ) -> bool:
         """注册组件
 
         Args:
@@ -533,8 +533,8 @@ class ComponentRegistry:
 
     # === 组件查询方法 ===
     def get_component_info(
-        self, component_name: str, component_type: Optional[ComponentType] = None
-    ) -> Optional[ComponentInfo]:
+        self, component_name: str, component_type: ComponentType | None = None
+    ) -> ComponentInfo | None:
         # sourcery skip: class-extract-method
         """获取组件信息，支持自动命名空间解析
 
@@ -578,16 +578,9 @@ class ComponentRegistry:
     def get_component_class(
         self,
         component_name: str,
-        component_type: Optional[ComponentType] = None,
+        component_type: ComponentType | None = None,
     ) -> (
-        type[BaseCommand]
-        | type[BaseAction]
-        | type[BaseEventHandler]
-        | type[BaseTool]
-        | type[PlusCommand]
-        | type[BaseChatter]
-        | type[BaseInterestCalculator]
-        | None
+        type[BaseCommand | BaseAction | BaseEventHandler | BaseTool | PlusCommand | BaseChatter | BaseInterestCalculator] | None
     ):
         """获取组件类，支持自动命名空间解析
 
@@ -655,7 +648,7 @@ class ComponentRegistry:
         """获取Action注册表"""
         return self._action_registry.copy()
 
-    def get_registered_action_info(self, action_name: str) -> Optional[ActionInfo]:
+    def get_registered_action_info(self, action_name: str) -> ActionInfo | None:
         """获取Action信息"""
         info = self.get_component_info(action_name, ComponentType.ACTION)
         return info if isinstance(info, ActionInfo) else None
@@ -670,7 +663,7 @@ class ComponentRegistry:
         """获取Command注册表"""
         return self._command_registry.copy()
 
-    def get_registered_command_info(self, command_name: str) -> Optional[CommandInfo]:
+    def get_registered_command_info(self, command_name: str) -> CommandInfo | None:
         """获取Command信息"""
         info = self.get_component_info(command_name, ComponentType.COMMAND)
         return info if isinstance(info, CommandInfo) else None
@@ -714,7 +707,7 @@ class ComponentRegistry:
         """获取LLM可用的Tool列表"""
         return self._llm_available_tools.copy()
 
-    def get_registered_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+    def get_registered_tool_info(self, tool_name: str) -> ToolInfo | None:
         """获取Tool信息
 
         Args:
@@ -733,7 +726,7 @@ class ComponentRegistry:
             self._plus_command_registry: dict[str, type[PlusCommand]] = {}
         return self._plus_command_registry.copy()
 
-    def get_registered_plus_command_info(self, command_name: str) -> Optional[PlusCommandInfo]:
+    def get_registered_plus_command_info(self, command_name: str) -> PlusCommandInfo | None:
         """获取PlusCommand信息
 
         Args:
@@ -751,7 +744,7 @@ class ComponentRegistry:
         """获取事件处理器注册表"""
         return self._event_handler_registry.copy()
 
-    def get_registered_event_handler_info(self, handler_name: str) -> Optional[EventHandlerInfo]:
+    def get_registered_event_handler_info(self, handler_name: str) -> EventHandlerInfo | None:
         """获取事件处理器信息"""
         info = self.get_component_info(handler_name, ComponentType.EVENT_HANDLER)
         return info if isinstance(info, EventHandlerInfo) else None
@@ -773,14 +766,14 @@ class ComponentRegistry:
             self._enabled_chatter_registry: dict[str, type[BaseChatter]] = {}
         return self._enabled_chatter_registry.copy()
 
-    def get_registered_chatter_info(self, chatter_name: str) -> Optional[ChatterInfo]:
+    def get_registered_chatter_info(self, chatter_name: str) -> ChatterInfo | None:
         """获取Chatter信息"""
         info = self.get_component_info(chatter_name, ComponentType.CHATTER)
         return info if isinstance(info, ChatterInfo) else None
 
     # === 插件查询方法 ===
 
-    def get_plugin_info(self, plugin_name: str) -> Optional[PluginInfo]:
+    def get_plugin_info(self, plugin_name: str) -> PluginInfo | None:
         """获取插件信息"""
         return self._plugins.get(plugin_name)
 

@@ -35,8 +35,6 @@ import argparse
 import re
 import shutil
 from pathlib import Path
-from typing import Any
-
 
 TYPE_MAP = {
     "Integer": "int",

@@ -9,7 +9,7 @@ from src.common.database.db_batch_scheduler import get_db_batch_scheduler
 
 # SQLAlchemy相关导入
 from src.common.database.sqlalchemy_init import initialize_database_compat
-from src.common.database.sqlalchemy_models import get_db_session, get_engine
+from src.common.database.sqlalchemy_models import get_engine
 from src.common.logger import get_logger
 
 install(extra_lines=3)
