@@ -140,6 +140,17 @@ class MemoryManager:
                 results.append((topic, content))
 
             logger.debug(f"从文本检索到 {len(results)} 条相关记忆")
+
+            # 如果检索到有效记忆，打印详细信息
+            if results:
+                logger.info(f"📚 从文本 '{text[:50]}...' 检索到 {len(results)} 条有效记忆:")
+                for i, (topic, content) in enumerate(results, 1):
+                    # 处理长内容，如果超过150字符则截断
+                    display_content = content
+                    if len(content) > 150:
+                        display_content = content[:150] + "..."
+                    logger.info(f"  记忆#{i} [{topic}]: {display_content}")
+
             return results
 
         except Exception as e:
@@ -183,6 +194,20 @@ class MemoryManager:
                 results.append((topic, content))
 
             logger.debug(f"从关键词 {valid_keywords} 检索到 {len(results)} 条相关记忆")
+
+            # 如果检索到有效记忆，打印详细信息
+            if results:
+                keywords_str = ", ".join(valid_keywords[:5])  # 最多显示5个关键词
+                if len(valid_keywords) > 5:
+                    keywords_str += f" ... (共{len(valid_keywords)}个关键词)"
+                logger.info(f"🔍 从关键词 [{keywords_str}] 检索到 {len(results)} 条有效记忆:")
+                for i, (topic, content) in enumerate(results, 1):
+                    # 处理长内容，如果超过150字符则截断
+                    display_content = content
+                    if len(content) > 150:
+                        display_content = content[:150] + "..."
+                    logger.info(f"  记忆#{i} [{topic}]: {display_content}")
+
             return results
 
         except Exception as e:

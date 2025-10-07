@@ -843,20 +843,55 @@ class MemorySystem:
 
             retrieval_time = time.time() - start_time
 
-            # 详细日志
+            # 详细日志 - 打印检索到的有效记忆的完整内容
             if scored_memories:
-                logger.info("[阶段三] 综合重排完成: Top 3 得分详情")
-                for i, (mem, score, details) in enumerate(scored_memories[:3], 1):
+                logger.info("🧠 检索到的有效记忆内容详情:")
+                for i, (mem, score, details) in enumerate(scored_memories[:effective_limit], 1):
                     try:
-                        summary = mem.content[:60] if hasattr(mem, "content") and mem.content else ""
-                    except Exception:
-                        summary = ""
-                    logger.info(
-                        f"  #{i} | final={details['final']:.3f} "
-                        f"(vec={details['vector']:.3f}, rec={details['recency']:.3f}, "
-                        f"imp={details['importance']:.3f}, freq={details['frequency']:.3f}) "
-                        f"| {summary}"
-                    )
+                        # 获取记忆的完整内容
+                        memory_content = ""
+                        if hasattr(mem, "text_content") and mem.text_content:
+                            memory_content = mem.text_content
+                        elif hasattr(mem, "display") and mem.display:
+                            memory_content = mem.display
+                        elif hasattr(mem, "content") and mem.content:
+                            memory_content = str(mem.content)
+
+                        # 获取记忆的元数据信息
+                        memory_type = mem.memory_type.value if hasattr(mem, "memory_type") and mem.memory_type else "unknown"
+                        importance = mem.metadata.importance.name if hasattr(mem.metadata, "importance") and mem.metadata.importance else "unknown"
+                        confidence = mem.metadata.confidence.name if hasattr(mem.metadata, "confidence") and mem.metadata.confidence else "unknown"
+                        created_time = mem.metadata.created_at if hasattr(mem.metadata, "created_at") else 0
+
+                        # 格式化时间
+                        import datetime
+                        created_time_str = datetime.datetime.fromtimestamp(created_time).strftime("%Y-%m-%d %H:%M:%S") if created_time else "unknown"
+
+                        # 打印记忆详细信息
+                        logger.info(f"  📝 记忆 #{i}")
+                        logger.info(f"     类型: {memory_type} | 重要性: {importance} | 置信度: {confidence}")
+                        logger.info(f"     创建时间: {created_time_str}")
+                        logger.info(f"     综合得分: {details['final']:.3f} (向量:{details['vector']:.3f}, 时效:{details['recency']:.3f}, 重要性:{details['importance']:.3f}, 频率:{details['frequency']:.3f})")
+
+                        # 处理长内容，如果超过200字符则截断并添加省略号
+                        display_content = memory_content
+                        if len(memory_content) > 200:
+                            display_content = memory_content[:200] + "..."
+
+                        logger.info(f"     内容: {display_content}")
+
+                        # 如果有关键词，也打印出来
+                        if hasattr(mem, "keywords") and mem.keywords:
+                            keywords_str = ", ".join(mem.keywords[:10])  # 最多显示10个关键词
+                            if len(mem.keywords) > 10:
+                                keywords_str += f" ... (共{len(mem.keywords)}个关键词)"
+                            logger.info(f"     关键词: {keywords_str}")
+
+                        logger.info("")  # 空行分隔
+
+                    except Exception as e:
+                        logger.warning(f"打印记忆详情时出错: {e}")
+                        continue
 
             logger.info(
                 "✅ 三阶段记忆检索完成"
