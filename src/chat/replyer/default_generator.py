@@ -300,7 +300,7 @@ class DefaultReplyer:
         enable_tool: bool = True,
         from_plugin: bool = True,
         stream_id: str | None = None,
-        reply_message: dict[str, Any] | None = None,
+        reply_message: DatabaseMessages | None = None,
     ) -> tuple[bool, dict[str, Any] | None, str | None]:
         # sourcery skip: merge-nested-ifs
         """
@@ -342,7 +342,7 @@ class DefaultReplyer:
                     available_actions=available_actions,
                     choosen_actions=choosen_actions,
                     enable_tool=enable_tool,
-                    reply_message=DatabaseMessages(**reply_message) if isinstance(reply_message, dict) else reply_message,
+                    reply_message=reply_message,
                 )
 
             if not prompt:
