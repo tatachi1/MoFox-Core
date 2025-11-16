@@ -15,10 +15,23 @@ def create_router(plugin_config: dict):
     """创建路由器实例"""
     global router
     platform_name = config_api.get_plugin_config(plugin_config, "maibot_server.platform_name", "qq")
-    server = get_global_server()
-    host = server.host
-    port = server.port
-    logger.debug(f"初始化MoFox-Bot连接，使用地址：{host}:{port}")
+
+    # 优先从插件配置读取 host 和 port，如果不存在则回退到全局配置
+    config_host = config_api.get_plugin_config(plugin_config, "maibot_server.host", "")
+    config_port = config_api.get_plugin_config(plugin_config, "maibot_server.port", 0)
+
+    if config_host and config_port > 0:
+        # 使用插件配置
+        host = config_host
+        port = config_port
+        logger.debug(f"初始化MoFox-Bot连接，使用插件配置地址：{host}:{port}")
+    else:
+        # 回退到全局配置
+        server = get_global_server()
+        host = server.host
+        port = server.port
+        logger.debug(f"初始化MoFox-Bot连接，使用全局配置地址：{host}:{port}")
+
     route_config = RouteConfig(
         route_config={
             platform_name: TargetConfig(
