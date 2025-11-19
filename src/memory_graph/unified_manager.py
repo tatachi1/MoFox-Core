@@ -305,29 +305,11 @@ class UnifiedMemoryManager:
         try:
             from src.config.config import model_config
             from src.llm_models.utils_model import LLMRequest
-            from src.memory_graph.utils.memory_formatter import format_memory_for_prompt
+            from src.memory_graph.utils.three_tier_formatter import memory_formatter
 
-            # 构建提示词 - 使用优化的格式
-            # 防御性处理：确保 combined_text 是字符串
-            perceptual_texts = []
-            for i, block in enumerate(perceptual_blocks):
-                text = block.combined_text
-                if isinstance(text, list):
-                    text = " ".join(str(item) for item in text)
-                elif not isinstance(text, str):
-                    text = str(text)
-                perceptual_texts.append(f"记忆块{i+1}:\n{text}")
-            
-            perceptual_desc = "\n\n".join(str(item) for item in perceptual_texts)
-
-            # 短期记忆使用 "主体-主题(属性)" 格式
-            short_term_texts = []
-            for mem in short_term_memories:
-                formatted = format_memory_for_prompt(mem, include_metadata=False)
-                if formatted:  # 只添加非空的格式化结果
-                    short_term_texts.append(f"- {formatted}")
-            
-            short_term_desc = "\n".join(str(item) for item in short_term_texts)
+            # 使用新的三级记忆格式化器
+            perceptual_desc = memory_formatter.format_perceptual_memory(perceptual_blocks)
+            short_term_desc = memory_formatter.format_short_term_memory(short_term_memories)
 
             # 构建聊天历史块（如果提供）
             chat_history_block = ""
@@ -342,10 +324,10 @@ class UnifiedMemoryManager:
 **用户查询：**
 {query}
 
-{chat_history_block}**检索到的感知记忆块：**
+{chat_history_block}**检索到的感知记忆（即时对话，格式：【时间 (聊天流)】消息列表）：**
 {perceptual_desc or '（无）'}
 
-**检索到的短期记忆（结构化记忆，格式：主体-主题(属性)）：**
+**检索到的短期记忆（结构化信息，自然语言描述）：**
 {short_term_desc or '（无）'}
 
 **任务要求：**
