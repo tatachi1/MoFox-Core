@@ -107,6 +107,9 @@ class ComponentRegistry:
         """chatter名 -> chatter类"""
         self._enabled_chatter_registry: dict[str, type["BaseChatter"]] = {}
         """启用的chatter名 -> chatter类"""
+        # 局部组件状态管理器，用于临时覆盖
+        self._local_component_states: dict[str, dict[tuple[str, ComponentType], bool]] = {}
+        """stream_id -> {(component_name, component_type): enabled_status}"""
         logger.info("组件注册中心初始化完成")
 
     # == 注册方法 ==
@@ -459,20 +462,10 @@ class ComponentRegistry:
                 case ComponentType.EVENT_HANDLER:
                     # 移除EventHandler注册和事件订阅
                     from .event_manager import event_manager  # 延迟导入防止循环导入问题
-
-                    self._event_handler_registry.pop(component_name, None)
-                    self._enabled_event_handlers.pop(component_name, None)
                     try:
-                        handler = event_manager.get_event_handler(component_name)
-                        # 事件处理器可能未找到或未声明 subscribed_events，需判空
-                        if handler and hasattr(handler, "subscribed_events"):
-                            for event in getattr(handler, "subscribed_events"):
-                                # 假设 unsubscribe_handler_from_event 是协程；若不是则移除 await
-                                result = event_manager.unsubscribe_handler_from_event(event, component_name)
-                                if hasattr(result, "__await__"):
-                                    await result  # type: ignore[func-returns-value]
-                        logger.debug(f"已移除EventHandler组件: {component_name}")
-                        logger.debug(f"已移除EventHandler组件: {component_name}")
+                        # 从事件管理器中完全移除事件处理器，包括其所有订阅
+                        event_manager.remove_event_handler(component_name)
+                        logger.debug(f"已通过 event_manager 移除EventHandler组件: {component_name}")
                     except Exception as e:
                         logger.warning(f"移除EventHandler事件订阅时出错: {e}")
 
@@ -480,10 +473,32 @@ class ComponentRegistry:
                     # 移除Chatter注册
                     if hasattr(self, "_chatter_registry"):
                         self._chatter_registry.pop(component_name, None)
+                    if hasattr(self, "_enabled_chatter_registry"):
+                        self._enabled_chatter_registry.pop(component_name, None)
                     logger.debug(f"已移除Chatter组件: {component_name}")
 
+                case ComponentType.INTEREST_CALCULATOR:
+                    # 移除InterestCalculator注册
+                    if hasattr(self, "_interest_calculator_registry"):
+                        self._interest_calculator_registry.pop(component_name, None)
+                    if hasattr(self, "_enabled_interest_calculator_registry"):
+                        self._enabled_interest_calculator_registry.pop(component_name, None)
+                    logger.debug(f"已移除InterestCalculator组件: {component_name}")
+
+                case ComponentType.PROMPT:
+                    # 移除Prompt注册
+                    if hasattr(self, "_prompt_registry"):
+                        self._prompt_registry.pop(component_name, None)
+                    if hasattr(self, "_enabled_prompt_registry"):
+                        self._enabled_prompt_registry.pop(component_name, None)
+                    logger.debug(f"已移除Prompt组件: {component_name}")
+                
+                case ComponentType.ROUTER:
+                    # Router组件的移除比较复杂，目前只记录日志
+                    logger.warning(f"Router组件 '{component_name}' 的HTTP端点无法在运行时动态移除，将在下次重启后生效。")
+
                 case _:
-                    logger.warning(f"未知的组件类型: {component_type}")
+                    logger.warning(f"未知的组件类型: {component_type}，无法进行特定的清理操作")
                     return False
 
             # 移除通用注册信息
@@ -724,10 +739,16 @@ class ComponentRegistry:
         """获取指定类型的所有组件"""
         return self._components_by_type.get(component_type, {}).copy()
 
-    def get_enabled_components_by_type(self, component_type: ComponentType) -> dict[str, ComponentInfo]:
-        """获取指定类型的所有启用组件"""
+    def get_enabled_components_by_type(
+        self, component_type: ComponentType, stream_id: str | None = None
+    ) -> dict[str, ComponentInfo]:
+        """获取指定类型的所有启用组件, 可选地根据 stream_id 考虑局部状态"""
         components = self.get_components_by_type(component_type)
-        return {name: info for name, info in components.items() if info.enabled}
+        return {
+            name: info
+            for name, info in components.items()
+            if self.is_component_available(name, component_type, stream_id)
+        }
 
     # === Action特定查询方法 ===
 
@@ -740,9 +761,15 @@ class ComponentRegistry:
         info = self.get_component_info(action_name, ComponentType.ACTION)
         return info if isinstance(info, ActionInfo) else None
 
-    def get_default_actions(self) -> dict[str, ActionInfo]:
-        """获取默认动作集"""
-        return self._default_actions.copy()
+    def get_default_actions(self, stream_id: str | None = None) -> dict[str, ActionInfo]:
+        """获取默认(可用)动作集, 可选地根据 stream_id 考虑局部状态"""
+        all_actions = self.get_components_by_type(ComponentType.ACTION)
+        available_actions = {
+            name: info
+            for name, info in all_actions.items()
+            if self.is_component_available(name, ComponentType.ACTION, stream_id)
+        }
+        return cast(dict[str, ActionInfo], available_actions)
 
     # === Command特定查询方法 ===
 
@@ -790,9 +817,14 @@ class ComponentRegistry:
         """获取Tool注册表"""
         return self._tool_registry.copy()
 
-    def get_llm_available_tools(self) -> dict[str, type[BaseTool]]:
-        """获取LLM可用的Tool列表"""
-        return self._llm_available_tools.copy()
+    def get_llm_available_tools(self, stream_id: str | None = None) -> dict[str, type[BaseTool]]:
+        """获取LLM可用的Tool列表, 可选地根据 stream_id 考虑局部状态"""
+        all_tools = self.get_tool_registry()
+        available_tools = {}
+        for name, tool_class in all_tools.items():
+            if self.is_component_available(name, ComponentType.TOOL, stream_id):
+                available_tools[name] = tool_class
+        return available_tools
 
     def get_registered_tool_info(self, tool_name: str) -> ToolInfo | None:
         """获取Tool信息
@@ -836,9 +868,14 @@ class ComponentRegistry:
         info = self.get_component_info(handler_name, ComponentType.EVENT_HANDLER)
         return info if isinstance(info, EventHandlerInfo) else None
 
-    def get_enabled_event_handlers(self) -> dict[str, type[BaseEventHandler]]:
-        """获取启用的事件处理器"""
-        return self._enabled_event_handlers.copy()
+    def get_enabled_event_handlers(self, stream_id: str | None = None) -> dict[str, type[BaseEventHandler]]:
+        """获取启用的事件处理器, 可选地根据 stream_id 考虑局部状态"""
+        all_handlers = self.get_event_handler_registry()
+        available_handlers = {}
+        for name, handler_class in all_handlers.items():
+            if self.is_component_available(name, ComponentType.EVENT_HANDLER, stream_id):
+                available_handlers[name] = handler_class
+        return available_handlers
 
     # === Chatter 特定查询方法 ===
     def get_chatter_registry(self) -> dict[str, type[BaseChatter]]:
@@ -847,11 +884,14 @@ class ComponentRegistry:
             self._chatter_registry: dict[str, type[BaseChatter]] = {}
         return self._chatter_registry.copy()
 
-    def get_enabled_chatter_registry(self) -> dict[str, type[BaseChatter]]:
-        """获取启用的Chatter注册表"""
-        if not hasattr(self, "_enabled_chatter_registry"):
-            self._enabled_chatter_registry: dict[str, type[BaseChatter]] = {}
-        return self._enabled_chatter_registry.copy()
+    def get_enabled_chatter_registry(self, stream_id: str | None = None) -> dict[str, type[BaseChatter]]:
+        """获取启用的Chatter注册表, 可选地根据 stream_id 考虑局部状态"""
+        all_chatters = self.get_chatter_registry()
+        available_chatters = {}
+        for name, chatter_class in all_chatters.items():
+            if self.is_component_available(name, ComponentType.CHATTER, stream_id):
+                available_chatters[name] = chatter_class
+        return available_chatters
 
     def get_registered_chatter_info(self, chatter_name: str) -> ChatterInfo | None:
         """获取Chatter信息"""
@@ -875,8 +915,12 @@ class ComponentRegistry:
     def get_plugin_components(self, plugin_name: str) -> list["ComponentInfo"]:
         """获取插件的所有组件"""
         plugin_info = self.get_plugin_info(plugin_name)
-        logger.info(plugin_info.components)
-        return plugin_info.components if plugin_info else []
+        if plugin_info:
+            # 记录日志时，将组件列表转换为可读的字符串，避免类型错误
+            component_names = [c.name for c in plugin_info.components]
+            logger.debug(f"获取到插件 '{plugin_name}' 的组件: {component_names}")
+            return plugin_info.components
+        return []
 
     def get_plugin_config(self, plugin_name: str) -> dict:
         """获取插件配置
@@ -952,8 +996,39 @@ class ComponentRegistry:
                 component_type.value: len(components) for component_type, components in self._components_by_type.items()
             },
             "enabled_components": len([c for c in self._components.values() if c.enabled]),
-            "enabled_plugins": len([p for p in self._plugins.values() if p.enabled]),
         }
+
+    # === 局部状态管理 ===
+    def set_local_component_state(
+        self, stream_id: str, component_name: str, component_type: ComponentType, enabled: bool
+    ) -> bool:
+        """为指定的 stream_id 设置组件的局部（临时）状态"""
+        if stream_id not in self._local_component_states:
+            self._local_component_states[stream_id] = {}
+        
+        state_key = (component_name, component_type)
+        self._local_component_states[stream_id][state_key] = enabled
+        logger.debug(f"已为 stream '{stream_id}' 设置局部状态: {component_name} ({component_type}) -> {'启用' if enabled else '禁用'}")
+        return True
+
+    def is_component_available(self, component_name: str, component_type: ComponentType, stream_id: str | None = None) -> bool:
+        """检查组件在给定上下文中是否可用（同时考虑全局和局部状态）"""
+        component_info = self.get_component_info(component_name, component_type)
+        
+        # 1. 检查组件是否存在
+        if not component_info:
+            return False
+            
+        # 2. 如果提供了 stream_id，检查局部状态
+        if stream_id and stream_id in self._local_component_states:
+            state_key = (component_name, component_type)
+            local_state = self._local_component_states[stream_id].get(state_key)
+            
+            if local_state is not None:
+                return local_state  # 局部状态存在，覆盖全局状态
+        
+        # 3. 如果没有局部状态覆盖，则返回全局状态
+        return component_info.enabled
 
     # === MCP 工具相关方法 ===
 

@@ -296,7 +296,7 @@ class ChatBot:
                 response_data = None
 
             if request_id and response_data:
-                logger.info(f"[DEBUG bot.py] 收到适配器响应，request_id={request_id}")
+                logger.debug(f"[DEBUG bot.py] 收到适配器响应，request_id={request_id}")
                 put_adapter_response(request_id, response_data)
             else:
                 logger.warning(f"适配器响应消息格式不正确: request_id={request_id}, response_data={response_data}")
