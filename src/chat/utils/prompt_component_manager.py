@@ -2,7 +2,6 @@ import asyncio
 import copy
 import re
 from collections.abc import Awaitable, Callable
-from typing import List
 
 from src.chat.utils.prompt_params import PromptParameters
 from src.common.logger import get_logger
@@ -119,7 +118,7 @@ class PromptComponentManager:
     async def add_injection_rule(
         self,
         prompt_name: str,
-        rules: List[InjectionRule],
+        rules: list[InjectionRule],
         content_provider: Callable[..., Awaitable[str]],
         source: str = "runtime",
     ) -> bool:
@@ -147,6 +146,49 @@ class PromptComponentManager:
                 logger.info(f"成功添加/更新注入规则: '{prompt_name}' -> '{rule.target_prompt}' (来源: {source})")
         return True
 
+    async def add_rule_for_component(self, prompt_name: str, rule: InjectionRule) -> bool:
+        """
+        为一个已存在的组件添加单条注入规则，自动复用其内容提供者和来源。
+
+        此方法首先会查找指定 `prompt_name` 的组件当前是否已有注入规则。
+        如果存在，则复用其 content_provider 和 source 为新的规则进行注册。
+        这对于为一个组件动态添加多个注入目标非常有用，无需重复提供 provider 或 source。
+
+        Args:
+            prompt_name (str): 已存在的注入组件的名称。
+            rule (InjectionRule): 要为该组件添加的新注入规则。
+
+        Returns:
+            bool: 如果成功添加规则，则返回 True；
+                  如果未找到该组件的任何现有规则（无法复用），则返回 False。
+        """
+        async with self._lock:
+            # 步骤 1: 查找现有的 content_provider 和 source
+            found_provider: Callable[..., Awaitable[str]] | None = None
+            found_source: str | None = None
+            for target_rules in self._dynamic_rules.values():
+                if prompt_name in target_rules:
+                    _, found_provider, found_source = target_rules[prompt_name]
+                    break
+
+            # 步骤 2: 如果找不到 provider，则操作失败
+            if not found_provider:
+                logger.warning(
+                    f"尝试为组件 '{prompt_name}' 添加规则失败: "
+                    f"未找到该组件的任何现有规则，无法复用 content_provider 和 source。"
+                )
+                return False
+
+            # 步骤 3: 使用找到的 provider 和 source 添加新规则
+            source_to_use = found_source or "runtime"  # 提供一个默认值以防万一
+            target_rules = self._dynamic_rules.setdefault(rule.target_prompt, {})
+            target_rules[prompt_name] = (rule, found_provider, source_to_use)
+            logger.info(
+                f"成功为组件 '{prompt_name}' 添加新注入规则 -> "
+                f"'{rule.target_prompt}' (来源: {source_to_use})"
+            )
+            return True
+
     async def remove_injection_rule(self, prompt_name: str, target_prompt: str) -> bool:
         """
         移除一条动态注入规则。
@@ -169,6 +211,37 @@ class PromptComponentManager:
         logger.warning(f"尝试移除注入规则失败: 未找到 '{prompt_name}' on '{target_prompt}'")
         return False
 
+    async def remove_all_rules_by_component_name(self, prompt_name: str) -> bool:
+        """
+        按组件名称移除其所有相关的注入规则。
+
+        此方法会遍历管理器中所有的目标提示词，并移除所有与给定的 `prompt_name`
+        相关联的注入规则。这对于清理或禁用某个组件的所有注入行为非常有用。
+
+        Args:
+            prompt_name (str): 要移除规则的组件的名称。
+
+        Returns:
+            bool: 如果至少移除了一条规则，则返回 True；否则返回 False。
+        """
+        removed = False
+        async with self._lock:
+            # 创建一个目标列表的副本进行迭代，因为我们可能会在循环中修改字典
+            for target_prompt in list(self._dynamic_rules.keys()):
+                if prompt_name in self._dynamic_rules[target_prompt]:
+                    del self._dynamic_rules[target_prompt][prompt_name]
+                    removed = True
+                    logger.info(f"成功移除注入规则: '{prompt_name}' from '{target_prompt}'")
+                    # 如果目标下已无任何规则，则清理掉这个键
+                    if not self._dynamic_rules[target_prompt]:
+                        del self._dynamic_rules[target_prompt]
+                        logger.debug(f"目标 '{target_prompt}' 已空，已被移除。")
+
+        if not removed:
+            logger.warning(f"尝试移除组件 '{prompt_name}' 的所有规则失败: 未找到任何相关规则。")
+
+        return removed
+
     # --- 核心注入逻辑 ---
 
     async def apply_injections(
@@ -177,12 +250,15 @@ class PromptComponentManager:
         """
         【核心方法】根据目标名称，应用所有匹配的注入规则，返回修改后的模板。
 
-        这是提示词构建流程中的关键步骤。它会执行以下操作：
-        1. 检查并确保静态规则已加载。
-        2. 获取所有注入到 `target_prompt_name` 的规则。
-        3. 按照规则的 `priority` 属性进行升序排序，优先级数字越小越先应用。
-        4. 依次执行每个规则的 `content_provider` 来异步获取注入内容。
-        5. 根据规则的 `injection_type` (如 PREPEND, APPEND, REPLACE 等) 将内容应用到模板上。
+        此方法实现了“意图识别与安全执行”机制，以确保注入操作的鲁棒性：
+        1.  **占位符保护**: 首先，扫描模板中的所有 `"{...}"` 占位符，
+            并用唯一的、无冲突的临时标记替换它们。这可以防止注入规则意外地修改或删除核心占位符。
+        2.  **规则预检与警告**: 在应用规则前，检查所有 `REMOVE` 和 `REPLACE` 类型的规则，
+            看它们的 `target_content` 是否可能匹配到被保护的占位符。如果可能，
+            会记录一条明确的警告日志，告知开发者该规则有风险，但不会中断流程。
+        3.  **安全执行**: 在“净化”过的模板上（即占位符已被替换的模板），
+            按优先级顺序安全地应用所有注入规则。
+        4.  **占位符恢复**: 所有注入操作完成后，将临时标记恢复为原始的占位符。
 
         Args:
             target_prompt_name (str): 目标核心提示词的名称。
@@ -195,28 +271,51 @@ class PromptComponentManager:
         if not self._initialized:
             self.load_static_rules()
 
-        # 步骤 1: 获取所有指向当前目标的规则
-        # 使用 .values() 获取 (rule, provider, source) 元组列表
         rules_for_target = list(self._dynamic_rules.get(target_prompt_name, {}).values())
         if not rules_for_target:
             return original_template
 
-        # 步骤 2: 按优先级排序，数字越小越优先
+        # --- 占位符保护机制 ---
+        placeholders = re.findall(r"({[^{}]+})", original_template)
+        placeholder_map: dict[str, str] = {
+            f"__PROMPT_PLACEHOLDER_{i}__": p for i, p in enumerate(placeholders)
+        }        
+
+        # 1. 保护: 将占位符替换为临时标记
+        protected_template = original_template
+        for marker, placeholder in placeholder_map.items():
+            protected_template = protected_template.replace(placeholder, marker)
+
+        # 2. 预检与警告: 检查危险规则
+        for rule, _, source in rules_for_target:
+            if rule.injection_type in (InjectionType.REMOVE, InjectionType.REPLACE) and rule.target_content:
+                try:
+                    for p in placeholders:
+                        if re.search(rule.target_content, p):
+                            logger.warning(
+                                f"注入规则警告 (来源: {source}): "
+                                f"规则 `target_content` ('{rule.target_content}') "
+                                f"可能会影响核心占位符 '{p}'。为保证系统稳定，该占位符已被保护，不会被此规则修改。"
+                            )
+                            # 只对每个规则警告一次
+                            break
+                except re.error:
+                    # 正则表达式本身有误，后面执行时会再次捕获，这里可忽略
+                    pass
+
+        # 3. 安全执行: 按优先级排序并应用规则
         rules_for_target.sort(key=lambda x: x[0].priority)
 
-        # 步骤 3: 依次执行内容提供者并根据注入类型修改模板
-        modified_template = original_template
+        modified_template = protected_template
         for rule, provider, source in rules_for_target:
             content = ""
-            # 对于非 REMOVE 类型的注入，需要先获取内容
             if rule.injection_type != InjectionType.REMOVE:
                 try:
                     content = await provider(params, target_prompt_name)
                 except Exception as e:
                     logger.error(f"执行规则 '{rule}' (来源: {source}) 的内容提供者时失败: {e}", exc_info=True)
-                    continue  # 跳过失败的 provider，不中断整个流程
+                    continue
 
-            # 应用注入逻辑
             try:
                 if rule.injection_type == InjectionType.PREPEND:
                     if content:
@@ -225,12 +324,10 @@ class PromptComponentManager:
                     if content:
                         modified_template = f"{modified_template}\n{content}"
                 elif rule.injection_type == InjectionType.REPLACE:
-                    # 只有在 content 不为 None 且 target_content 有效时才执行替换
                     if content is not None and rule.target_content:
                         modified_template = re.sub(rule.target_content, str(content), modified_template)
                 elif rule.injection_type == InjectionType.INSERT_AFTER:
                     if content and rule.target_content:
-                        # 使用 `\g<0>` 在正则匹配的整个内容后添加新内容
                         replacement = f"\\g<0>\n{content}"
                         modified_template = re.sub(rule.target_content, replacement, modified_template)
                 elif rule.injection_type == InjectionType.REMOVE:
@@ -241,7 +338,12 @@ class PromptComponentManager:
             except Exception as e:
                 logger.error(f"应用注入规则 '{rule}' (来源: {source}) 失败: {e}", exc_info=True)
 
-        return modified_template
+        # 4. 占位符恢复
+        final_template = modified_template
+        for marker, placeholder in placeholder_map.items():
+            final_template = final_template.replace(marker, placeholder)
+
+        return final_template
 
     async def preview_prompt_injections(
         self, target_prompt_name: str, params: PromptParameters
@@ -281,15 +383,77 @@ class PromptComponentManager:
         from src.chat.utils.prompt import global_prompt_manager
         return list(global_prompt_manager._prompts.keys())
 
-    def get_core_prompt_contents(self) -> dict[str, str]:
-        """获取所有核心提示词模板的原始内容。"""
+    def get_core_prompt_contents(self, prompt_name: str | None = None) -> list[list[str]]:
+        """
+        获取核心提示词模板的原始内容。
+
+        Args:
+            prompt_name (str | None, optional):
+                如果指定，则只返回该名称对应的提示词模板。
+                如果为 None，则返回所有核心提示词模板。
+                默认为 None。
+
+        Returns:
+            list[list[str]]: 一个列表，每个子列表包含 [prompt_name, template_content]。
+                             如果指定了 prompt_name 但未找到，则返回空列表。
+        """
         from src.chat.utils.prompt import global_prompt_manager
-        return {name: prompt.template for name, prompt in global_prompt_manager._prompts.items()}
+
+        if prompt_name:
+            prompt = global_prompt_manager._prompts.get(prompt_name)
+            return [[prompt_name, prompt.template]] if prompt else []
+
+        return [[name, prompt.template] for name, prompt in global_prompt_manager._prompts.items()]
 
     def get_registered_prompt_component_info(self) -> list[PromptInfo]:
-        """获取所有在 ComponentRegistry 中注册的 Prompt 组件信息。"""
-        components = component_registry.get_components_by_type(ComponentType.PROMPT).values()
-        return [info for info in components if isinstance(info, PromptInfo)]
+        """
+        获取所有已注册和动态添加的Prompt组件信息，并反映当前的注入规则状态。
+
+        该方法会合并静态注册的组件信息和运行时的动态注入规则，
+        确保返回的 `PromptInfo` 列表能够准确地反映系统当前的完整状态。
+
+        Returns:
+            list[PromptInfo]: 一个包含所有静态和动态Prompt组件信息的列表。
+                             每个组件的 `injection_rules` 都会被更新为当前实际生效的规则。
+        """
+        # 步骤 1: 获取所有静态注册的组件信息，并使用深拷贝以避免修改原始数据
+        static_components = component_registry.get_components_by_type(ComponentType.PROMPT)
+        # 使用深拷贝以避免修改原始注册表数据
+        info_dict: dict[str, PromptInfo] = {
+            name: copy.deepcopy(info) for name, info in static_components.items() if isinstance(info, PromptInfo)
+        }
+
+        # 步骤 2: 遍历动态规则，识别并创建纯动态组件的 PromptInfo
+        all_dynamic_component_names = set()
+        for target, rules in self._dynamic_rules.items():
+            for prompt_name, (rule, _, source) in rules.items():
+                all_dynamic_component_names.add(prompt_name)
+
+        for name in all_dynamic_component_names:
+            if name not in info_dict:
+                # 这是一个纯动态组件，为其创建一个新的 PromptInfo
+                info_dict[name] = PromptInfo(
+                    name=name,
+                    component_type=ComponentType.PROMPT,
+                    description="Dynamically added component",
+                    plugin_name="runtime",  # 动态组件通常没有插件归属
+                    is_built_in=False,
+                )
+
+        # 步骤 3: 清空所有组件的注入规则，准备用当前状态重新填充
+        for info in info_dict.values():
+            info.injection_rules = []
+
+        # 步骤 4: 再次遍历动态规则，为每个组件重建其 injection_rules 列表
+        for target, rules in self._dynamic_rules.items():
+            for prompt_name, (rule, _, _) in rules.items():
+                if prompt_name in info_dict:
+                    # 确保规则是 InjectionRule 的实例
+                    if isinstance(rule, InjectionRule):
+                        info_dict[prompt_name].injection_rules.append(rule)
+
+        # 步骤 5: 返回最终的 PromptInfo 对象列表
+        return list(info_dict.values())
 
     async def get_injection_info(
         self,
@@ -316,7 +480,7 @@ class PromptComponentManager:
         info_map = {}
         async with self._lock:
             all_targets = set(self._dynamic_rules.keys()) | set(self.get_core_prompts())
-            
+
             # 如果指定了目标，则只处理该目标
             targets_to_process = [target_prompt] if target_prompt and target_prompt in all_targets else sorted(all_targets)
 
@@ -385,7 +549,7 @@ class PromptComponentManager:
             else:
                 for name, (rule, _, _) in rules_for_target.items():
                     target_copy[name] = rule
-            
+
             if target_copy:
                 rules_copy[target] = target_copy
 

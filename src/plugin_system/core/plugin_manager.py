@@ -405,13 +405,14 @@ class PluginManager:
         plus_command_count = stats.get("plus_command_components", 0)
         chatter_count = stats.get("chatter_components", 0)
         prompt_count = stats.get("prompt_components", 0)
+        router_count = stats.get("router_components", 0)
         total_components = stats.get("total_components", 0)
 
         # 📋 显示插件加载总览
         if total_registered > 0:
             logger.info("🎉 插件系统加载完成!")
             logger.info(
-                f"📊 总览: {total_registered}个插件, {total_components}个组件 (Action: {action_count}, Command: {command_count}, Tool: {tool_count}, PlusCommand: {plus_command_count}, EventHandler: {event_handler_count}, Chatter: {chatter_count}, Prompt: {prompt_count})"
+                f"📊 总览: {total_registered}个插件, {total_components}个组件 (Action: {action_count}, Command: {command_count}, Tool: {tool_count}, PlusCommand: {plus_command_count}, EventHandler: {event_handler_count}, Chatter: {chatter_count}, Prompt: {prompt_count}, Router: {router_count})"
             )
 
             # 显示详细的插件列表
@@ -452,6 +453,9 @@ class PluginManager:
                         prompt_components = [
                             c for c in plugin_info.components if c.component_type == ComponentType.PROMPT
                         ]
+                        router_components = [
+                            c for c in plugin_info.components if c.component_type == ComponentType.ROUTER
+                        ]
 
                         if action_components:
                             action_details = [format_component(c) for c in action_components]
@@ -478,6 +482,9 @@ class PluginManager:
                         if prompt_components:
                             prompt_details = [format_component(c) for c in prompt_components]
                             logger.info(f"    📝 Prompt组件: {', '.join(prompt_details)}")
+                        if router_components:
+                            router_details = [format_component(c) for c in router_components]
+                            logger.info(f"    🌐 Router组件: {', '.join(router_details)}")
 
                     # 权限节点信息
                     if plugin_instance := self.loaded_plugins.get(plugin_name):
@@ -579,10 +586,16 @@ class PluginManager:
 
             # 从组件注册表中移除插件的所有组件
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    fut = asyncio.run_coroutine_threadsafe(component_registry.unregister_plugin(plugin_name), loop)
-                    fut.result(timeout=5)
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+
+                if loop and loop.is_running():
+                    # 如果在运行的事件循环中，直接创建任务，不等待结果以避免死锁
+                    # 注意：这意味着我们无法确切知道卸载是否成功完成，但避免了阻塞
+                    logger.warning(f"unload_plugin 在异步上下文中被调用 ({plugin_name})，将异步执行组件卸载。建议使用 remove_registered_plugin。")
+                    loop.create_task(component_registry.unregister_plugin(plugin_name))
                 else:
                     asyncio.run(component_registry.unregister_plugin(plugin_name))
             except Exception as e:  # 捕获并记录卸载阶段协程调用错误

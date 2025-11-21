@@ -1,5 +1,5 @@
 [inner]
-version = "1.3.7"
+version = "1.4.0"
 
 # 配置文件版本号迭代规则同bot_config.toml
 
@@ -30,18 +30,6 @@ max_retry = 2
 timeout = 30
 retry_interval = 10
 
-# 内容混淆功能示例配置（可选）
-[[api_providers]]
-name = "ExampleProviderWithObfuscation"           # 启用混淆功能的API提供商示例
-base_url = "https://api.example.com/v1"
-api_key = "your-api-key-here"
-client_type = "openai"
-max_retry = 2
-timeout = 30
-retry_interval = 10
-enable_content_obfuscation = true                 # 启用内容混淆功能
-obfuscation_intensity = 2                         # 混淆强度（1-3级，1=低强度，2=中强度，3=高强度）
-
 
 [[models]] # 模型（可以配置多个）
 model_identifier = "deepseek-chat" # 模型标识符（API服务商提供的模型标识符）
@@ -49,8 +37,11 @@ name = "deepseek-v3"               # 模型名称（可随意命名，在后面�
 api_provider = "DeepSeek"          # API服务商名称（对应在api_providers中配置的服务商名称）
 price_in = 2.0                     # 输入价格（用于API调用统计，单位：元/ M token）（可选，若无该字段，默认值为0）
 price_out = 8.0                    # 输出价格（用于API调用统计，单位：元/ M token）（可选，若无该字段，默认值为0）
-#force_stream_mode = true          # 强制流式输出模式（若模型不支持非流式输出，请取消该注释，启用强制流式输出，若无该字段，默认值为false）
-#use_anti_truncation = true        # [可选] 启用反截断功能。当模型输出不完整时，系统会自动重试。建议只为有需要的模型（如Gemini）开启。
+#force_stream_mode = false         # [可选] 强制流式输出模式。如果模型不支持非流式输出，请取消注释以启用。默认为 false。
+#anti_truncation = false           # [可选] 启用反截断功能。当模型输出不完整时，系统会自动重试。建议只为需要的模型（如Gemini）开启。默认为 false。
+#enable_prompt_perturbation = false # [可选] 启用提示词扰动。此功能整合了内容混淆和注意力优化，默认为 false。
+#perturbation_strength = "light"  # [可选] 扰动强度。仅在 enable_prompt_perturbation 为 true 时生效。可选值为 "light", "medium", "heavy"。默认为 "light"。
+#enable_semantic_variants = false # [可选] 启用语义变体。作为一种扰动策略，生成语义上相似但表达不同的提示。默认为 false。
 
 [[models]]
 model_identifier = "deepseek-ai/DeepSeek-V3.2-Exp"
@@ -223,3 +214,25 @@ max_tokens = 800
 model_list = ["deepseek-r1-distill-qwen-32b"]
 temperature = 0.7
 max_tokens = 800
+
+#------------记忆系统专用模型------------
+
+[model_task_config.memory_short_term_builder] # 短期记忆构建模型（感知→短期格式化）
+model_list = ["siliconflow-Qwen/Qwen3-Next-80B-A3B-Instruct"]
+temperature = 0.2
+max_tokens = 800
+
+[model_task_config.memory_short_term_decider] # 短期记忆决策模型（决定合并/更新/新建/丢弃）
+model_list = ["siliconflow-Qwen/Qwen3-Next-80B-A3B-Instruct"]
+temperature = 0.2
+max_tokens = 1000
+
+[model_task_config.memory_long_term_builder] # 长期记忆构建模型（短期→长期图结构）
+model_list = ["siliconflow-deepseek-ai/DeepSeek-V3.2-Exp"]
+temperature = 0.2
+max_tokens = 1500
+
+[model_task_config.memory_judge] # 记忆检索裁判模型（判断检索是否充足）
+model_list = ["qwen3-14b"]
+temperature = 0.1
+max_tokens = 600

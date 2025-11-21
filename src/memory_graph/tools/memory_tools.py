@@ -16,7 +16,6 @@ from src.memory_graph.storage.graph_store import GraphStore
 from src.memory_graph.storage.persistence import PersistenceManager
 from src.memory_graph.storage.vector_store import VectorStore
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.graph_expansion import expand_memories_with_semantic_filter
 from src.memory_graph.utils.path_expansion import PathExpansionConfig, PathScoreExpansion
 
 logger = get_logger(__name__)
@@ -98,7 +97,7 @@ class MemoryTools:
             graph_store=graph_store,
             embedding_generator=embedding_generator,
         )
-        
+
         # 初始化路径扩展器（延迟初始化，仅在启用时创建）
         self.path_expander: PathScoreExpansion | None = None
 
@@ -573,7 +572,7 @@ class MemoryTools:
             # 检查是否启用路径扩展算法
             use_path_expansion = getattr(global_config.memory, "enable_path_expansion", False) and expand_depth > 0
             expanded_memory_scores = {}
-            
+
             if expand_depth > 0 and initial_memory_ids:
                 # 获取查询的embedding
                 query_embedding = None
@@ -582,12 +581,12 @@ class MemoryTools:
                         query_embedding = await self.builder.embedding_generator.generate(query)
                     except Exception as e:
                         logger.warning(f"生成查询embedding失败: {e}")
-                
+
                 if query_embedding is not None:
                     if use_path_expansion:
                         # 🆕 使用路径评分扩展算法
                         logger.info(f"🔬 使用路径评分扩展算法: 初始{len(similar_nodes)}个节点, 深度={expand_depth}")
-                        
+
                         # 延迟初始化路径扩展器
                         if self.path_expander is None:
                             path_config = PathExpansionConfig(
@@ -607,7 +606,7 @@ class MemoryTools:
                                 vector_store=self.vector_store,
                                 config=path_config
                             )
-                        
+
                         try:
                             # 执行路径扩展（传递偏好类型）
                             path_results = await self.path_expander.expand_with_path_scoring(
@@ -616,11 +615,11 @@ class MemoryTools:
                                 top_k=top_k,
                                 prefer_node_types=all_prefer_types  # 🆕 传递偏好类型
                             )
-                            
+
                             # 路径扩展返回的是 [(Memory, final_score, paths), ...]
                             # 我们需要直接返回这些记忆，跳过后续的传统评分
                             logger.info(f"✅ 路径扩展返回 {len(path_results)} 条记忆")
-                            
+
                             # 直接构建返回结果
                             path_memories = []
                             for memory, score, paths in path_results:
@@ -635,44 +634,19 @@ class MemoryTools:
                                             "max_path_depth": max(p.depth for p in paths) if paths else 0
                                         }
                                     })
-                            
+
                             logger.info(f"🎯 路径扩展最终返回: {len(path_memories)} 条记忆")
-                            
+
                             return {
                                 "success": True,
                                 "results": path_memories,
                                 "total": len(path_memories),
                                 "expansion_method": "path_scoring"
                             }
-                            
+
                         except Exception as e:
                             logger.error(f"路径扩展失败: {e}", exc_info=True)
-                            logger.info("回退到传统图扩展算法")
-                            # 继续执行下面的传统图扩展
-                    
-                    # 传统图扩展（仅在未启用路径扩展或路径扩展失败时执行）
-                    if not use_path_expansion or expanded_memory_scores == {}:
-                        logger.info(f"开始传统图扩展: 初始记忆{len(initial_memory_ids)}个, 深度={expand_depth}")
-                        
-                        try:
-                            # 使用共享的图扩展工具函数
-                            expanded_results = await expand_memories_with_semantic_filter(
-                                graph_store=self.graph_store,
-                                vector_store=self.vector_store,
-                                initial_memory_ids=list(initial_memory_ids),
-                                query_embedding=query_embedding,
-                                max_depth=expand_depth,
-                                semantic_threshold=self.expand_semantic_threshold,
-                                max_expanded=top_k * 2
-                            )
-
-                            # 合并扩展结果
-                            expanded_memory_scores.update(dict(expanded_results))
-
-                            logger.info(f"传统图扩展完成: 新增{len(expanded_memory_scores)}个相关记忆")
-
-                        except Exception as e:
-                            logger.warning(f"传统图扩展失败: {e}")
+                            # 路径扩展失败，不再回退到旧的图扩展算法
 
             # 4. 合并初始记忆和扩展记忆
             all_memory_ids = set(initial_memory_ids) | set(expanded_memory_scores.keys())
@@ -1197,8 +1171,10 @@ class MemoryTools:
             query_embeddings = []
             query_weights = []
 
-            for sub_query, weight in multi_queries:
-                embedding = await self.builder.embedding_generator.generate(sub_query)
+            batch_texts = [sub_query for sub_query, _ in multi_queries]
+            batch_embeddings = await self.builder.embedding_generator.generate_batch(batch_texts)
+
+            for (sub_query, weight), embedding in zip(multi_queries, batch_embeddings):
                 if embedding is not None:
                     query_embeddings.append(embedding)
                     query_weights.append(weight)
@@ -1237,6 +1213,9 @@ class MemoryTools:
         for node in memory.nodes:
             if node.embedding is not None:
                 await self.vector_store.add_node(node)
+                node.mark_vector_stored()
+                if self.graph_store.graph.has_node(node.id):
+                    self.graph_store.graph.nodes[node.id]["has_vector"] = True
 
     async def _find_memory_by_description(self, description: str) -> Memory | None:
         """

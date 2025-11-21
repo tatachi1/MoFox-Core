@@ -26,7 +26,7 @@ import time
 from collections import namedtuple
 from collections.abc import Callable, Coroutine
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar, Literal
 
 from rich.traceback import install
 
@@ -288,33 +288,239 @@ class _PromptProcessor:
 这有助于我判断你的输出是否被截断。请不要在 `{self.end_marker}` 前后添加任何其他文字或标点。
 """
 
-    async def prepare_prompt(
-        self, prompt: str, model_info: ModelInfo, api_provider: APIProvider, task_name: str
+    # ==============================================================================
+    # 提示词扰动 (Prompt Perturbation) 模块
+    #
+    # 本模块通过引入一系列轻量级的、保持语义的随机化技术，
+    # 旨在增加输入提示词的结构多样性。这有助于：
+    # 1. 避免因短时间内发送高度相似的提示词而导致模型产生趋同或重复的回复。
+    # 2. 增强模型对不同输入格式的鲁棒性。
+    # 3. 在某些情况下，通过引入“噪音”来激发模型更具创造性的响应。
+    # ==============================================================================
+
+    # 定义语义等价的文本替换模板。
+    # Key 是原始文本，Value 是一个包含多种等价表达的列表。
+    SEMANTIC_VARIANTS: ClassVar = {
+        "当前时间": ["当前时间", "现在是", "此时此刻", "时间"],
+        "最近的系统通知": ["最近的系统通知", "系统通知", "通知消息", "最新通知"],
+        "聊天历史": ["聊天历史", "对话记录", "历史消息", "之前的对话"],
+        "你的任务是": ["你的任务是", "请", "你需要", "你应当"],
+        "请注意": ["请注意", "注意", "请留意", "需要注意"],
+    }
+
+    async def _apply_prompt_perturbation(
+        self,
+        prompt_text: str,
+        enable_semantic_variants: bool,
+        strength: Literal["light", "medium", "heavy"],
     ) -> str:
         """
-        为请求准备最终的提示词。
+        统一的提示词扰动处理函数。
 
-        此方法会根据API提供商和模型配置，对原始提示词应用内容混淆和反截断指令，
-        生成最终发送给模型的完整提示内容。
+        该方法按顺序应用三种扰动技术：
+        1. 语义变体 (Semantic Variants): 将特定短语替换为语义等价的其它表达。
+        2. 空白噪声 (Whitespace Noise): 随机调整换行、空格和缩进。
+        3. 内容混淆 (Content Confusion): 注入随机的、无意义的字符串。
 
         Args:
-            prompt (str): 原始的用户提示词。
-            model_info (ModelInfo): 目标模型的信息。
-            api_provider (APIProvider): API提供商的配置。
-            task_name (str): 当前任务的名称，用于日志记录。
+            prompt_text (str): 原始的用户提示词。
+            enable_semantic_variants (bool): 是否启用语义变体替换。
+            strength (Literal["light", "medium", "heavy"]): 扰动的强度，会影响所有扰动操作的程度。
 
         Returns:
-            str: 处理后的、可以直接发送给模型的完整提示词。
+            str: 经过扰动处理后的提示词。
         """
-        # 步骤1: 根据API提供商的配置应用内容混淆
-        processed_prompt = await self._apply_content_obfuscation(prompt, api_provider)
+        try:
+            perturbed_text = prompt_text
 
-        # 步骤2: 检查模型是否需要注入反截断指令
-        if getattr(model_info, "use_anti_truncation", False):
-            processed_prompt += self.anti_truncation_instruction
+            # 步骤 1: 应用语义变体
+            if enable_semantic_variants:
+                perturbed_text = self._apply_semantic_variants(perturbed_text)
+
+            # 步骤 2: 注入空白噪声
+            perturbed_text = self._inject_whitespace_noise(perturbed_text, strength)
+
+            # 步骤 3: 注入内容混淆（随机噪声字符串）
+            perturbed_text = self._inject_random_noise(perturbed_text, strength)
+
+            # 计算并记录变化率，用于调试和监控
+            change_rate = self._calculate_change_rate(prompt_text, perturbed_text)
+            if change_rate > 0.001:  # 仅在有实际变化时记录日志
+                logger.debug(f"提示词扰动完成，强度: '{strength}'，变化率: {change_rate:.2%}")
+
+            return perturbed_text
+
+        except Exception as e:
+            logger.error(f"提示词扰动处理失败: {e}", exc_info=True)
+            return prompt_text  # 发生异常时返回原始文本，保证流程不中断
+
+    @staticmethod
+    def _apply_semantic_variants(text: str) -> str:
+        """
+        应用语义等价的文本替换。
+
+        遍历 SEMANTIC_VARIANTS 字典，对文本中首次出现的 key 进行随机替换。
+
+        Args:
+            text (str): 输入文本。
+
+        Returns:
+            str: 替换后的文本。
+        """
+        try:
+            result = text
+            for original, variants in _PromptProcessor.SEMANTIC_VARIANTS.items():
+                if original in result:
+                    # 从变体列表中随机选择一个进行替换
+                    replacement = random.choice(variants)
+                    # 只替换第一次出现的地方，避免过度修改
+                    result = result.replace(original, replacement, 1)
+            return result
+        except Exception as e:
+            logger.error(f"语义变体替换失败: {e}", exc_info=True)
+            return text
+
+    @staticmethod
+    def _inject_whitespace_noise(text: str, strength: str) -> str:
+        """
+        注入轻量级噪声（空白字符调整）。
+
+        根据指定的强度，调整文本中的换行、行尾空格和列表项缩进。
+
+        Args:
+            text (str): 输入文本。
+            strength (str): 噪声强度 ('light', 'medium', 'heavy')。
+
+        Returns:
+            str: 调整空白字符后的文本。
+        """
+        try:
+            # 噪声强度配置，定义了不同强度下各种操作的参数范围
+            noise_config = {
+                "light": {"newline_range": (1, 2), "space_range": (0, 2), "indent_adjust": False, "probability": 0.3},
+                "medium": {"newline_range": (1, 3), "space_range": (0, 4), "indent_adjust": True, "probability": 0.5},
+                "heavy": {"newline_range": (1, 4), "space_range": (0, 6), "indent_adjust": True, "probability": 0.7},
+            }
+            config = noise_config.get(strength, noise_config["light"])
+
+            lines = text.split("\n")
+            result_lines = []
+            for line in lines:
+                processed_line = line
+                # 随机调整行尾空格
+                if line.strip() and random.random() < config["probability"]:
+                    spaces = " " * random.randint(*config["space_range"])
+                    processed_line += spaces
+
+                # 随机调整列表项缩进（仅在中等和重度模式下）
+                if config["indent_adjust"]:
+                    list_match = re.match(r"^(\s*)([-*•])\s", processed_line)
+                    if list_match and random.random() < 0.5:
+                        indent, marker = list_match.group(1), list_match.group(2)
+                        adjust = random.choice([-2, 0, 2])
+                        new_indent = " " * max(0, len(indent) + adjust)
+                        processed_line = processed_line.replace(indent + marker, new_indent + marker, 1)
+
+                result_lines.append(processed_line)
+
+            result = "\n".join(result_lines)
+
+            # 调整连续换行的数量
+            newline_pattern = r"\n{2,}"
+            def replace_newlines(match):
+                count = random.randint(*config["newline_range"])
+                return "\n" * count
+            result = re.sub(newline_pattern, replace_newlines, result)
+
+            return result
+        except Exception as e:
+            logger.error(f"空白字符噪声注入失败: {e}", exc_info=True)
+            return text
+
+    @staticmethod
+    def _inject_random_noise(text: str, strength: str) -> str:
+        """
+        在文本中按指定强度注入随机噪音字符串（内容混淆）。
+
+        Args:
+            text (str): 输入文本。
+            strength (str): 噪音强度 ('light', 'medium', 'heavy')。
+
+        Returns:
+            str: 注入随机噪音后的文本。
+        """
+        try:
+            # 不同强度下的噪音注入参数配置
+            # probability: 在每个单词后注入噪音的百分比概率
+            # length: 注入噪音字符串的随机长度范围
+            strength_config = {
+                "light": {"probability": 15, "length": (3, 6)},
+                "medium": {"probability": 25, "length": (5, 10)},
+                "heavy": {"probability": 35, "length": (8, 15)},
+            }
+            config = strength_config.get(strength, strength_config["light"])
+
+            words = text.split()
+            if not words:
+                return text
+
+            result = []
+            for word in words:
+                result.append(word)
+                # 根据概率决定是否在此单词后注入噪音
+                if random.randint(1, 100) <= config["probability"]:
+                    noise_length = random.randint(*config["length"])
+                    # 定义噪音字符集
+                    chars = string.ascii_letters + string.digits
+                    noise = "".join(random.choice(chars) for _ in range(noise_length))
+                    result.append(f" {noise} ") # 添加前后空格以分隔
+
+            return "".join(result)
+        except Exception as e:
+            logger.error(f"随机噪音注入失败: {e}", exc_info=True)
+            return text
+
+    @staticmethod
+    def _calculate_change_rate(original: str, modified: str) -> float:
+        """计算文本变化率，用于衡量扰动程度。"""
+        if not original or not modified:
+            return 0.0
+        # 使用 Levenshtein 距离等更复杂的算法可能更精确，但为了性能，这里使用简单的字符差异计算
+        diff_chars = sum(1 for a, b in zip(original, modified) if a != b) + abs(len(original) - len(modified))
+        max_len = max(len(original), len(modified))
+        return diff_chars / max_len if max_len > 0 else 0.0
+
+
+    async def prepare_prompt(
+        self, prompt: str, model_info: ModelInfo,  task_name: str
+    ) -> str:
+        """
+        为请求准备最终的提示词,应用各种扰动和指令。
+        """
+        final_prompt_parts = []
+        user_prompt = prompt
+
+        # 步骤 A: 添加抗审查指令
+        if model_info.enable_prompt_perturbation:
+            final_prompt_parts.append(self.noise_instruction)
+
+        # 步骤 B: (可选) 应用统一的提示词扰动
+        if getattr(model_info, "enable_prompt_perturbation", False):
+            logger.info(f"为模型 '{model_info.name}' 启用提示词扰动功能。")
+            user_prompt = await self._apply_prompt_perturbation(
+                prompt_text=user_prompt,
+                enable_semantic_variants=getattr(model_info, "enable_semantic_variants", False),
+                strength=getattr(model_info, "perturbation_strength", "light"),
+            )
+
+        final_prompt_parts.append(user_prompt)
+
+        # 步骤 C: (可选) 添加反截断指令
+        if model_info.anti_truncation:
+            final_prompt_parts.append(self.anti_truncation_instruction)
             logger.info(f"模型 '{model_info.name}' (任务: '{task_name}') 已启用反截断功能。")
 
-        return processed_prompt
+        return "\n\n".join(final_prompt_parts)
 
     async def process_response(self, content: str, use_anti_truncation: bool) -> tuple[str, str, bool]:
         """
@@ -331,76 +537,6 @@ class _PromptProcessor:
             else:
                 is_truncated = True
         return content, reasoning, is_truncated
-
-    async def _apply_content_obfuscation(self, text: str, api_provider: APIProvider) -> str:
-        """
-        根据API提供商的配置对文本进行内容混淆。
-
-        如果提供商配置中启用了内容混淆，此方法会在文本前部加入抗审查指令，
-        并在文本中注入随机噪音，以降低内容被审查或修改的风险。
-
-        Args:
-            text (str): 原始文本内容。
-            api_provider (APIProvider): API提供商的配置。
-
-        Returns:
-            str: 经过混淆处理的文本。
-        """
-        # 检查当前API提供商是否启用了内容混淆功能
-        if not getattr(api_provider, "enable_content_obfuscation", False):
-            return text
-
-        # 获取混淆强度，默认为1
-        intensity = getattr(api_provider, "obfuscation_intensity", 1)
-        logger.info(f"为API提供商 '{api_provider.name}' 启用内容混淆，强度级别: {intensity}")
-
-        # 将抗审查指令和原始文本拼接
-        processed_text = self.noise_instruction + "\n\n" + text
-
-        # 在拼接后的文本中注入随机噪音
-        return await self._inject_random_noise(processed_text, intensity)
-
-    @staticmethod
-    async def _inject_random_noise(text: str, intensity: int) -> str:
-        """
-        在文本中按指定强度注入随机噪音字符串。
-
-        该方法通过在文本的单词之间随机插入无意义的字符串（噪音）来实现内容混淆。
-        强度越高，插入噪音的概率和长度就越大。
-
-        Args:
-            text (str): 待处理的文本。
-            intensity (int): 混淆强度 (1-3)，决定噪音的概率和长度。
-
-        Returns:
-            str: 注入噪音后的文本。
-        """
-        # 定义不同强度级别的噪音参数：概率和长度范围
-        params = {
-            1: {"probability": 15, "length": (3, 6)},  # 低强度
-            2: {"probability": 25, "length": (5, 10)},  # 中强度
-            3: {"probability": 35, "length": (8, 15)},  # 高强度
-        }
-        # 根据传入的强度选择配置，如果强度无效则使用默认值
-        config = params.get(intensity, params[1])
-
-        words = text.split()
-        result = []
-        # 遍历每个单词
-        for word in words:
-            result.append(word)
-            # 根据概率决定是否在此单词后注入噪音
-            if random.randint(1, 100) <= config["probability"]:
-                # 确定噪音的长度
-                noise_length = random.randint(*config["length"])
-                # 定义噪音字符集
-                chars = string.ascii_letters + string.digits + "!@#$%^&*()_+-=[]{}|;:,.<>?"
-                # 生成噪音字符串
-                noise = "".join(random.choice(chars) for _ in range(noise_length))
-                result.append(noise)
-
-        # 将处理后的单词列表重新组合成字符串
-        return " ".join(result)
 
     @staticmethod
     async def _extract_reasoning(content: str) -> tuple[str, str]:
@@ -679,7 +815,7 @@ class _RequestStrategy:
                 if request_type == RequestType.RESPONSE and "prompt" in request_kwargs:
                     prompt = request_kwargs.pop("prompt")
                     processed_prompt = await self.prompt_processor.prepare_prompt(
-                        prompt, model_info, api_provider, self.task_name
+                        prompt, model_info, self.task_name
                     )
                     message = MessageBuilder().add_text_content(processed_prompt).build()
                     request_kwargs["message_list"] = [message]
@@ -746,7 +882,7 @@ class _RequestStrategy:
 
             # --- 响应内容处理和空回复/截断检查 ---
             content = response.content or ""
-            use_anti_truncation = getattr(model_info, "use_anti_truncation", False)
+            use_anti_truncation = model_info.anti_truncation
             processed_content, reasoning, is_truncated = await self.prompt_processor.process_response(
                 content, use_anti_truncation
             )
@@ -975,15 +1111,15 @@ class LLMRequest:
 
             return response.content or "", (response.reasoning_content or "", model_info.name, response.tool_calls)
 
-    async def get_embedding(self, embedding_input: str) -> tuple[list[float], str]:
+    async def get_embedding(self, embedding_input: str | list[str]) -> tuple[list[float] | list[list[float]], str]:
         """
-        获取嵌入向量。
+        获取嵌入向量，支持批量文本
 
         Args:
-            embedding_input (str): 获取嵌入的目标
+            embedding_input (str | list[str]): 需要生成嵌入的文本或文本列表
 
         Returns:
-            (Tuple[List[float], str]): (嵌入向量，使用的模型名称)
+            (Tuple[Union[List[float], List[List[float]]], str]): 嵌入结果及使用的模型名称
         """
         start_time = time.time()
         response, model_info = await self._strategy.execute_with_failover(
@@ -992,10 +1128,25 @@ class LLMRequest:
 
         await self._record_usage(model_info, response.usage, time.time() - start_time, "/embeddings")
 
-        if not response.embedding:
+        if response.embedding is None:
             raise RuntimeError("获取embedding失败")
 
-        return response.embedding, model_info.name
+        embeddings = response.embedding
+        is_batch_request = isinstance(embedding_input, list)
+
+        if is_batch_request:
+            if not isinstance(embeddings, list):
+                raise RuntimeError("获取embedding失败，批量结果格式异常")
+
+            if embeddings and not isinstance(embeddings[0], list):
+                embeddings = [embeddings]  # type: ignore[list-item]
+
+            return embeddings, model_info.name
+
+        if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
+            return embeddings[0], model_info.name
+
+        return embeddings, model_info.name
 
     async def _record_usage(self, model_info: ModelInfo, usage: UsageRecord | None, time_cost: float, endpoint: str):
         """

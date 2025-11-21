@@ -6,6 +6,8 @@ from src.plugin_system.base.base_action import ActionActivationType, BaseAction,
 from src.plugin_system.base.base_plugin import BasePlugin
 from src.plugin_system.base.component_types import ComponentInfo
 from src.plugin_system.base.config_types import ConfigField
+from src.plugin_system.apis.generator_api import generate_reply
+from src.config.config import global_config
 
 logger = get_logger("tts")
 
@@ -49,16 +51,34 @@ class TTSAction(BaseAction):
         """处理TTS文本转语音动作"""
         logger.info(f"{self.log_prefix} 执行TTS动作: {self.reasoning}")
 
-        # 获取要转换的文本
-        text = self.action_data.get("text")
 
-        if not text:
-            logger.error(f"{self.log_prefix} 执行TTS动作时未提供文本内容")
-            return False, "执行TTS动作失败：未提供文本内容"
+        success, response_set, _ = await generate_reply(
+            chat_stream=self.chat_stream,
+            reply_message=self.chat_stream.context_manager.context.get_last_message(),
+            enable_tool=global_config.tool.enable_tool,
+            request_type="chat.tts",
+            from_plugin=False,
+        )
 
-        # 确保文本适合TTS使用
-        processed_text = self._process_text_for_tts(text)
+        reply_text = ""
+        for reply_seg in response_set:
+            # 调试日志：验证reply_seg的格式
+            logger.debug(f"Processing reply_seg type: {type(reply_seg)}, content: {reply_seg}")
 
+            # 修正：正确处理元组格式 (格式为: (type, content))
+            if isinstance(reply_seg, tuple) and len(reply_seg) >= 2:
+                _, data = reply_seg
+            else:
+                # 向下兼容：如果已经是字符串，则直接使用
+                data = str(reply_seg)
+
+            if isinstance(data, list):
+                data = "".join(map(str, data))
+            reply_text += data
+
+        # 处理文本以优化TTS效果
+        processed_text = self._process_text_for_tts(reply_text)
+        
         try:
             # 发送TTS消息
             await self.send_custom(message_type="tts_text", content=processed_text)

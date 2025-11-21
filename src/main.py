@@ -1,4 +1,5 @@
 # 再用这个就写一行注释来混提交的我直接全部🌿飞😡
+# 🌿🌿need
 import asyncio
 import signal
 import sys
@@ -21,7 +22,6 @@ from src.common.message import get_global_api
 
 # 全局背景任务集合
 _background_tasks = set()
-from src.common.remote import TelemetryHeartBeatTask
 from src.common.server import Server, get_global_server
 from src.config.config import global_config
 from src.individuality.individuality import Individuality, get_individuality
@@ -42,7 +42,6 @@ logger = get_logger("main")
 # 预定义彩蛋短语，避免在每次初始化时重新创建
 EGG_PHRASES: list[tuple[str, int]] = [
     ("我们的代码里真的没有bug，只有'特性'。", 10),
-    ("你知道吗？阿范喜欢被切成臊子😡", 10),
     ("你知道吗,雅诺狐的耳朵其实很好摸", 5),
     ("你群最高技术力————言柒姐姐！", 20),
     ("初墨小姐宇宙第一(不是)", 10),
@@ -247,6 +246,16 @@ class MainSystem:
             logger.error(f"准备停止消息重组器时出错: {e}")
 
         # 停止增强记忆系统
+        # 停止三层记忆系统
+        try:
+            from src.memory_graph.manager_singleton import get_unified_memory_manager, shutdown_unified_memory_manager
+
+            if get_unified_memory_manager():
+                cleanup_tasks.append(("三层记忆系统", shutdown_unified_memory_manager()))
+                logger.info("准备停止三层记忆系统...")
+        except Exception as e:
+            logger.error(f"准备停止三层记忆系统时出错: {e}")
+
         # 停止统一调度器
         try:
             from src.plugin_system.apis.unified_scheduler import shutdown_scheduler
@@ -466,6 +475,18 @@ MoFox_Bot(第三方修改版)
             await self._safe_init("记忆图系统", initialize_memory_manager)()
         except Exception as e:
             logger.error(f"记忆图系统初始化失败: {e}")
+
+        # 初始化三层记忆系统（如果启用）
+        try:
+            if global_config.memory and global_config.memory.enable:
+                from src.memory_graph.manager_singleton import initialize_unified_memory_manager
+                logger.info("三层记忆系统已启用，正在初始化...")
+                await initialize_unified_memory_manager()
+                logger.info("三层记忆系统初始化成功")
+            else:
+                logger.debug("三层记忆系统未启用（配置中禁用）")
+        except Exception as e:
+            logger.error(f"三层记忆系统初始化失败: {e}", exc_info=True)
 
         # 初始化消息兴趣值计算组件
         await self._initialize_interest_calculator()

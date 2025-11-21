@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+
 # 调整项目根目录的计算方式
 project_root = Path(__file__).parent.parent.parent
 data_dir = project_root / "data" / "memory_graph"

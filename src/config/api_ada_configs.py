@@ -20,8 +20,6 @@ class APIProvider(ValidatedConfigBase):
         default=10, ge=1, description="API调用的超时时长（超过这个时长，本次请求将被视为'请求超时'，单位：秒）"
     )
     retry_interval: int = Field(default=10, ge=0, description="重试间隔（如果API调用失败，重试的间隔时间，单位：秒）")
-    enable_content_obfuscation: bool = Field(default=False, description="是否启用内容混淆（用于特定场景下的内容处理）")
-    obfuscation_intensity: int = Field(default=1, ge=1, le=3, description="混淆强度（1-3级，数值越高混淆程度越强）")
 
     @classmethod
     def validate_base_url(cls, v):
@@ -72,8 +70,12 @@ class ModelInfo(ValidatedConfigBase):
     price_out: float = Field(default=0.0, ge=0, description="每M token输出价格")
     force_stream_mode: bool = Field(default=False, description="是否强制使用流式输出模式")
     extra_params: dict[str, Any] = Field(default_factory=dict, description="额外参数（用于API调用时的额外配置）")
-    anti_truncation: bool = Field(default=False, description="是否启用反截断功能，防止模型输出被截断")
-
+    anti_truncation: bool = Field(default=False, alias="use_anti_truncation", description="是否启用反截断功能，防止模型输出被截断")
+    enable_prompt_perturbation: bool = Field(default=False, description="是否启用提示词扰动（合并了内容混淆和注意力优化）")
+    perturbation_strength: Literal["light", "medium", "heavy"] = Field(
+        default="light", description="扰动强度（light/medium/heavy）"
+    )
+    enable_semantic_variants: bool = Field(default=False, description="是否启用语义变体作为扰动策略")
     @classmethod
     def validate_prices(cls, v):
         """验证价格必须为非负数"""
@@ -146,6 +148,12 @@ class ModelTaskConfig(ValidatedConfigBase):
     relationship_tracker: TaskConfig = Field(..., description="关系追踪模型配置")
     # 处理配置文件中命名不一致的问题
     utils_video: TaskConfig = Field(..., description="视频分析模型配置（兼容配置文件中的命名）")
+    
+    # 记忆系统专用模型配置
+    memory_short_term_builder: TaskConfig = Field(..., description="短期记忆构建模型配置（感知→短期格式化）")
+    memory_short_term_decider: TaskConfig = Field(..., description="短期记忆决策模型配置（合并/更新/新建/丢弃）")
+    memory_long_term_builder: TaskConfig = Field(..., description="长期记忆构建模型配置（短期→长期图结构）")
+    memory_judge: TaskConfig = Field(..., description="记忆检索裁判模型配置（判断检索是否充足）")
 
     @property
     def video_analysis(self) -> TaskConfig:

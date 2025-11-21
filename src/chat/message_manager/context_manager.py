@@ -6,7 +6,7 @@
 
 import asyncio
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.chat.energy_system import energy_manager
 from src.common.data_models.database_data_model import DatabaseMessages
@@ -21,6 +21,23 @@ logger = get_logger("context_manager")
 
 # 全局背景任务集合（用于异步初始化等后台任务）
 _background_tasks = set()
+
+# 三层记忆系统的延迟导入（避免循环依赖）
+_unified_memory_manager = None
+
+
+def _get_unified_memory_manager():
+    """获取统一记忆管理器（延迟导入）"""
+    global _unified_memory_manager
+    if _unified_memory_manager is None:
+        try:
+            from src.memory_graph.manager_singleton import get_unified_memory_manager
+
+            _unified_memory_manager = get_unified_memory_manager()
+        except Exception as e:
+            logger.warning(f"获取统一记忆管理器失败（可能未启用）: {e}")
+            _unified_memory_manager = False  # 标记为禁用，避免重复尝试
+    return _unified_memory_manager if _unified_memory_manager is not False else None
 
 
 class SingleStreamContextManager:
@@ -71,8 +88,13 @@ class SingleStreamContextManager:
                 self.context.enable_cache(True)
                 logger.debug(f"为StreamContext {self.stream_id} 启用缓存系统")
 
-            # 先计算兴趣值（需要在缓存前计算）
-            await self._calculate_message_interest(message)
+            # 新消息默认占位兴趣值，延迟到 Chatter 批量处理阶段
+            if message.interest_value is None:
+                message.interest_value = 0.3
+            message.should_reply = False
+            message.should_act = False
+            message.interest_calculated = False
+            message.semantic_embedding = None
             message.is_read = False
 
             # 使用StreamContext的智能缓存功能
@@ -93,6 +115,27 @@ class SingleStreamContextManager:
                         logger.debug(f"消息直接添加到StreamContext未读列表: stream={self.stream_id}")
                 else:
                     logger.debug(f"消息添加到StreamContext（缓存禁用）: {self.stream_id}")
+
+                # 三层记忆系统集成：将消息添加到感知记忆层
+                try:
+                    if global_config.memory and global_config.memory.enable:
+                        unified_manager = _get_unified_memory_manager()
+                        if unified_manager:
+                            # 构建消息字典
+                            message_dict = {
+                                "message_id": str(message.message_id),
+                                "sender_id": message.user_info.user_id,
+                                "sender_name": message.user_info.user_nickname,
+                                "content": message.processed_plain_text or message.display_message or "",
+                                "timestamp": message.time,
+                                "platform": message.chat_info.platform,
+                                "stream_id": self.stream_id,
+                            }
+                            await unified_manager.add_message(message_dict)
+                            logger.debug(f"消息已添加到三层记忆系统: {message.message_id}")
+                except Exception as e:
+                    # 记忆系统错误不应影响主流程
+                    logger.error(f"添加消息到三层记忆系统失败: {e}", exc_info=True)
 
                 return True
             else:
@@ -194,7 +237,8 @@ class SingleStreamContextManager:
             failed_ids = []
             for message_id in message_ids:
                 try:
-                    self.context.mark_message_as_read(message_id)
+                    # 传递最大历史消息数量限制
+                    self.context.mark_message_as_read(message_id, max_history_size=self.max_context_size)
                     marked_count += 1
                 except Exception as e:
                     failed_ids.append(str(message_id)[:8])
@@ -336,11 +380,11 @@ class SingleStreamContextManager:
 
             from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
 
-            # 加载历史消息（限制数量为max_context_size的2倍，用于丰富上下文）
+            # 加载历史消息（限制数量为max_context_size）
             db_messages = await get_raw_msg_before_timestamp_with_chat(
                 chat_id=self.stream_id,
                 timestamp=time.time(),
-                limit=self.max_context_size * 2,
+                limit=self.max_context_size,
             )
 
             if db_messages:
@@ -362,6 +406,12 @@ class SingleStreamContextManager:
                     except Exception as e:
                         logger.warning(f"转换历史消息失败 (message_id={msg_dict.get('message_id', 'unknown')}): {e}")
                         continue
+
+                # 应用历史消息长度限制
+                if len(self.context.history_messages) > self.max_context_size:
+                    removed_count = len(self.context.history_messages) - self.max_context_size
+                    self.context.history_messages = self.context.history_messages[-self.max_context_size:]
+                    logger.debug(f"📝 [历史加载] 移除了 {removed_count} 条过旧的历史消息以保持上下文大小限制")
 
                 logger.info(f"✅ [历史加载] 成功加载 {loaded_count} 条历史消息到内存: {self.stream_id}")
             else:
@@ -395,6 +445,7 @@ class SingleStreamContextManager:
                     message.interest_value = result.interest_value
                     message.should_reply = result.should_reply
                     message.should_act = result.should_act
+                    message.interest_calculated = True
 
                     logger.debug(
                         f"消息 {message.message_id} 兴趣值已更新: {result.interest_value:.3f}, "
@@ -403,6 +454,7 @@ class SingleStreamContextManager:
                     return result.interest_value
                 else:
                     logger.warning(f"消息 {message.message_id} 兴趣值计算失败: {result.error_message}")
+                    message.interest_calculated = False
                     return 0.5
             else:
                 logger.debug("未找到兴趣值计算器，使用默认兴趣值")
@@ -410,6 +462,8 @@ class SingleStreamContextManager:
 
         except Exception as e:
             logger.error(f"计算消息兴趣度时发生错误: {e}", exc_info=True)
+            if hasattr(message, "interest_calculated"):
+                message.interest_calculated = False
             return 0.5
 
     def _detect_chat_type(self, message: DatabaseMessages):

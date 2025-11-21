@@ -279,6 +279,8 @@ class NapcatAdapterPlugin(BasePlugin):
         },
         "maibot_server": {
             "platform_name": ConfigField(type=str, default="qq", description="平台名称，用于消息路由"),
+            "host": ConfigField(type=str, default="", description="MoFox-Bot服务器地址，留空则使用全局配置"),
+            "port": ConfigField(type=int, default=0, description="MoFox-Bot服务器端口，设为0则使用全局配置"),
         },
         "voice": {
             "use_tts": ConfigField(
