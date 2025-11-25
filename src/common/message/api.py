@@ -1,6 +1,6 @@
 import os
 
-from mofox_bus import MessageServer
+from mofox_wire import MessageServer
 
 from src.common.logger import get_logger
 from src.common.server import get_global_server
@@ -45,7 +45,7 @@ def get_global_api() -> MessageServer:
 
     if bus_config.auth_token:
         kwargs["enable_token"] = True
-        kwargs["custom_logger"] = get_logger("mofox_bus")
+        kwargs["custom_logger"] = get_logger("mofox_wire")
 
     global_api = MessageServer(**kwargs)
     for token in bus_config.auth_token:

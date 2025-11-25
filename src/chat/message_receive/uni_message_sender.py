@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from rich.traceback import install
 
-from mofox_bus import MessageEnvelope
+from mofox_wire import MessageEnvelope
 
 from src.chat.message_receive.message_processor import process_message_from_dict
 from src.chat.message_receive.storage import MessageStorage

@@ -1,7 +1,7 @@
 """
 插件系统 Adapter 基类
 
-提供插件化的适配器支持，包装 mofox_bus.AdapterBase，
+提供插件化的适配器支持，包装 mofox_wire.AdapterBase，
 添加插件生命周期、配置管理、自动启动等特性。
 """
 
@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from mofox_bus import AdapterBase as MoFoxAdapterBase, CoreSink, MessageEnvelope, ProcessCoreSink
+from mofox_wire import AdapterBase as MoFoxAdapterBase, CoreSink, MessageEnvelope, ProcessCoreSink
 
 if TYPE_CHECKING:
     from src.plugin_system.base.base_plugin import BasePlugin
@@ -26,7 +26,7 @@ class BaseAdapter(MoFoxAdapterBase, ABC):
     """
     插件系统的 Adapter 基类
     
-    相比 mofox_bus.AdapterBase，增加了以下特性：
+    相比 mofox_wire.AdapterBase，增加了以下特性：
     1. 插件生命周期管理 (on_adapter_loaded, on_adapter_unloaded)
     2. 配置管理集成
     3. 自动重连与健康检查

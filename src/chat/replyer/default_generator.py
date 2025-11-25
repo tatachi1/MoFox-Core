@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from typing import Any, Literal, TYPE_CHECKING
 
 from src.chat.express.expression_selector import expression_selector
-from mofox_bus import MessageEnvelope
+from mofox_wire import MessageEnvelope
 from src.chat.message_receive.message import Seg, UserInfo
 from src.chat.message_receive.uni_message_sender import HeartFCSender
 from src.chat.utils.chat_message_builder import (

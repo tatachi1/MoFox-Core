@@ -5,10 +5,10 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from mofox_bus import MessageBuilder
+from mofox_wire import MessageBuilder
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api
-from mofox_bus import (
+from mofox_wire import (
     MessageEnvelope,
     SegPayload,
     MessageInfoPayload,

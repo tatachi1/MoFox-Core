@@ -17,7 +17,7 @@ import orjson
 import websockets
 
 
-from mofox_bus import (
+from mofox_wire import (
     AdapterBase,
     InProcessCoreSink,
     MessageEnvelope,

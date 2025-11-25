@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Dict, Optional
 if TYPE_CHECKING:
     from src.plugin_system.base.base_adapter import BaseAdapter
 
-from mofox_bus import ProcessCoreSinkServer
+from mofox_wire import ProcessCoreSinkServer
 from src.common.logger import get_logger
 
 logger = get_logger("adapter_manager")
@@ -45,7 +45,7 @@ def _adapter_process_entry(
     """
     import asyncio
     import contextlib
-    from mofox_bus import ProcessCoreSink
+    from mofox_wire import ProcessCoreSink
 
     async def _run() -> None:
         adapter_cls = _load_class(*adapter_path)

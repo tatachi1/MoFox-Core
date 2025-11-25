@@ -1,7 +1,7 @@
 """
 统一消息处理器 (Message Handler)
 
-利用 mofox_bus.MessageRuntime 的路由功能，简化消息处理链条：
+利用 mofox_wire.MessageRuntime 的路由功能，简化消息处理链条：
 
 1. 使用 @runtime.on_message() 装饰器注册按消息类型路由的处理器
 2. 使用 before_hook 进行消息预处理（ID标准化、过滤等）
@@ -35,7 +35,7 @@ import traceback
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
-from mofox_bus import MessageEnvelope, MessageRuntime
+from mofox_wire import MessageEnvelope, MessageRuntime
 
 from src.chat.message_manager import message_manager
 from src.chat.message_receive.storage import MessageStorage

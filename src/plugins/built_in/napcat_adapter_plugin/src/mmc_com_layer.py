@@ -1,4 +1,4 @@
-from mofox_bus import RouteConfig, Router, TargetConfig
+from mofox_wire import RouteConfig, Router, TargetConfig
 
 from src.common.logger import get_logger
 from src.common.server import get_global_server

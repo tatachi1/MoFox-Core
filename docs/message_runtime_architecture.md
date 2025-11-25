@@ -1,6 +1,6 @@
 # MoFox Bot 消息运行时架构 (MessageRuntime)
 
-本文档描述了 MoFox Bot 使用 `mofox_bus.MessageRuntime` 简化消息处理链条的架构设计。
+本文档描述了 MoFox Bot 使用 `mofox_wire.MessageRuntime` 简化消息处理链条的架构设计。
 
 ## 架构概述
 
@@ -54,7 +54,7 @@ await manager.send_outgoing(envelope)
 
 ### 2. MessageRuntime
 
-`MessageRuntime` 是 mofox_bus 提供的消息路由核心，支持：
+`MessageRuntime` 是 mofox_wire 提供的消息路由核心，支持：
 
 - **消息路由**：通过 `add_route()` 或 `@on_message` 装饰器按消息类型路由
 - **钩子机制**：`before_hook`（前置处理）、`after_hook`（后置处理）、`error_hook`（错误处理）
@@ -148,7 +148,7 @@ class MessageHandler:
 
 ```python
 from src.common.core_sink_manager import get_message_runtime
-from mofox_bus import MessageEnvelope
+from mofox_wire import MessageEnvelope
 
 runtime = get_message_runtime()
 
@@ -216,7 +216,7 @@ async def initialize(self) -> None:
 
 ## 参考
 
-- `packages/mofox-bus/src/mofox_bus/runtime.py` - MessageRuntime 实现
+- `packages/mofox-wire/src/mofox_wire/runtime.py` - MessageRuntime 实现
 - `src/common/core_sink_manager.py` - CoreSinkManager 实现
 - `src/chat/message_receive/message_handler.py` - MessageHandler 实现
-- `docs/mofox_bus.md` - MoFox Bus 消息库说明
+- `docs/mofox_wire.md` - MoFox Bus 消息库说明

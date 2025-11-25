@@ -1,13 +1,13 @@
 # NEW_napcat_adapter
 
-基于 mofox-bus v2.x 的 Napcat 适配器（使用 BaseAdapter 架构）
+基于 mofox-wire v2.x 的 Napcat 适配器（使用 BaseAdapter 架构）
 
 ## 🏗️ 架构设计
 
-本插件采用 **BaseAdapter 继承模式** 重写，完全抛弃旧版 maim_message 库，改用 mofox-bus 的 TypedDict 数据结构。
+本插件采用 **BaseAdapter 继承模式** 重写，完全抛弃旧版 maim_message 库，改用 mofox-wire 的 TypedDict 数据结构。
 
 ### 核心组件
-- **NapcatAdapter**: 继承自 `mofox_bus.AdapterBase`，负责 OneBot 11 协议与 MessageEnvelope 的双向转换
+- **NapcatAdapter**: 继承自 `mofox_wire.AdapterBase`，负责 OneBot 11 协议与 MessageEnvelope 的双向转换
 - **WebSocketAdapterOptions**: 自动管理 WebSocket 连接，提供 incoming_parser 和 outgoing_encoder
 - **CoreMessageSink**: 通过 `InProcessCoreSink` 将消息递送到核心系统
 - **Handlers**: 独立的消息处理器，分为 to_core（接收）和 to_napcat（发送）两个方向
@@ -56,10 +56,10 @@ NEW_napcat_adapter/
 
 ## 🔑 核心数据结构
 
-### MessageEnvelope (mofox-bus v2.x)
+### MessageEnvelope (mofox-wire v2.x)
 
 ```python
-from mofox_bus import MessageEnvelope, SegPayload, MessageInfoPayload
+from mofox_wire import MessageEnvelope, SegPayload, MessageInfoPayload
 
 # 创建消息信封
 envelope: MessageEnvelope = {
@@ -249,13 +249,13 @@ class NapcatAdapter(BaseAdapter):
 
 ```python
 # ❌ 旧版（maim_message）
-from mofox_bus import Seg, MessageBase
+from mofox_wire import Seg, MessageBase
 
 seg = Seg(type="text", data="hello")
 message = MessageBase(message_info=info, message_segment=seg)
 
-# ✅ 新版（mofox-bus v2.x）
-from mofox_bus import SegPayload, MessageEnvelope
+# ✅ 新版（mofox-wire v2.x）
+from mofox_wire import SegPayload, MessageEnvelope
 
 seg_payload: SegPayload = {"type": "text", "data": "hello"}
 envelope: MessageEnvelope = {
@@ -359,8 +359,8 @@ async def from_platform_message(self, message: dict[str, Any]) -> MessageEnvelop
 
 ## 📚 参考资料
 
-- **mofox-bus 文档**: 查看 `mofox_bus/types.py` 了解 TypedDict 定义
-- **BaseAdapter 示例**: 参考 `docs/mofox_bus_demo_adapter.py`
+- **mofox-wire 文档**: 查看 `mofox_wire/types.py` 了解 TypedDict 定义
+- **BaseAdapter 示例**: 参考 `docs/mofox_wire_demo_adapter.py`
 - **旧版实现**: `src/plugins/built_in/napcat_adapter_plugin/` (仅参考逻辑)
 - **OneBot 11 协议**: [OneBot 11 标准](https://github.com/botuniverse/onebot-11)
 

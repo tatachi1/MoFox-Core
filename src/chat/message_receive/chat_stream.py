@@ -342,7 +342,7 @@ class ChatManager:
     def register_message(self, message: DatabaseMessages):
         """注册消息到聊天流"""
         # 从 DatabaseMessages 提取平台和用户/群组信息
-        from mofox_bus import GroupInfo, UserInfo
+        from mofox_wire import GroupInfo, UserInfo
 
         user_info = UserInfo(
             platform=message.user_info.platform,

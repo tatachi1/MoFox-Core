@@ -575,7 +575,7 @@ class ExperimentalConfig(ValidatedConfigBase):
 
 
 class MessageBusConfig(ValidatedConfigBase):
-    """mofox_bus 消息服务配置"""
+    """mofox_wire 消息服务配置"""
 
     use_custom: bool = Field(default=False, description="是否使用自定义地址")
     host: str = Field(default="127.0.0.1", description="消息服务主机")

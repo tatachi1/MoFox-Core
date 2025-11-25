@@ -1,14 +1,14 @@
 """消息处理工具模块
 将原 MessageRecv 的消息处理逻辑提取为独立函数，
-基于 mofox-bus 的 TypedDict 形式构建消息数据，然后转换为 DatabaseMessages
+基于 mofox-wire 的 TypedDict 形式构建消息数据，然后转换为 DatabaseMessages
 """
 import base64
 import time
 from typing import Any
 
 import orjson
-from mofox_bus import MessageEnvelope
-from mofox_bus.types import MessageInfoPayload, SegPayload, UserInfoPayload, GroupInfoPayload
+from mofox_wire import MessageEnvelope
+from mofox_wire.types import MessageInfoPayload, SegPayload, UserInfoPayload, GroupInfoPayload
 
 from src.chat.utils.self_voice_cache import consume_self_voice_text
 from src.chat.utils.utils_image import get_image_manager

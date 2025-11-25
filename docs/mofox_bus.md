@@ -2,7 +2,7 @@
 
 MoFox Bus 是 MoFox Bot 自研的统一消息中台，替换第三方 `maim_message`，将核心与各平台适配器之间的通信抽象成可拓展、可热插拔的组件。该库完全异步、面向高吞吐，覆盖消息建模、序列化、传输层、运行时路由、适配器工具等多个层面。
 
-> 现在已拆分为独立 pip 包：在项目根目录执行 `pip install -e ./packages/mofox-bus` 即可安装到当前 Python 环境。
+> 现在已拆分为独立 pip 包：在项目根目录执行 `pip install -e ./packages/mofox-wire` 即可安装到当前 Python 环境。
 
 ---
 
@@ -16,7 +16,7 @@ MoFox Bus 是 MoFox Bot 自研的统一消息中台，替换第三方 `maim_mess
 
 ---
 
-## 2. 包结构概览（`packages/mofox-bus/src/mofox_bus/`）
+## 2. 包结构概览（`packages/mofox-wire/src/mofox_wire/`）
 
 | 模块 | 主要职责 |
 | --- | --- |
@@ -115,15 +115,15 @@ TypedDict 更适合网络传输和依赖注入；dataclass 版 MessageBase 则�
 
 1. **配置文件**：在 `config.*.toml` 中新增 `[message_bus]` 段（参考 `template/bot_config_template.toml`），控制 host/port/token/wss 等。
 2. **服务启动**：`src/common/message/api.py` 中的 `get_global_api()` 已默认实例化 `MessageServer`，并将 token 写入服务器。
-3. **适配器更新**：所有使用原 `maim_message` 的模块已改为 `from mofox_bus import ...`，无需额外适配即可继续利用 `MessageBase` / `Router` API。
+3. **适配器更新**：所有使用原 `maim_message` 的模块已改为 `from mofox_wire import ...`，无需额外适配即可继续利用 `MessageBase` / `Router` API。
 
 ---
 
 ## 10. 快速上手示例
 
 ```python
-from mofox_bus import MessageRuntime, types
-from mofox_bus.transport import HttpMessageServer
+from mofox_wire import MessageRuntime, types
+from mofox_wire.transport import HttpMessageServer
 
 runtime = MessageRuntime()
 
@@ -140,7 +140,7 @@ app = server.make_app()  # 交给 aiohttp/uvicorn 运行
 
 **适配器 Skeleton：**
 ```python
-from mofox_bus import (
+from mofox_wire import (
     BaseAdapter,
     MessageEnvelope,
     WebSocketAdapterOptions,
@@ -174,7 +174,7 @@ class MyAdapter(BaseAdapter):
 - 如果传入 `WebSocketAdapterOptions`，BaseAdapter 会自动建立连接、监听、默认封装 `{"type":"message","payload":...}` 的标准 JSON，并允许通过 `outgoing_encoder` 自定义下行格式。
 - 如果传入 `HttpAdapterOptions`，BaseAdapter 会自动启动一个 aiohttp Webhook（`POST /adapter/messages`）并将收到的 JSON 批量投递给核心。
 
-> 完整的 WebSocket 适配器示例见 `examples/mofox_bus_demo_adapter.py`：演示了平台提供 WS 接口、适配器通过 `WebSocketAdapterOptions` 自动启动监听、接收/处理/回发的全过程，可直接运行观察日志。
+> 完整的 WebSocket 适配器示例见 `examples/mofox_wire_demo_adapter.py`：演示了平台提供 WS 接口、适配器通过 `WebSocketAdapterOptions` 自动启动监听、接收/处理/回发的全过程，可直接运行观察日志。
 
 ---
 

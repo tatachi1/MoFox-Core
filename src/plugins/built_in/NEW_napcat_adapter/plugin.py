@@ -17,7 +17,7 @@ from typing import Any, ClassVar, Dict, List, Optional
 import orjson
 import websockets
 
-from mofox_bus import CoreSink, MessageEnvelope, WebSocketAdapterOptions
+from mofox_wire import CoreSink, MessageEnvelope, WebSocketAdapterOptions
 from src.common.logger import get_logger
 from src.plugin_system import register_plugin
 from src.plugin_system.base import BaseAdapter, BasePlugin
@@ -33,7 +33,7 @@ logger = get_logger("napcat_adapter")
 
 
 class NapcatAdapter(BaseAdapter):
-    """Napcat 适配器 - 完全基于 mofox-bus 架构"""
+    """Napcat 适配器 - 完全基于 mofox-wire 架构"""
 
     adapter_name = "napcat_adapter"
     adapter_version = "2.0.0"
