@@ -572,13 +572,11 @@ class ComponentRegistry:
             self._components.pop(namespaced_name, None)
             self._components_by_type[component_type].pop(component_name, None)
             self._components_classes.pop(namespaced_name, None)
-            return False
+            return True
 
-        logger.debug(
-            f"已注册{component_type}组件: '{component_name}' -> '{namespaced_name}' "
-            f"({component_class.__name__}) [插件: {plugin_name}]"
-        )
-        return True
+        except Exception as e:
+            logger.error(f"移除组件 {component_name} 时发生错误: {e}")
+            return False
 
     # === 组件全局启用/禁用方法 ===
 
