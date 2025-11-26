@@ -348,7 +348,7 @@ class ChatterPlanFilter:
 
             # 获取真正的已读和未读消息
             read_messages = (
-                stream_context.context.history_messages
+                stream_context.history_messages
             )  # 已读消息存储在history_messages中
             if not read_messages:
                 from src.common.data_models.database_data_model import DatabaseMessages

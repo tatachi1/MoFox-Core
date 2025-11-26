@@ -57,7 +57,7 @@ class ChatStream:
         """转换为字典格式"""
         return {
             "stream_id": self.stream_id,
-            "platform": self.platform,
+            "platform": self.platform or "",
             "user_info": self.user_info.to_dict() if self.user_info else None,
             "group_info": self.group_info.to_dict() if self.group_info else None,
             "create_time": self.create_time,
@@ -81,7 +81,7 @@ class ChatStream:
 
         instance = cls(
             stream_id=data["stream_id"],
-            platform=data["platform"],
+            platform=data.get("platform", "") or "",
             user_info=user_info,  # type: ignore
             group_info=group_info,
             data=data,
@@ -342,9 +342,9 @@ class ChatManager:
     def register_message(self, message: DatabaseMessages):
         """注册消息到聊天流"""
         # 从 DatabaseMessages 提取平台和用户/群组信息
-        from mofox_wire import GroupInfo, UserInfo
+        from src.common.data_models.database_data_model import DatabaseGroupInfo, DatabaseUserInfo
 
-        user_info = UserInfo(
+        user_info = DatabaseUserInfo(
             platform=message.user_info.platform,
             user_id=message.user_info.user_id,
             user_nickname=message.user_info.user_nickname,
@@ -353,8 +353,8 @@ class ChatManager:
 
         group_info = None
         if message.group_info:
-            group_info = GroupInfo(
-                platform=message.group_info.group_platform or "",
+            group_info = DatabaseGroupInfo(
+                platform=message.group_info.platform or "",
                 group_id=message.group_info.group_id,
                 group_name=message.group_info.group_name
             )
@@ -595,14 +595,14 @@ class ChatManager:
                 user_info_d = s_data_dict.get("user_info")
                 group_info_d = s_data_dict.get("group_info")
                 fields_to_save = {
-                    "platform": s_data_dict["platform"],
+                    "platform": s_data_dict.get("platform", "") or "",
                     "create_time": s_data_dict["create_time"],
                     "last_active_time": s_data_dict["last_active_time"],
                     "user_platform": user_info_d["platform"] if user_info_d else "",
                     "user_id": user_info_d["user_id"] if user_info_d else "",
                     "user_nickname": user_info_d["user_nickname"] if user_info_d else "",
                     "user_cardname": user_info_d.get("user_cardname", "") if user_info_d else None,
-                    "group_platform": group_info_d["platform"] if group_info_d else "",
+                    "group_platform": group_info_d.get("platform", "") or "" if group_info_d else "",
                     "group_id": group_info_d["group_id"] if group_info_d else "",
                     "group_name": group_info_d["group_name"] if group_info_d else "",
                     "energy_value": s_data_dict.get("energy_value", 5.0),
@@ -636,7 +636,7 @@ class ChatManager:
             await _db_save_stream_async(stream_data_dict)
             stream.saved = True
         except Exception as e:
-            logger.error(f"保存聊天流 {stream.stream_id} 到数据库失败 (SQLAlchemy): {e}", exc_info=True)
+            logger.error(f"保存聊天流 {stream.stream_id} 到数据库失败 (SQLAlchemy): {e}")
 
     async def _save_all_streams(self):
         """保存所有聊天流"""

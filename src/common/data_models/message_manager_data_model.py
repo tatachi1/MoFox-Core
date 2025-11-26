@@ -508,13 +508,14 @@ class StreamContext(BaseDataModel):
             logger.debug(f"历史信息已初始化,stream={self.stream_id}, 当前条数={len(self.history_messages)}")
             return
 
-        logger.info(f"?? [历史加载] 开始从数据库读取历史消息: {self.stream_id}")
+        logger.info(f"[历史加载] 开始从数据库读取历史消息: {self.stream_id}")
         self._history_initialized = True
 
         try:
             logger.debug(f"开始加载数据库历史消息: {self.stream_id}")
 
             from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
+            from src.common.data_models.database_data_model import DatabaseMessages
 
             db_messages = await get_raw_msg_before_timestamp_with_chat(
                 chat_id=self.stream_id,

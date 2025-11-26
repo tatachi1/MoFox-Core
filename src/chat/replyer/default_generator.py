@@ -1809,7 +1809,7 @@ class DefaultReplyer:
             message_info["group_info"] = {
                 "group_id": self.chat_stream.group_info.group_id,
                 "group_name": self.chat_stream.group_info.group_name,
-                "platform": self.chat_stream.group_info.group_platform,
+                "platform": self.chat_stream.group_info.platform,
             }
 
         return {

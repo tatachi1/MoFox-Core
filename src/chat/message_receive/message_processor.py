@@ -494,7 +494,7 @@ def get_message_info_from_db_message(db_message: DatabaseMessages) -> MessageInf
     group_info: GroupInfoPayload | None = None
     if db_message.group_info:
         group_info = {
-            "platform": db_message.group_info.group_platform or "",
+            "platform": db_message.group_info.platform or "",
             "group_id": db_message.group_info.group_id,
             "group_name": db_message.group_info.group_name,
         }

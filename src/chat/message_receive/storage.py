@@ -161,11 +161,11 @@ class MessageStorageBatcher:
             if processed_plain_text:
                 processed_plain_text = await MessageStorage.replace_image_descriptions(processed_plain_text)
             filtered_processed_plain_text = re.sub(
-                pattern, processed_plain_text or "", flags=re.DOTALL
+                pattern, "", processed_plain_text or "", flags=re.DOTALL
             )
 
             display_message = message.display_message or message.processed_plain_text or ""
-            filtered_display_message = re.sub(pattern, display_message, flags=re.DOTALL)
+            filtered_display_message = re.sub(pattern, "", display_message, flags=re.DOTALL)
 
             msg_id = message.message_id
             msg_time = message.time
@@ -202,7 +202,7 @@ class MessageStorageBatcher:
             chat_info_user_id = message.chat_info.user_info.user_id if message.chat_info and message.chat_info.user_info else ""
             chat_info_user_nickname = message.chat_info.user_info.user_nickname if message.chat_info and message.chat_info.user_info else ""
             chat_info_user_cardname = message.chat_info.user_info.user_cardname if message.chat_info and message.chat_info.user_info else None
-            chat_info_group_platform = message.group_info.group_platform if message.group_info else None
+            chat_info_group_platform = message.group_info.platform if message.group_info else None
             chat_info_group_id = message.group_info.group_id if message.group_info else None
             chat_info_group_name = message.group_info.group_name if message.group_info else None
 

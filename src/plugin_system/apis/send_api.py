@@ -208,7 +208,7 @@ def _build_message_envelope(
         message_info["group_info"] = {
             "group_id": target_stream.group_info.group_id,
             "group_name": target_stream.group_info.group_name,
-            "platform": target_stream.group_info.group_platform,
+            "platform": target_stream.group_info.platform,
         }
 
     return {

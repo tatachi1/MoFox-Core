@@ -42,7 +42,7 @@ class DatabaseGroupInfo(BaseDataModel):
     """
     group_id: str = field(default_factory=str)  # 群组唯一标识 ID
     group_name: str = field(default_factory=str)  # 群组名称
-    group_platform: str | None = None  # 群组所在平台，可为空
+    platform: str | None = None  # 群组所在平台，可为空
 
     @classmethod
     def from_dict(cls, data: dict) -> "DatabaseGroupInfo":
@@ -50,7 +50,7 @@ class DatabaseGroupInfo(BaseDataModel):
         return cls(
             group_id=data.get("group_id", ""),
             group_name=data.get("group_name", ""),
-            group_platform=data.get("group_platform"),
+            platform=data.get("platform"),
         )
     
     def to_dict(self) -> dict:
@@ -58,7 +58,7 @@ class DatabaseGroupInfo(BaseDataModel):
         return {
             "group_id": self.group_id,
             "group_name": self.group_name,
-            "group_platform": self.group_platform,
+            "group_platform": self.platform,
         }
     
 @dataclass
@@ -168,7 +168,7 @@ class DatabaseMessages(BaseDataModel):
             self.group_info = DatabaseGroupInfo(
                 group_id=chat_info_group_id,
                 group_name=chat_info_group_name,
-                group_platform=chat_info_group_platform,
+                platform=chat_info_group_platform,
             )
 
         # 构建聊天信息对象
@@ -234,7 +234,7 @@ class DatabaseMessages(BaseDataModel):
             "user_platform": self.user_info.platform,
             "chat_info_group_id": self.group_info.group_id if self.group_info else None,
             "chat_info_group_name": self.group_info.group_name if self.group_info else None,
-            "chat_info_group_platform": self.group_info.group_platform if self.group_info else None,
+            "chat_info_group_platform": self.group_info.platform if self.group_info else None,
             "chat_info_stream_id": self.chat_info.stream_id,
             "chat_info_platform": self.chat_info.platform,
             "chat_info_create_time": self.chat_info.create_time,

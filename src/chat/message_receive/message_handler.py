@@ -41,7 +41,7 @@ from src.chat.message_manager import message_manager
 from src.chat.message_receive.storage import MessageStorage
 from src.chat.utils.prompt import global_prompt_manager
 from src.chat.utils.utils import is_mentioned_bot_in_message
-from src.common.data_models.database_data_model import DatabaseMessages
+from src.common.data_models.database_data_model import DatabaseMessages, DatabaseUserInfo, DatabaseGroupInfo
 from src.common.logger import get_logger
 from src.config.config import global_config
 from src.mood.mood_manager import mood_manager
@@ -226,7 +226,7 @@ class MessageHandler:
             logger.debug(f"消息处理流程控制: {exc}")
         else:
             message_id = envelope.get("message_info", {}).get("message_id", "UNKNOWN")
-            logger.error(f"处理消息 {message_id} 时出错: {exc}", exc_info=True)
+            logger.error(f"处理消息 {message_id} 时出错: {exc}")
 
     async def _handle_adapter_response_route(self, envelope: MessageEnvelope) -> MessageEnvelope | None:
         """
@@ -264,12 +264,12 @@ class MessageHandler:
             
             # 获取或创建聊天流
             platform = message_info.get("platform", "unknown")
-
+            
             from src.chat.message_receive.chat_stream import get_chat_manager
             chat = await get_chat_manager().get_or_create_stream(
                 platform=platform,
-                user_info=user_info,  # type: ignore
-                group_info=group_info,
+                user_info=DatabaseUserInfo.from_dict(user_info) if user_info else None,  # type: ignore
+                group_info=DatabaseGroupInfo.from_dict(group_info) if group_info else None,
             )
 
             # 将消息信封转换为 DatabaseMessages
