@@ -92,6 +92,8 @@ async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: st
 
     # 构造消息数据字典（基于 TypedDict 风格）
     message_time = message_info.get("time", time.time())
+    if isinstance(message_time,int):
+        message_time = float(message_time / 1000)
     message_id = message_info.get("message_id", "")
 
     # 处理 is_mentioned
@@ -215,15 +217,9 @@ async def _process_single_segment(
     
     try:
         if seg_type == "text":
-            state["is_picid"] = False
-            state["is_emoji"] = False
-            state["is_video"] = False
             return str(seg_data) if seg_data else ""
 
         elif seg_type == "at":
-            state["is_picid"] = False
-            state["is_emoji"] = False
-            state["is_video"] = False
             state["is_at"] = True
             # 处理at消息，格式为"@<昵称:QQ号>"
             if isinstance(seg_data, str):
@@ -242,8 +238,6 @@ async def _process_single_segment(
             if isinstance(seg_data, str):
                 state["has_picid"] = True
                 state["is_picid"] = True
-                state["is_emoji"] = False
-                state["is_video"] = False
                 image_manager = get_image_manager()
                 _, processed_text = await image_manager.process_image(seg_data)
                 return processed_text
@@ -252,18 +246,12 @@ async def _process_single_segment(
         elif seg_type == "emoji":
             state["has_emoji"] = True
             state["is_emoji"] = True
-            state["is_picid"] = False
-            state["is_voice"] = False
-            state["is_video"] = False
             if isinstance(seg_data, str):
                 return await get_image_manager().get_emoji_description(seg_data)
             return "[发了一个表情包，网卡了加载不出来]"
 
         elif seg_type == "voice":
-            state["is_picid"] = False
-            state["is_emoji"] = False
             state["is_voice"] = True
-            state["is_video"] = False
 
             # 检查消息是否由机器人自己发送
             user_info = message_info.get("user_info", {})
@@ -284,18 +272,11 @@ async def _process_single_segment(
             return "[发了一段语音，网卡了加载不出来]"
 
         elif seg_type == "mention_bot":
-            state["is_picid"] = False
-            state["is_emoji"] = False
-            state["is_voice"] = False
-            state["is_video"] = False
             if isinstance(seg_data, (int, float)):
                 state["is_mentioned"] = float(seg_data)
             return ""
 
         elif seg_type == "priority_info":
-            state["is_picid"] = False
-            state["is_emoji"] = False
-            state["is_voice"] = False
             if isinstance(seg_data, dict):
                 # 处理优先级信息
                 state["priority_mode"] = "priority"
@@ -310,9 +291,6 @@ async def _process_single_segment(
             return "[收到一个文件]"
 
         elif seg_type == "video":
-            state["is_picid"] = False
-            state["is_emoji"] = False
-            state["is_voice"] = False
             state["is_video"] = True
             logger.info(f"接收到视频消息，数据类型: {type(seg_data)}")
 

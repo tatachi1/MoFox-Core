@@ -110,7 +110,7 @@ class NapcatAdapter(BaseAdapter):
 
         logger.info("Napcat 适配器已关闭")
 
-    async def from_platform_message(self, raw: Dict[str, Any]) -> MessageEnvelope:  # type: ignore[override]
+    async def from_platform_message(self, raw: Dict[str, Any]) -> MessageEnvelope | None:  # type: ignore[override]
         """
         将 Napcat/OneBot 原始消息转换为 MessageEnvelope
         
@@ -144,7 +144,7 @@ class NapcatAdapter(BaseAdapter):
 
         # 未知事件类型
         else:
-            logger.warning(f"未知的事件类型: {post_type}")
+            return
 
     async def _send_platform_message(self, envelope: MessageEnvelope) -> None:  # type: ignore[override]
         """

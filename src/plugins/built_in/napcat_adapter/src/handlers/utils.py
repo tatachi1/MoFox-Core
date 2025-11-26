@@ -3,6 +3,7 @@ import base64
 import io
 import ssl
 import time
+import uuid
 import weakref
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
@@ -97,7 +98,9 @@ def _get_adapter(adapter: "NapcatAdapter | None" = None) -> "NapcatAdapter":
     if target is None and _adapter_ref:
         target = _adapter_ref()
     if target is None:
-        raise RuntimeError("NapcatAdapter 未注册，请确保已调用 utils.register_adapter 注册")
+        raise RuntimeError(
+            "NapcatAdapter 未注册，请确保已调用 utils.register_adapter 注册"
+        )
     return target
 
 
@@ -135,6 +138,14 @@ class SSLAdapter(urllib3.PoolManager):
         kwargs["ssl_context"] = context
         super().__init__(*args, **kwargs)
 
+
+async def get_respose(
+    action: str,
+    params: Dict[str, Any],
+    adapter: "NapcatAdapter | None" = None,
+    timeout: float = 30.0,
+):
+    return await _call_adapter_api(action, params, adapter=adapter, timeout=timeout)
 
 async def get_group_info(
     group_id: int,
@@ -317,7 +328,9 @@ async def get_stranger_info(
         if cached is not None:
             return cached
 
-    response = await _call_adapter_api("get_stranger_info", {"user_id": user_id}, adapter=adapter)
+    response = await _call_adapter_api(
+        "get_stranger_info", {"user_id": user_id}, adapter=adapter
+    )
     data = response.get("data") if response else None
     if data is not None and use_cache:
         await _set_cached("stranger_info", cache_key, data)
@@ -359,3 +372,40 @@ async def get_record_detail(
         timeout=30,
     )
     return response.get("data") if response else None
+
+
+async def get_forward_message(
+    raw_message: dict, *, adapter: "NapcatAdapter | None" = None
+) -> dict[str, Any] | None:
+    forward_message_data: dict = raw_message.get("data", {})
+    if not forward_message_data:
+        logger.warning("转发消息内容为空")
+        return None
+    forward_message_id = forward_message_data.get("id")
+
+    try:
+        response = await _call_adapter_api(
+            "get_forward_msg",
+            {"message_id": forward_message_id},
+            timeout=10.0,
+            adapter=adapter,
+        )
+        if response is None:
+            logger.error("获取转发消息失败，返回值为空")
+            return None
+    except TimeoutError:
+        logger.error("获取转发消息超时")
+        return None
+    except Exception as e:
+        logger.error(f"获取转发消息失败: {str(e)}")
+        return None
+    logger.debug(
+        f"转发消息原始格式：{orjson.dumps(response).decode('utf-8')[:80]}..."
+        if len(orjson.dumps(response).decode("utf-8")) > 80
+        else orjson.dumps(response).decode("utf-8")
+    )
+    response_data: Dict = response.get("data")
+    if not response_data:
+        logger.warning("转发消息内容为空或获取失败")
+        return None
+    return response_data.get("messages")
