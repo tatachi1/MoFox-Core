@@ -367,6 +367,7 @@ class BotInterestManager:
                     self.embedding_dimension,
                     current_dim,
                 )
+            return embedding
         else:
             raise RuntimeError(f"❌ 返回的embedding为空: {embedding}")
 
