@@ -19,7 +19,7 @@ import json5
 import orjson
 
 from src.common.logger import get_logger
-from src.plugin_system.apis import config_api, cross_context_api, person_api
+from src.plugin_system.apis import config_api, person_api
 
 from .content_service import ContentService
 from .cookie_service import CookieService
@@ -63,10 +63,7 @@ class QZoneService:
 
     async def send_feed(self, topic: str, stream_id: str | None) -> dict[str, Any]:
         """发送一条说说"""
-        # --- 获取互通组上下文 ---
-        context = await self._get_intercom_context(stream_id) if stream_id else None
-
-        story = await self.content_service.generate_story(topic, context=context)
+        story = await self.content_service.generate_story(topic, context=None)
         if not story:
             return {"success": False, "message": "生成说说内容失败"}
 
@@ -302,12 +299,6 @@ class QZoneService:
 
     # --- Internal Helper Methods ---
 
-    async def _get_intercom_context(self, stream_id: str) -> str | None:
-        """
-        获取互通组的聊天上下文。
-        """
-        # 实际的逻辑已迁移到 cross_context_api
-        return await cross_context_api.get_intercom_group_context("maizone_context_group")
 
     async def _reply_to_own_feed_comments(self, feed: dict, api_client: dict):
         """处理对自己说说的评论并进行回复"""
