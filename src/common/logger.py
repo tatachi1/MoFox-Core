@@ -674,6 +674,14 @@ DEFAULT_MODULE_COLORS = {
     "AioHTTP-Gemini客户端": "#5FD7FF",
     "napcat_adapter": "#5F87AF",  # 柔和的灰蓝色，不刺眼且低调
     "event_manager": "#5FD7AF",  # 柔和的蓝绿色，稍微醒目但不刺眼
+    # Kokoro Flow Chatter (KFC) 相关 - 超融合架构专用颜色
+    "kokoro_flow_chatter": "#FF5FAF",  # 粉紫色 - 主聊天器
+    "kokoro_prompt_generator": "#00D7FF",  # 青色 - Prompt构建
+    "kokoro_action_executor": "#FFFF00",  # 黄色 - 动作解析与执行
+    "kfc_context_builder": "#5FD7FF",  # 蓝色 - 上下文构建
+    "kfc_session_manager": "#87D787",  # 绿色 - 会话管理
+    "kfc_scheduler": "#D787AF",  # 柔和粉色 - 调度器
+    "kfc_post_processor": "#5F87FF",  # 蓝色 - 后处理
 }
 
 DEFAULT_MODULE_ALIASES = {
@@ -802,6 +810,14 @@ DEFAULT_MODULE_ALIASES = {
     "db_migration": "数据库迁移",
     "小彩蛋": "小彩蛋",
     "AioHTTP-Gemini客户端": "AioHTTP-Gemini客户端",
+    # Kokoro Flow Chatter (KFC) 超融合架构相关
+    "kokoro_flow_chatter": "心流聊天",
+    "kokoro_prompt_generator": "KFC提示词",
+    "kokoro_action_executor": "KFC动作",
+    "kfc_context_builder": "KFC上下文",
+    "kfc_session_manager": "KFC会话",
+    "kfc_scheduler": "KFC调度",
+    "kfc_post_processor": "KFC后处理",
 }
 
 

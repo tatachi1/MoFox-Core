@@ -1,5 +1,5 @@
 [inner]
-version = "7.9.0"
+version = "7.9.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -590,53 +590,44 @@ strong_mention_interest_score = 2.0 # 强提及的兴趣分（被@、被回复�
 weak_mention_interest_score = 0.8 # 弱提及的兴趣分（文本匹配bot名字或别名）
 base_relationship_score = 0.3 # 基础人物关系分
 
-[proactive_thinking] # 主动思考（主动发起对话）功能配置
+[proactive_thinking] # 主动思考（主动发起对话）功能配置 - 用于群聊和私聊（当KFC关闭时）
 # 详细配置说明请参考：docs/proactive_thinking_config_guide.md
 
 # --- 总开关 ---
 enable = true # 是否启用主动发起对话功能
 
 # --- 间隔配置 ---
-base_interval = 720 # 基础触发间隔（秒），默认12分钟
-min_interval = 360 # 最小触发间隔（秒），默认6分钟
-max_interval = 2880 # 最大触发间隔（秒），默认48分钟
+base_interval = 1800 # 基础触发间隔（秒），默认30分钟
+min_interval = 600 # 最小触发间隔（秒），默认10分钟。兴趣分数高时会接近此值
+max_interval = 7200 # 最大触发间隔（秒），默认2小时。兴趣分数低时会接近此值
 
-# 动态调整配置
-use_interest_score = true # 是否根据兴趣分数动态调整间隔
-interest_score_factor = 2.0 # 兴趣分数影响因子（1.0-3.0）
-# 公式: interval = base_interval * (interest_score_factor - interest_score)
-# 例如: interest_score=0.8, factor=2.0 -> interval = 1800 * 1.2 = 2160秒(36分钟)
+# --- 动态调整配置 ---
+use_interest_score = true # 是否根据兴趣分数动态调整间隔。关闭则使用固定base_interval
+interest_score_factor = 2.0 # 兴趣分数影响因子。公式: interval = base * (factor - score)
 
 # --- 黑白名单配置 ---
-whitelist_mode = false # 是否启用白名单模式（启用后只对白名单中的聊天流生效）
-blacklist_mode = false # 是否启用黑名单模式（启用后排除黑名单中的聊天流）
+whitelist_mode = false # 是否启用白名单模式。启用后只对白名单中的聊天流生效
+blacklist_mode = false # 是否启用黑名单模式。启用后排除黑名单中的聊天流
 
-# 白名单配置（示例格式）
 whitelist_private = [] # 私聊白名单，格式: ["qq:12345:private"]
 whitelist_group = [] # 群聊白名单，格式: ["qq:123456:group"]
-
-# 黑名单配置（示例格式）
 blacklist_private = [] # 私聊黑名单，格式: ["qq:12345:private"]
 blacklist_group = [] # 群聊黑名单，格式: ["qq:999999:group"]
-
-# --- 作用范围 ---
-enable_in_private = true # 是否允许在私聊中主动发起对话
-enable_in_group = true # 是否允许在群聊中主动发起对话
 
 # --- 兴趣分数阈值 ---
 min_interest_score = 0.0 # 最低兴趣分数阈值，低于此值不会主动思考
 max_interest_score = 1.0 # 最高兴趣分数阈值，高于此值不会主动思考
 
 # --- 时间策略配置 ---
-enable_time_strategy = true # 是否启用时间策略（根据时段调整频率）
+enable_time_strategy = false # 是否启用时间策略（根据时段调整频率）
 quiet_hours_start = "00:00" # 安静时段开始时间，格式: "HH:MM"
 quiet_hours_end = "07:00" # 安静时段结束时间，格式: "HH:MM"
 active_hours_multiplier = 0.7 # 活跃时段间隔倍数，<1表示更频繁，>1表示更稀疏
 
 # --- 冷却与限制 ---
-reply_reset_enabled = true # bot回复后是否重置定时器（避免回复后立即又主动发言）
-topic_throw_cooldown = 3600 # 主动发言后的冷却时间（秒），期间暂停主动思考，等待用户回复。0表示不暂停，继续主动思考
-max_daily_proactive = 3 # 每个聊天流每天最多主动发言次数，0表示不限制
+reply_reset_enabled = true # bot回复后是否重置定时器
+topic_throw_cooldown = 3600 # 抛出话题后的冷却时间（秒）
+max_daily_proactive = 0 # 每个聊天流每天最多主动发言次数，0表示不限制
 
 # --- 决策权重配置 ---
 do_nothing_weight = 0.4 # do_nothing动作的基础权重
@@ -644,5 +635,38 @@ simple_bubble_weight = 0.3 # simple_bubble动作的基础权重
 throw_topic_weight = 0.3 # throw_topic动作的基础权重
 
 # --- 调试与监控 ---
-enable_statistics = false # 是否启用统计功能（记录触发次数、决策分布等）
-log_decisions = false # 是否记录每次决策的详细日志（用于调试）
+enable_statistics = true # 是否启用统计功能
+log_decisions = false # 是否记录每次决策的详细日志
+
+# ==================== Kokoro Flow Chatter (心流聊天器) 配置 ====================
+# KFC是专为私聊设计的深度情感交互处理器。
+# 注意：这是一个可选的聊天模式，关闭后私聊将由默认的AFC处理（使用上面的proactive_thinking配置）。
+# 核心理念：KFC不是独立人格，它复用全局的人设、情感框架和回复模型。
+
+[kokoro_flow_chatter]
+# --- 总开关 ---
+# 开启后，KFC将接管所有私聊消息；关闭后，私聊消息将由AFC处理。
+enable = true
+
+# --- 核心行为配置 ---
+max_wait_seconds_default = 300 # 默认的最大等待秒数（AI发送消息后愿意等待用户回复的时间）
+enable_continuous_thinking = true # 是否在等待期间启用心理活动更新
+
+# --- 私聊专属主动思考配置 ---
+# 注意：这是KFC专属的主动思考配置，只有当KFC启用时才生效。
+# 它旨在模拟更真实、情感驱动的互动，而非简单的定时任务。
+[kokoro_flow_chatter.proactive_thinking]
+enabled = true # 是否启用KFC的私聊主动思考。
+
+# 1. 沉默触发器：当感到长久的沉默时，她可能会想说些什么。
+silence_threshold_seconds = 7200 # 用户沉默超过此时长（秒），可能触发主动思考（默认2小时）。
+
+# 2. 关系门槛：她不会对不熟悉的人过于主动。
+min_affinity_for_proactive = 0.3 # 需要达到最低好感度，她才会开始主动关心。
+
+# 3. 频率呼吸：为了避免打扰，她的关心总是有间隔的。
+min_interval_between_proactive = 1800 # 两次主动思考之间的最小间隔（秒，默认30分钟）。
+
+# 4. 自然问候：在特定的时间，她会像朋友一样送上问候。
+enable_morning_greeting = true # 是否启用早安问候 (例如: 8:00 - 9:00)。
+enable_night_greeting = true # 是否启用晚安问候 (例如: 22:00 - 23:00)。

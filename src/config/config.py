@@ -25,6 +25,7 @@ from src.config.official_configs import (
     EmojiConfig,
     ExperimentalConfig,
     ExpressionConfig,
+    KokoroFlowChatterConfig,
     LPMMKnowledgeConfig,
     MessageBusConfig,
     MemoryConfig,
@@ -424,6 +425,9 @@ class Config(ValidatedConfigBase):
     affinity_flow: AffinityFlowConfig = Field(default_factory=lambda: AffinityFlowConfig(), description="亲和流配置")
     proactive_thinking: ProactiveThinkingConfig = Field(
         default_factory=lambda: ProactiveThinkingConfig(), description="主动思考配置"
+    )
+    kokoro_flow_chatter: KokoroFlowChatterConfig = Field(
+        default_factory=lambda: KokoroFlowChatterConfig(), description="心流对话系统配置（私聊专用）"
     )
     plugin_http_system: PluginHttpSystemConfig = Field(
         default_factory=lambda: PluginHttpSystemConfig(), description="插件HTTP端点系统配置"
