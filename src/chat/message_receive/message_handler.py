@@ -134,7 +134,6 @@ class MessageHandler:
             predicate=_is_adapter_response,
             handler=self._handle_adapter_response_route,
             name="adapter_response_handler",
-            message_type="adapter_response",
             priority=100
         )
 
@@ -153,7 +152,6 @@ class MessageHandler:
             predicate=_is_notice_message,
             handler=self._handle_notice_message,
             name="notice_message_handler",
-            message_type="notice",
             priority=90
         )
 
