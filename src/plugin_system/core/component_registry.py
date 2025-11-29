@@ -32,7 +32,6 @@ from src.plugin_system.base.component_types import (
     PluginInfo,
     PlusCommandInfo,
     PromptInfo,
-    RouterInfo,
     ToolInfo,
 )
 from src.plugin_system.base.plus_command import PlusCommand, create_legacy_command_adapter
@@ -161,16 +160,10 @@ class ComponentRegistry:
         self._mcp_tools: list[Any] = []  # 存储 MCP 工具适配器实例
         self._mcp_tools_loaded = False  # 标记 MCP 工具是否已加载
 
-        # --- 局部状态管理 ---
-        # 局部组件状态管理器，用于在特定会话中临时覆盖全局状态
-        # 结构: {stream_id: {(component_name, component_type): enabled}}
-        self._local_component_states: dict[str, dict[tuple[str, ComponentType], bool]] = {}
-        # 定义不支持局部状态管理的组件类型集合
-        self._no_local_state_types: set[ComponentType] = {
-            ComponentType.ROUTER,  # 路由组件需要全局一致性
-            ComponentType.EVENT_HANDLER,  # 事件处理器需要全局一致性
-            ComponentType.PROMPT,  # 提示词组件需要全局一致性
-        }
+        # --- 状态管理器 ---
+        # 延迟导入以避免循环依赖
+        from src.plugin_system.core.component_state_manager import ComponentStateManager
+        self._state_manager = ComponentStateManager(self)
 
         logger.info("组件注册中心初始化完成")
 
@@ -598,6 +591,7 @@ class ComponentRegistry:
 
     # =================================================================
     # == 组件状态管理 (Component State Management)
+    # == 委托给 ComponentStateManager 处理
     # =================================================================
 
     def enable_component(self, component_name: str, component_type: ComponentType) -> bool:
@@ -611,43 +605,7 @@ class ComponentRegistry:
         Returns:
             启用成功返回 True，失败返回 False
         """
-        target_class = self.get_component_class(component_name, component_type)
-        target_info = self.get_component_info(component_name, component_type)
-        if not target_class or not target_info:
-            logger.warning(f"组件 {component_name} 未注册，无法启用")
-            return False
-
-        # 更新通用注册表中的状态
-        target_info.enabled = True
-        namespaced_name = f"{component_type.value}.{component_name}"
-        self._components[namespaced_name].enabled = True
-        self._components_by_type[component_type][component_name].enabled = True
-
-        # 更新特定类型的启用列表
-        match component_type:
-            case ComponentType.ACTION:
-                self._default_actions[component_name] = cast(ActionInfo, target_info)
-            case ComponentType.TOOL:
-                self._llm_available_tools[component_name] = cast(type[BaseTool], target_class)
-            case ComponentType.EVENT_HANDLER:
-                self._enabled_event_handlers[component_name] = cast(type[BaseEventHandler], target_class)
-                # 重新注册事件处理器
-                from .event_manager import event_manager
-                event_manager.register_event_handler(
-                    cast(type[BaseEventHandler], target_class),
-                    self.get_plugin_config(target_info.plugin_name) or {}
-                )
-            case ComponentType.CHATTER:
-                self._enabled_chatter_registry[component_name] = cast(type[BaseChatter], target_class)
-            case ComponentType.INTEREST_CALCULATOR:
-                self._enabled_interest_calculator_registry[component_name] = cast(
-                    type[BaseInterestCalculator], target_class
-                )
-            case ComponentType.PROMPT:
-                self._enabled_prompt_registry[component_name] = cast(type[BasePrompt], target_class)
-
-        logger.info(f"组件 {component_name} ({component_type.value}) 已全局启用")
-        return True
+        return self._state_manager.enable_component(component_name, component_type)
 
     async def disable_component(self, component_name: str, component_type: ComponentType) -> bool:
         """
@@ -660,46 +618,10 @@ class ComponentRegistry:
         Returns:
             禁用成功返回 True，失败返回 False
         """
-        target_info = self.get_component_info(component_name, component_type)
-        if not target_info:
-            logger.warning(f"组件 {component_name} 未注册，无法禁用")
-            return False
-
-        # 更新通用注册表中的状态
-        target_info.enabled = False
-        namespaced_name = f"{component_type.value}.{component_name}"
-        if namespaced_name in self._components:
-            self._components[namespaced_name].enabled = False
-        if component_name in self._components_by_type[component_type]:
-            self._components_by_type[component_type][component_name].enabled = False
-
-        try:
-            # 从特定类型的启用列表中移除
-            match component_type:
-                case ComponentType.ACTION:
-                    self._default_actions.pop(component_name, None)
-                case ComponentType.TOOL:
-                    self._llm_available_tools.pop(component_name, None)
-                case ComponentType.EVENT_HANDLER:
-                    self._enabled_event_handlers.pop(component_name, None)
-                    # 从事件管理器中取消订阅
-                    from .event_manager import event_manager
-                    event_manager.remove_event_handler(component_name)
-                case ComponentType.CHATTER:
-                    self._enabled_chatter_registry.pop(component_name, None)
-                case ComponentType.INTEREST_CALCULATOR:
-                    self._enabled_interest_calculator_registry.pop(component_name, None)
-                case ComponentType.PROMPT:
-                    self._enabled_prompt_registry.pop(component_name, None)
-
-            logger.info(f"组件 {component_name} ({component_type.value}) 已全局禁用")
-            return True
-        except Exception as e:
-            logger.error(f"禁用组件时发生错误: {e}", exc_info=True)
-            return False
+        return await self._state_manager.disable_component(component_name, component_type)
 
     # =================================================================
-    # == 局部状态管理 (Local State Management) - 用于会话级别控制
+    # == 局部状态管理 (Local State Management) - 委托给 ComponentStateManager
     # =================================================================
 
     def set_local_component_state(
@@ -719,22 +641,7 @@ class ComponentRegistry:
         Returns:
             设置成功返回 True，如果组件类型不支持局部状态则返回 False
         """
-        # 检查组件类型是否支持局部状态
-        if component_type in self._no_local_state_types:
-            logger.warning(f"组件类型 {component_type.value} 不支持局部状态管理")
-            return False
-
-        # 初始化该会话的状态字典（如果不存在）
-        if stream_id not in self._local_component_states:
-            self._local_component_states[stream_id] = {}
-
-        # 设置局部状态
-        self._local_component_states[stream_id][(component_name, component_type)] = enabled
-        logger.debug(
-            f"已为 stream '{stream_id}' 设置局部状态: "
-            f"{component_name} ({component_type.value}) -> {'启用' if enabled else '禁用'}"
-        )
-        return True
+        return self._state_manager.set_local_component_state(stream_id, component_name, component_type, enabled)
 
     def clear_local_component_states(self, stream_id: str) -> None:
         """
@@ -745,7 +652,7 @@ class ComponentRegistry:
         Args:
             stream_id: 要清除状态的会话ID
         """
-        self._local_component_states.pop(stream_id, None)
+        self._state_manager.clear_local_component_states(stream_id)
 
     def is_component_available(
         self, component_name: str, component_type: ComponentType, stream_id: str | None = None
@@ -766,24 +673,7 @@ class ComponentRegistry:
         Returns:
             如果组件可用则返回 True
         """
-        component_info = self.get_component_info(component_name, component_type)
-        
-        # 1. 检查组件是否存在
-        if not component_info:
-            return False
-
-        # 2. 不支持局部状态的类型，直接返回全局状态
-        if component_type in self._no_local_state_types:
-            return component_info.enabled
-
-        # 3. 如果提供了 stream_id，检查是否存在局部状态覆盖
-        if stream_id and stream_id in self._local_component_states:
-            local_state = self._local_component_states[stream_id].get((component_name, component_type))
-            if local_state is not None:
-                return local_state  # 局部状态存在，直接返回
-
-        # 4. 如果没有局部状态覆盖，返回全局状态
-        return component_info.enabled
+        return self._state_manager.is_component_available(component_name, component_type, stream_id)
 
     # =================================================================
     # == 组件查询方法 (Component Query Methods)
@@ -999,8 +889,19 @@ class ComponentRegistry:
         return self._event_handler_registry.copy()
 
     def get_enabled_event_handlers(self) -> dict[str, type[BaseEventHandler]]:
-        """获取所有已启用的 EventHandler 类。"""
-        return self._enabled_event_handlers.copy()
+        """
+        获取所有已启用的 EventHandler 类。
+
+        会检查组件的全局启用状态。
+
+        Returns:
+            可用的 EventHandler 名称到类的字典
+        """
+        return {
+            name: cls
+            for name, cls in self._event_handler_registry.items()
+            if self.is_component_available(name, ComponentType.EVENT_HANDLER)
+        }
 
     def get_registered_event_handler_info(self, handler_name: str) -> EventHandlerInfo | None:
         """
@@ -1055,8 +956,19 @@ class ComponentRegistry:
         return self._interest_calculator_registry.copy()
 
     def get_enabled_interest_calculator_registry(self) -> dict[str, type[BaseInterestCalculator]]:
-        """获取所有已启用的 InterestCalculator 类。"""
-        return self._enabled_interest_calculator_registry.copy()
+        """
+        获取所有已启用的 InterestCalculator 类。
+
+        会检查组件的全局启用状态。
+
+        Returns:
+            可用的 InterestCalculator 名称到类的字典
+        """
+        return {
+            name: cls
+            for name, cls in self._interest_calculator_registry.items()
+            if self.is_component_available(name, ComponentType.INTEREST_CALCULATOR)
+        }
 
     # --- Prompt ---
     def get_prompt_registry(self) -> dict[str, type[BasePrompt]]:
@@ -1064,8 +976,19 @@ class ComponentRegistry:
         return self._prompt_registry.copy()
 
     def get_enabled_prompt_registry(self) -> dict[str, type[BasePrompt]]:
-        """获取所有已启用的 Prompt 类。"""
-        return self._enabled_prompt_registry.copy()
+        """
+        获取所有已启用的 Prompt 类。
+
+        会检查组件的全局启用状态。
+
+        Returns:
+            可用的 Prompt 名称到类的字典
+        """
+        return {
+            name: cls
+            for name, cls in self._prompt_registry.items()
+            if self.is_component_available(name, ComponentType.PROMPT)
+        }
 
     # --- Adapter ---
     def get_adapter_registry(self) -> dict[str, type[BaseAdapter]]:

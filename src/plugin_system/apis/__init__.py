@@ -8,6 +8,7 @@
 from src.plugin_system.apis import (
     chat_api,
     component_manage_api,
+    component_state_api,
     config_api,
     database_api,
     emoji_api,
@@ -17,6 +18,7 @@ from src.plugin_system.apis import (
     mood_api,
     permission_api,
     person_api,
+    plugin_info_api,
     plugin_manage_api,
     schedule_api,
     send_api,
@@ -31,6 +33,7 @@ from .plugin_register_api import register_plugin
 __all__ = [
     "chat_api",
     "component_manage_api",
+    "component_state_api",
     "config_api",
     "context_api",
     "database_api",
@@ -42,6 +45,7 @@ __all__ = [
     "mood_api",
     "permission_api",
     "person_api",
+    "plugin_info_api",
     "plugin_manage_api",
     "register_plugin",
     "schedule_api",

@@ -12,6 +12,8 @@ from src.chat.utils.prompt_component_manager import prompt_component_manager
 from src.chat.utils.prompt_params import PromptParameters
 from src.plugin_system.apis import (
     chat_api,
+    component_state_api,
+    plugin_info_api,
     plugin_manage_api,
 )
 from src.plugin_system.apis.logging_api import get_logger
@@ -434,7 +436,7 @@ class SystemCommand(PlusCommand):
     @require_permission("plugin.manage", deny_message="❌ 你没有权限查看插件报告")
     async def _show_system_report(self):
         """显示系统插件报告"""
-        report = plugin_manage_api.get_system_report()
+        report = plugin_info_api.get_system_report()
         
         response_parts = [
             "📊 **系统插件报告**",
@@ -509,7 +511,7 @@ class SystemCommand(PlusCommand):
         stream_id = self.message.chat_info.stream_id  # 默认作用于当前会话
 
         # 1. 搜索组件
-        found_components = plugin_manage_api.search_components_by_name(comp_name, exact_match=True)
+        found_components = plugin_info_api.search_components_by_name(comp_name, exact_match=True)
 
         if not found_components:
             await self.send_text(f"❌ 未找到名为 '{comp_name}' 的组件。")
@@ -563,7 +565,7 @@ class SystemCommand(PlusCommand):
             stream_id = target_stream.stream_id
 
         # 4. 执行操作
-        success = plugin_manage_api.set_component_enabled_local(
+        success = component_state_api.set_component_enabled_local(
             stream_id=stream_id,
             name=comp_name,
             component_type=component_type,
