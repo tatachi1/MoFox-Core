@@ -984,7 +984,7 @@ class SystemCommand(PlusCommand):
 @register_plugin
 class SystemManagementPlugin(BasePlugin):
     plugin_name: str = "system_management"
-    enable_plugin: bool = True
+    enable_plugin: bool = False
     dependencies: ClassVar[list[str]] = []  # 插件依赖列表
     python_dependencies: ClassVar[list[str]] = []  # Python包依赖列表，现在使用内置API
     config_file_name: str = "config.toml"  # 配置文件名
