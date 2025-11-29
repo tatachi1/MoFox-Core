@@ -69,8 +69,8 @@ class EmotionalState:
         engagement_level: 投入程度，0.0-1.0，表示对当前对话的关注度
         last_update_time: 最后更新时间戳
     """
-    mood: str = "neutral"
-    mood_intensity: float = 0.5
+    mood: str = "平静"  # V7: 改为中文"平静"，更自然
+    mood_intensity: float = 0.3  # V7: 默认低强度，避免无厘头的强烈情绪
     relationship_warmth: float = 0.5
     impression_of_user: str = ""
     anxiety_level: float = 0.0
@@ -227,6 +227,10 @@ class KokoroSession:
     last_proactive_at: Optional[float] = None  # 上次主动思考的时间
     proactive_count: int = 0  # 主动思考的次数（累计）
     
+    # V7: 连续等待追问限制（防止用户不回复时连续追问）
+    consecutive_followup_count: int = 0  # 用户没回复时连续追问的次数
+    max_consecutive_followups: int = 2  # 最多允许连续追问2次
+    
     def add_mental_log_entry(self, entry: MentalLogEntry, max_log_size: int = 100) -> None:
         """
         添加心理活动日志条目
@@ -291,6 +295,8 @@ class KokoroSession:
             "last_continuous_thinking_at": self.last_continuous_thinking_at,
             "last_proactive_at": self.last_proactive_at,
             "proactive_count": self.proactive_count,
+            "consecutive_followup_count": self.consecutive_followup_count,
+            "max_consecutive_followups": self.max_consecutive_followups,
         }
     
     @classmethod
@@ -329,6 +335,8 @@ class KokoroSession:
             last_continuous_thinking_at=data.get("last_continuous_thinking_at"),
             last_proactive_at=data.get("last_proactive_at"),
             proactive_count=data.get("proactive_count", 0),
+            consecutive_followup_count=data.get("consecutive_followup_count", 0),
+            max_consecutive_followups=data.get("max_consecutive_followups", 2),
         )
 
 

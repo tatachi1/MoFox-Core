@@ -389,14 +389,14 @@ class KFCContextBuilder:
                     remaining_minutes = (end_time - now).total_seconds() / 60
                     
                     return (
-                        f"你当前正在进行「{activity}」，"
-                        f"从{start_time.strftime('%H:%M')}开始，预计{end_time.strftime('%H:%M')}结束。"
+                        f"你当前正在「{activity}」，"
+                        f"从{start_time.strftime('%H:%M')}开始，预计{end_time.strftime('%H:%M')}结束，"
                         f"已进行{duration_minutes:.0f}分钟，还剩约{remaining_minutes:.0f}分钟。"
                     )
                 except (ValueError, AttributeError):
                     pass
             
-            return f"你当前正在进行「{activity}」。"
+            return f"你当前正在「{activity}」"
             
         except Exception as e:
             logger.error(f"构建日程块失败: {e}")

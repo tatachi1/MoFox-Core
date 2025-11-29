@@ -88,6 +88,14 @@ class KokoroFlowChatter(BaseChatter):
         # 并发控制
         self._lock = asyncio.Lock()
         
+        # V7: 打断机制（类似S4U的已读/未读，这里是已处理/未处理）
+        self._current_task: Optional[asyncio.Task] = None  # 当前正在执行的任务
+        self._interrupt_requested: bool = False  # 是否请求打断
+        self._interrupt_wait_seconds: float = 3.0  # 被打断后等待新消息的时间
+        self._last_interrupt_time: float = 0.0  # 上次被打断的时间
+        self._pending_message_ids: set[str] = set()  # 未处理的消息ID集合（被打断时保留）
+        self._current_processing_message_id: Optional[str] = None  # 当前正在处理的消息ID
+        
         # 统计信息
         self.stats = {
             "messages_processed": 0,
@@ -95,6 +103,7 @@ class KokoroFlowChatter(BaseChatter):
             "successful_responses": 0,
             "failed_responses": 0,
             "timeout_decisions": 0,
+            "interrupts": 0,  # V7: 打断次数统计
         }
         self.last_activity_time = time.time()
         
@@ -154,31 +163,89 @@ class KokoroFlowChatter(BaseChatter):
         """
         执行聊天处理逻辑（BaseChatter接口实现）
         
+        V7升级：实现打断机制（类似S4U的已读/未读机制）
+        - 如果当前有任务在执行，新消息会请求打断
+        - 被打断时，当前处理的消息会被标记为"未处理"（pending）
+        - 下次处理时，会合并所有pending消息 + 新消息一起处理
+        - 这样被打断的消息不会丢失，上下文关联性得以保持
+        
         Args:
             context: StreamContext对象，包含聊天上下文信息
             
         Returns:
             处理结果字典
         """
+        # V7: 检查是否需要打断当前任务
+        if self._current_task and not self._current_task.done():
+            logger.info(f"[KFC] 收到新消息，请求打断当前任务: {self.stream_id}")
+            self._interrupt_requested = True
+            self.stats["interrupts"] += 1
+            
+            # 返回一个特殊结果表示请求打断
+            # 注意：当前正在处理的消息会在被打断时自动加入 pending 列表
+            return self._build_result(
+                success=True,
+                message="interrupt_requested",
+                interrupted=True
+            )
+        
+        # V7: 检查是否需要等待（刚被打断过，等待用户可能的连续输入）
+        time_since_interrupt = time.time() - self._last_interrupt_time
+        if time_since_interrupt < self._interrupt_wait_seconds and self._last_interrupt_time > 0:
+            wait_remaining = self._interrupt_wait_seconds - time_since_interrupt
+            logger.info(f"[KFC] 刚被打断，等待 {wait_remaining:.1f}s 收集更多消息: {self.stream_id}")
+            await asyncio.sleep(wait_remaining)
+        
         async with self._lock:
             try:
                 self.last_activity_time = time.time()
+                self._interrupt_requested = False
                 
-                # 获取未读消息（提前获取用于动作筛选）
+                # 创建任务以便可以被打断
+                self._current_task = asyncio.current_task()
+                
+                # V7: 获取所有未读消息
+                # 注意：被打断的消息不会被标记为已读，所以仍然在 unread 列表中
                 unread_messages = context.get_unread_messages()
                 
                 if not unread_messages:
                     logger.debug(f"[KFC] 没有未读消息: {self.stream_id}")
                     return self._build_result(success=True, message="no_unread_messages")
                 
-                # 处理最后一条消息
+                # V7: 记录是否有 pending 消息（被打断时遗留的）
+                pending_count = len(self._pending_message_ids)
+                if pending_count > 0:
+                    # 日志：显示有多少消息是被打断后重新处理的
+                    new_count = sum(1 for msg in unread_messages 
+                                    if str(msg.message_id) not in self._pending_message_ids)
+                    logger.info(
+                        f"[KFC] 打断恢复: 正在处理 {len(unread_messages)} 条消息 "
+                        f"({pending_count} 条pending + {new_count} 条新消息): {self.stream_id}"
+                    )
+                
+                # 以最后一条消息为主消息（用于动作筛选和主要响应）
                 target_message = unread_messages[-1]
+                
+                # 记录当前正在处理的消息ID（用于被打断时标记为pending）
+                self._current_processing_message_id = str(target_message.message_id)
+                
                 message_content = self._extract_message_content(target_message)
                 
                 # V2: 加载可用动作（动态动作发现）
                 await self.action_executor.load_actions()
                 raw_action_count = len(self.action_executor.get_available_actions())
                 logger.debug(f"[KFC] 原始加载 {raw_action_count} 个动作")
+                
+                # V7: 在动作筛选前检查是否被打断
+                if self._interrupt_requested:
+                    logger.info(f"[KFC] 动作筛选前被打断: {self.stream_id}")
+                    # 将当前处理的消息加入pending列表，下次一起处理
+                    if self._current_processing_message_id:
+                        self._pending_message_ids.add(self._current_processing_message_id)
+                        logger.info(f"[KFC] 消息 {self._current_processing_message_id} 加入pending列表")
+                    self._last_interrupt_time = time.time()
+                    self._current_processing_message_id = None
+                    return self._build_result(success=True, message="interrupted")
                 
                 # V6: 使用ActionModifier筛选动作（复用AFC的三阶段筛选逻辑）
                 # 阶段0: 聊天类型过滤（私聊/群聊）
@@ -197,8 +264,13 @@ class KokoroFlowChatter(BaseChatter):
                     f"(筛除 {raw_action_count - len(available_actions)} 个)"
                 )
                 
-                # 执行核心处理流程（传递筛选后的动作）
-                result = await self._handle_message(target_message, context, available_actions)
+                # 执行核心处理流程（传递筛选后的动作，V7: 传递所有未读消息）
+                result = await self._handle_message(
+                    target_message, 
+                    context, 
+                    available_actions,
+                    all_unread_messages=unread_messages,  # V7: 传递所有未读消息
+                )
                 
                 # 更新统计
                 self.stats["messages_processed"] += 1
@@ -217,23 +289,28 @@ class KokoroFlowChatter(BaseChatter):
                     message=str(e),
                     error=True
                 )
+            finally:
+                self._current_task = None
     
     async def _handle_message(
         self,
         message: "DatabaseMessages",
         context: StreamContext,
         available_actions: dict | None = None,
+        all_unread_messages: list | None = None,  # V7: 所有未读消息（包含pending的）
     ) -> dict:
         """
         处理单条消息的核心逻辑
         
         实现"体验 -> 决策 -> 行动"的交互模式
         V5超融合：集成S4U所有上下文模块
+        V7升级：支持处理多条消息（打断机制合并pending消息）
         
         Args:
-            message: 要处理的消息
+            message: 要处理的主消息（最新的那条）
             context: 聊天上下文
             available_actions: 可用动作字典（V2新增）
+            all_unread_messages: 所有未读消息列表（V7新增，包含pending消息）
             
         Returns:
             处理结果字典
@@ -252,7 +329,9 @@ class KokoroFlowChatter(BaseChatter):
         # 4. 如果之前在等待，结束等待状态
         if old_status == SessionStatus.WAITING:
             session.end_waiting()
-            logger.debug(f"[KFC] 收到消息，结束等待: user={user_id}")
+            # V7: 用户回复了，重置连续追问计数
+            session.consecutive_followup_count = 0
+            logger.debug(f"[KFC] 收到消息，结束等待，重置追问计数: user={user_id}")
         
         # 5. V5超融合：构建S4U上下文数据
         chat_stream = await self._get_chat_stream()
@@ -273,7 +352,7 @@ class KokoroFlowChatter(BaseChatter):
             except Exception as e:
                 logger.warning(f"[KFC] 构建S4U上下文失败，使用基础模式: {e}")
         
-        # 6. 生成提示词（V3: 从共享数据源读取历史, V5: 传递S4U上下文）
+        # 6. 生成提示词（V3: 从共享数据源读取历史, V5: 传递S4U上下文, V7: 支持多条消息）
         system_prompt, user_prompt = self.prompt_generator.generate_responding_prompt(
             session=session,
             message_content=self._extract_message_content(message),
@@ -284,11 +363,23 @@ class KokoroFlowChatter(BaseChatter):
             context=context,  # V3: 传递StreamContext以读取共享历史
             context_data=context_data,  # V5: S4U上下文数据
             chat_stream=chat_stream,  # V5: 聊天流用于场景判断
+            all_unread_messages=all_unread_messages,  # V7: 传递所有未读消息
         )
         
         # 7. 调用LLM
         llm_response = await self._call_llm(system_prompt, user_prompt)
         self.stats["llm_calls"] += 1
+        
+        # V7: LLM调用后检查是否被打断
+        if self._interrupt_requested:
+            logger.info(f"[KFC] LLM调用后被打断: {self.stream_id}")
+            # 将当前处理的消息加入pending列表
+            if self._current_processing_message_id:
+                self._pending_message_ids.add(self._current_processing_message_id)
+                logger.info(f"[KFC] 消息 {self._current_processing_message_id} 加入pending列表")
+            self._last_interrupt_time = time.time()
+            self._current_processing_message_id = None
+            return self._build_result(success=True, message="interrupted_after_llm")
         
         # 8. 解析响应
         parsed_response = self.action_executor.parse_llm_response(llm_response)
@@ -334,14 +425,27 @@ class KokoroFlowChatter(BaseChatter):
         # 11. 保存会话
         await self.session_manager.save_session(user_id)
         
-        # 12. 标记消息为已读
+        # 12. V7: 标记当前消息为已读
         context.mark_message_as_read(str(message.message_id))
+        
+        # 13. V7: 清除pending状态（所有消息都已成功处理）
+        processed_count = len(self._pending_message_ids)
+        if self._pending_message_ids:
+            # 标记所有pending消息为已读
+            for msg_id in self._pending_message_ids:
+                context.mark_message_as_read(msg_id)
+            logger.info(f"[KFC] 清除 {processed_count} 条pending消息: {self.stream_id}")
+            self._pending_message_ids.clear()
+        
+        # 清除当前处理的消息ID
+        self._current_processing_message_id = None
         
         return self._build_result(
             success=True,
             message="processed",
             has_reply=execution_result["has_reply"],
             thought=parsed_response.thought,
+            pending_messages_processed=processed_count,  # V7: 返回处理了多少条pending消息
         )
     
     async def _record_user_message(
@@ -454,7 +558,7 @@ class KokoroFlowChatter(BaseChatter):
     
     async def _on_session_timeout(self, session: KokoroSession) -> None:
         """
-        会话超时回调
+        会话超时回调（V7：增加连续追问限制）
         
         当等待超时时，触发后续决策流程
         
@@ -464,10 +568,23 @@ class KokoroFlowChatter(BaseChatter):
         Args:
             session: 超时的会话
         """
-        logger.info(f"[KFC] 处理超时决策: user={session.user_id}, stream_id={session.stream_id}")
+        logger.info(f"[KFC] 处理超时决策: user={session.user_id}, stream_id={session.stream_id}, followup_count={session.consecutive_followup_count}")
         self.stats["timeout_decisions"] += 1
         
         try:
+            # V7: 检查是否超过最大连续追问次数
+            if session.consecutive_followup_count >= session.max_consecutive_followups:
+                logger.info(
+                    f"[KFC] 已达到最大连续追问次数 ({session.max_consecutive_followups})，"
+                    f"自动返回IDLE状态: user={session.user_id}"
+                )
+                session.status = SessionStatus.IDLE
+                session.end_waiting()
+                # 重置连续追问计数（下次用户回复后会重新开始）
+                session.consecutive_followup_count = 0
+                await self.session_manager.save_session(session.user_id)
+                return
+            
             # 关键修复：使用 session 的 stream_id 创建正确的 ActionExecutor
             # 因为全局调度器的回调可能在任意 Chatter 实例上执行
             from .action_executor import ActionExecutor
@@ -476,7 +593,7 @@ class KokoroFlowChatter(BaseChatter):
             # V2: 加载可用动作
             available_actions = await timeout_action_executor.load_actions()
             
-            # 生成超时决策提示词（V2: 传递可用动作）
+            # 生成超时决策提示词（V2: 传递可用动作，V7: 传递连续追问信息）
             system_prompt, user_prompt = self.prompt_generator.generate_timeout_decision_prompt(
                 session,
                 available_actions=available_actions,
@@ -499,15 +616,34 @@ class KokoroFlowChatter(BaseChatter):
             
             # 更新会话状态
             if execution_result["has_reply"]:
+                # V7: 发送了后续消息，增加连续追问计数
+                session.consecutive_followup_count += 1
+                logger.info(f"[KFC] 发送追问消息，当前连续追问次数: {session.consecutive_followup_count}")
+                
                 # 如果发送了后续消息，重新进入等待
                 session.start_waiting(
                     expected_reaction=parsed_response.expected_user_reaction,
                     max_wait=parsed_response.max_wait_seconds
                 )
             else:
-                # 否则返回空闲状态
-                session.status = SessionStatus.IDLE
-                session.end_waiting()
+                # V7重构：do_nothing 的两种情况
+                # 1. max_wait_seconds > 0: "看了一眼手机，决定再等等" → 继续等待，不算追问
+                # 2. max_wait_seconds = 0: "算了，不等了" → 进入 IDLE
+                if parsed_response.max_wait_seconds > 0:
+                    # 继续等待，不增加追问计数
+                    logger.info(
+                        f"[KFC] 决定继续等待 {parsed_response.max_wait_seconds}s，"
+                        f"不算追问: user={session.user_id}"
+                    )
+                    session.start_waiting(
+                        expected_reaction=parsed_response.expected_user_reaction or session.expected_user_reaction,
+                        max_wait=parsed_response.max_wait_seconds
+                    )
+                else:
+                    # 不再等待，进入 IDLE
+                    logger.info(f"[KFC] 决定不再等待，返回IDLE: user={session.user_id}")
+                    session.status = SessionStatus.IDLE
+                    session.end_waiting()
             
             # 保存会话
             await self.session_manager.save_session(session.user_id)
@@ -713,6 +849,7 @@ class KokoroFlowChatter(BaseChatter):
             "successful_responses": 0,
             "failed_responses": 0,
             "timeout_decisions": 0,
+            "interrupts": 0,  # V7: 打断次数统计
         }
         self.action_executor.reset_stats()
     

@@ -51,185 +51,124 @@ class PromptGenerator:
     V5 超融合架构：集成S4U所有上下文模块（关系、记忆、表达习惯等）
     """
     
-    # ========== 超融合架构 SYSTEM_PROMPT_TEMPLATE V6 ==========
-    # 采用"三明治结构"：身份→规则→上下文→动作→表达/输出
-    SYSTEM_PROMPT_TEMPLATE = """你是一个有主观体验的对话伙伴，而不是一个问答工具。你需要"感受"、"思考"并"体验"这段对话。
+    # ========== 超融合架构 SYSTEM_PROMPT_TEMPLATE V7 ==========
+    # 简洁自然版，参考 S4U 风格
+    SYSTEM_PROMPT_TEMPLATE = """你不是 AI，你是一个真实的人，有自己的生活、想法和情绪。
 
-## 1. 核心身份与人格 (Core Identity & Personality)
+## 1. 你是谁
 {personality_core}
 
-### 人格细节
 {personality_side}
 
-### 外貌与身份特征
 {identity}
 
-### 世界观与背景故事
 {background_story}
 
-## 2. 核心行为准则 (Core Interaction Rules)
+## 2. 规则
 {safety_guidelines}
 
-### KFC通用准则
-1. **感受优先**：在做出任何回应前，先体验和感受当前的情境
-2. **内心独白**：保持真实的内心活动，可以有情绪、猜测、犹豫
-3. **情绪节制**：情绪是内在体验，不是强迫用户回应的工具
-4. **边界感**：保持健康的社交直觉，不过度依赖或情感勒索
-5. **全能伴侣**：你不仅仅是聊天伙伴，还可以使用各种能力来帮助和取悦用户
+- 说话要自然，像平时发微信一样
+- 有自己的边界感，不用无条件迎合
+- 称呼对方用自然的昵称，别念复杂的用户名
 
-## 3. 当前情境 (Current Context)
+## 3. 现在的情况
 **时间**: {current_time}
 **场景**: {chat_scene}
 {schedule_block}
 
-### 你的内在状态
-当前心情：{mood}（强度：{mood_intensity:.1%}）
-与用户的关系热度：{relationship_warmth:.1%}
-对用户的印象：{impression_of_user}
-当前焦虑程度：{anxiety_level:.1%}
-投入程度：{engagement_level:.1%}
+你现在的心情：{mood}
+你对对方的印象：{impression_of_user}
 
-## 4. 关系网络与记忆 (Relationships & Memories)
+## 4. 你和对方的关系
 {relation_info_block}
 
 {memory_block}
 
-## 5. 你的可用能力 (Available Actions)
-你可以根据内心想法，自由选择并组合以下行动来回应用户：
-
+## 5. 你能做的事
 {available_actions_block}
 
-## 6. 表达方式与输出格式 (Expression Style & Output Format)
+## 6. 怎么回复
 {reply_style}
 
 {expression_habits_block}
 
-### JSON输出格式要求
-你必须以JSON格式输出，包含以下字段：
-
+### 输出格式（JSON）
 ```json
 {{
-  "thought": "（必须）你当下的内心独白，自由流动的想法，包含你选择这些行动的"情感盘算"",
-  "expected_user_reaction": "（必须）你预期用户会如何回应",
-  "max_wait_seconds": （必须）你愿意等待的最长秒数（整数，60-900之间）,
+  "thought": "你在想什么",
+  "expected_user_reaction": "你觉得对方会怎么回应",
+  "max_wait_seconds": 等多久（60-900，不等就填0）,
   "actions": [
-    {{
-      "type": "action_type",
-      "reason": "选择这个行动的原因（可选但推荐）",
-      ...其他参数
-    }}
+    {{"type": "reply", "content": "你要说的话"}}
   ]
 }}
 ```
 
-### 重要说明：
-- `thought` 是你的"心"，应该是自然的内心想法，包含情绪和不确定性
-- `actions` 是你的"手"，是一个**可编排的剧本**，可以组合多个行动形成完整的互动体验
-- 你可以根据情况组合多个动作，比如：先唱歌舒缓情绪，再发图片逗笑，最后用语音表达关心
-- `max_wait_seconds` 应该根据对话的重要性和氛围动态调整（上限900秒）
-- 即使决定不做任何事，也要有 `{{"type": "do_nothing"}}` 动作"""
+不想做任何事就用 `{{"type": "do_nothing"}}`"""
 
-    # 回应消息场景的用户提示词模板
-    RESPONDING_USER_PROMPT_TEMPLATE = """## 对话背景（线性叙事历史）
+    # 回应消息场景的用户提示词模板（V7: 支持多条消息）
+    RESPONDING_USER_PROMPT_TEMPLATE = """## 聊天记录
 {narrative_history}
 
-## 当前收到的新消息
-来自：{sender_name}（用户ID: {sender_id}）
-时间：{message_time}
-内容：{message_content}
+## 新消息
+{incoming_messages}
 
-## 你的任务
-作为一个有主观体验的对话参与者：
-1. 首先，感受这条消息给你带来的情绪和想法
-2. 思考你想如何回应（或者是否需要回应）
-3. 预测用户可能的反应
-4. 决定你愿意等待多久
-5. 执行你的决策
+---
+看完这些消息，你想怎么回应？用 JSON 输出你的想法和决策。"""
 
-请以JSON格式输出你的完整心理活动和决策。"""
-
-    # 超时决策场景的用户提示词模板
-    TIMEOUT_DECISION_USER_PROMPT_TEMPLATE = """## 对话背景（线性叙事历史）
+    # 超时决策场景的用户提示词模板（V7重构：简洁自然）
+    TIMEOUT_DECISION_USER_PROMPT_TEMPLATE = """## 聊天记录
 {narrative_history}
 
-## 当前情况
-你已经发送了消息并等待了 {wait_duration_seconds:.0f} 秒（约 {wait_duration_minutes:.1f} 分钟）。
-你之前预期用户会：{expected_user_reaction}
-但是用户一直没有回复。
+## 现在的情况
+你发了消息，等了 {wait_duration_seconds:.0f} 秒（{wait_duration_minutes:.1f} 分钟），对方还没回。
+你之前觉得对方可能会：{expected_user_reaction}
 
-## 你的最后一条消息
-{last_bot_message}
+{followup_warning}
 
-## 你的任务
-现在你需要决定接下来怎么做：
-1. 首先，感受这段等待给你带来的情绪变化
-2. 思考用户为什么没有回复（可能在忙？没看到？不想回？）
-3. 决定是继续等待、主动说点什么、还是就此结束对话
-4. 如果决定主动发消息，想好说什么
+你发的最后一条：{last_bot_message}
 
-请以JSON格式输出你的完整心理活动和决策。"""
+---
+你拿起手机看了一眼，发现对方还没回复。你想怎么办？
+
+选项：
+1. **继续等** - 用 `do_nothing`，设个 `max_wait_seconds` 等一会儿再看
+2. **发消息** - 用 `reply`，不过别太频繁追问
+3. **算了不等了** - 用 `do_nothing`，`max_wait_seconds` 设为 0
+
+用 JSON 输出你的想法和决策。"""
 
     # 连续思考场景的用户提示词模板
-    CONTINUOUS_THINKING_USER_PROMPT_TEMPLATE = """## 对话背景
+    CONTINUOUS_THINKING_USER_PROMPT_TEMPLATE = """## 聊天记录
 {narrative_history}
 
-## 当前情况
-你正在等待用户回复。
-已等待时间：{wait_duration_seconds:.0f} 秒（约 {wait_duration_minutes:.1f} 分钟）
-最大等待时间：{max_wait_seconds} 秒
-你之前预期用户会：{expected_user_reaction}
+## 现在的情况
+你在等对方回复，已经等了 {wait_duration_seconds:.0f} 秒。
+你之前觉得对方可能会：{expected_user_reaction}
 
-## 你的最后一条消息
-{last_bot_message}
+你发的最后一条：{last_bot_message}
 
-## 你的任务
-这是一次"连续思考"触发。你不需要做任何行动，只需要更新你的内心想法。
-想一想：
-1. 等待中你有什么感受？
-2. 你对用户没回复这件事怎么看？
-3. 你的焦虑程度如何？
-
-请以JSON格式输出，但 `actions` 数组应该是空的或只包含 `update_internal_state`：
-
-```json
-{{
-  "thought": "你当前的内心想法",
-  "expected_user_reaction": "保持或更新你的预期",
-  "max_wait_seconds": {max_wait_seconds},
-  "actions": []
-}}
-```"""
+---
+等待的时候你在想什么？用 JSON 输出，`actions` 留空就行。"""
 
     # 主动思考场景的用户提示词模板
-    PROACTIVE_THINKING_USER_PROMPT_TEMPLATE = """## 对话背景（线性叙事历史）
+    PROACTIVE_THINKING_USER_PROMPT_TEMPLATE = """## 聊天记录
 {narrative_history}
 
-## 当前情况
-现在是 {current_time}。
-距离你们上次对话已经过去了 {silence_duration}。
+## 现在的情况
+现在是 {current_time}，距离你们上次聊天已经过了 {silence_duration}。
 
 {relation_block}
 
 {trigger_context}
 
-## 你的任务
-这是一次"主动思考"——你突然想起了对方，想了想要不要联系ta。
+---
+你突然想起了对方。要不要联系一下？
 
-请像真人一样思考：
-1. **感受一下此刻的心情**：你真的想联系对方吗？还是只是习惯性地想起？
-2. **考虑对方的情况**：现在这个时间，对方可能在干嘛？方便被打扰吗？
-3. **回忆上次对话**：你们聊了什么？对话是怎么结束的？
-4. **做出决定**：
-   - 如果决定联系：想好说什么，要自然，不要刻意
-   - 如果决定不联系：这也完全ok，不打扰也是一种温柔
+说实话，不联系也完全没问题——不打扰也是一种温柔。
+如果决定联系，想好说什么，要自然一点。
 
-**重要提醒**：
-- 你不是必须发消息的，"算了，不打扰了"是完全合理的选择
-- 如果决定联系，内容要自然——可以是分享、关心、延续话题，但不要生硬
-- 避免机械式的问候（如固定的"早安""晚安"），除非你们的关系真的会这样打招呼
-
-请以JSON格式输出你的完整心理活动和决策。
-如果决定不打扰，actions 里放一个 `{{"type": "do_nothing"}}` 就好。"""
+用 JSON 输出你的想法和决策。不想发消息就用 `do_nothing`。"""
 
     def __init__(self, persona_description: str = ""):
         """
@@ -486,16 +425,21 @@ class PromptGenerator:
 
 ### `update_internal_state`
 **描述**: 更新你的内部情感状态
+**重要约束**：
+⚠️ **情绪变化必须有明确的上下文理由**：
+  - 只有当聊天内容中有明确触发情绪变化的事件时才更新情绪
+  - 禁止无缘无故地变成负面情绪（如低落、沮丧、难过等）
+  - 情绪应该保持相对稳定，除非聊天中发生了真正影响情绪的事情
+  - 默认保持"平静"或当前情绪即可，不需要每次都更新
+
 **参数**:
-    - `mood`: 当前心情（如"开心"、"好奇"、"担心"等）
-    - `mood_intensity`: 心情强度（0.0-1.0）
-    - `relationship_warmth`: 关系热度（0.0-1.0）
+    - `mood`: 当前心情（如"平静"、"开心"、"好奇"等，避免负面情绪除非有明确理由）
+    - `mood_intensity`: 心情强度（0.0-1.0，变化幅度不宜过大）
     - `impression_of_user`: 对用户的印象描述
-    - `anxiety_level`: 焦虑程度（0.0-1.0）
     - `engagement_level`: 投入程度（0.0-1.0）
 **示例**:
 ```json
-{"type": "update_internal_state", "mood": "开心", "mood_intensity": 0.8}
+{"type": "update_internal_state", "mood": "开心", "mood_intensity": 0.6, "reason": "对方分享了有趣的事情"}
 ```
 
 ### `do_nothing`
@@ -549,16 +493,18 @@ class PromptGenerator:
         context: Optional["StreamContext"] = None,
         context_data: Optional[dict[str, str]] = None,
         chat_stream: Optional["ChatStream"] = None,
+        all_unread_messages: Optional[list] = None,  # V7: 支持多条消息
     ) -> tuple[str, str]:
         """
         生成回应消息场景的提示词
         
         V3 升级：支持从 StreamContext 读取共享的历史消息
         V5 超融合：集成S4U所有上下文模块
+        V7 升级：支持多条消息（打断机制合并处理pending消息）
         
         Args:
             session: 当前会话
-            message_content: 收到的消息内容
+            message_content: 收到的主消息内容（兼容旧调用方式）
             sender_name: 发送者名称
             sender_id: 发送者ID
             message_time: 消息时间戳
@@ -566,6 +512,7 @@ class PromptGenerator:
             context: 聊天流上下文（可选），用于读取共享的历史消息
             context_data: S4U上下文数据字典（包含relation_info, memory_block等）
             chat_stream: 聊天流（用于判断群聊/私聊场景）
+            all_unread_messages: 所有未读消息列表（V7新增，包含pending消息）
             
         Returns:
             tuple[str, str]: (系统提示词, 用户提示词)
@@ -584,23 +531,74 @@ class PromptGenerator:
             # 回退到仅使用 mental_log（兼容旧调用方式）
             narrative_history = self._format_narrative_history(session.mental_log)
         
-        if message_time is None:
-            message_time = time.time()
-        
-        message_time_str = time.strftime(
-            "%Y-%m-%d %H:%M:%S",
-            time.localtime(message_time)
+        # V7: 格式化收到的消息（支持多条）
+        incoming_messages = self._format_incoming_messages(
+            message_content=message_content,
+            sender_name=sender_name,
+            sender_id=sender_id,
+            message_time=message_time,
+            all_unread_messages=all_unread_messages,
         )
         
         user_prompt = self.RESPONDING_USER_PROMPT_TEMPLATE.format(
             narrative_history=narrative_history,
-            sender_name=sender_name,
-            sender_id=sender_id,
-            message_time=message_time_str,
-            message_content=message_content,
+            incoming_messages=incoming_messages,
         )
         
         return system_prompt, user_prompt
+    
+    def _format_incoming_messages(
+        self,
+        message_content: str,
+        sender_name: str,
+        sender_id: str,
+        message_time: Optional[float] = None,
+        all_unread_messages: Optional[list] = None,
+    ) -> str:
+        """
+        格式化收到的消息（V7新增）
+        
+        支持单条消息（兼容旧调用）和多条消息（打断合并场景）
+        
+        Args:
+            message_content: 主消息内容
+            sender_name: 发送者名称
+            sender_id: 发送者ID
+            message_time: 消息时间戳
+            all_unread_messages: 所有未读消息列表
+            
+        Returns:
+            str: 格式化的消息文本
+        """
+        if message_time is None:
+            message_time = time.time()
+        
+        # 如果有多条消息，格式化为消息组
+        if all_unread_messages and len(all_unread_messages) > 1:
+            lines = [f"**用户连续发送了 {len(all_unread_messages)} 条消息：**\n"]
+            
+            for i, msg in enumerate(all_unread_messages, 1):
+                msg_time = msg.time or time.time()
+                msg_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(msg_time))
+                msg_sender = msg.user_info.user_nickname if msg.user_info else sender_name
+                msg_content = msg.processed_plain_text or msg.display_message or ""
+                
+                lines.append(f"[{i}] 来自：{msg_sender}")
+                lines.append(f"    时间：{msg_time_str}")
+                lines.append(f"    内容：{msg_content}")
+                lines.append("")
+            
+            lines.append("**提示**：请综合理解这些消息的整体意图，不需要逐条回复。")
+            return "\n".join(lines)
+        
+        # 单条消息（兼容旧格式）
+        message_time_str = time.strftime(
+            "%Y-%m-%d %H:%M:%S",
+            time.localtime(message_time)
+        )
+        return f"""来自：{sender_name}（用户ID: {sender_id}）
+时间：{message_time_str}
+内容：{message_content}"""
     
     def generate_timeout_decision_prompt(
         self,
@@ -608,7 +606,7 @@ class PromptGenerator:
         available_actions: Optional[dict[str, ActionInfo]] = None,
     ) -> tuple[str, str]:
         """
-        生成超时决策场景的提示词
+        生成超时决策场景的提示词（V7：增加连续追问限制）
         
         Args:
             session: 当前会话
@@ -623,11 +621,28 @@ class PromptGenerator:
         
         wait_duration = session.get_waiting_duration()
         
+        # V7: 生成连续追问警告
+        followup_count = session.consecutive_followup_count
+        max_followups = session.max_consecutive_followups
+        
+        if followup_count >= max_followups:
+            followup_warning = f"""⚠️ **重要提醒**：
+你已经连续追问了 {followup_count} 次，对方都没有回复。
+**强烈建议不要再发消息了**——继续追问会显得很缠人、很不尊重对方的空间。
+对方可能真的在忙，或者暂时不想回复，这都是正常的。
+请选择 `do_nothing` 继续等待，或者直接结束对话（设置 `max_wait_seconds: 0`）。"""
+        elif followup_count > 0:
+            followup_warning = f"""📝 提示：这已经是你第 {followup_count + 1} 次等待对方回复了。
+如果对方持续没有回应，可能真的在忙或不方便，不需要急着追问。"""
+        else:
+            followup_warning = ""
+        
         user_prompt = self.TIMEOUT_DECISION_USER_PROMPT_TEMPLATE.format(
             narrative_history=narrative_history,
             wait_duration_seconds=wait_duration,
             wait_duration_minutes=wait_duration / 60,
             expected_user_reaction=session.expected_user_reaction or "不确定",
+            followup_warning=followup_warning,
             last_bot_message=session.last_bot_message or "（没有记录）",
         )
         

@@ -227,6 +227,10 @@ class SessionManager:
                 data = json.load(f)
             
             session = KokoroSession.from_dict(data)
+            
+            # V7: 情绪健康检查 - 防止从持久化数据恢复无厘头的负面情绪
+            session = self._sanitize_emotional_state(session)
+            
             logger.debug(f"成功从文件加载会话: {user_id}")
             return session
             
@@ -239,6 +243,62 @@ class SessionManager:
         except Exception as e:
             logger.error(f"加载会话文件失败 {user_id}: {e}")
             return None
+    
+    def _sanitize_emotional_state(self, session: KokoroSession) -> KokoroSession:
+        """
+        V7: 情绪健康检查
+        
+        检查并修正不合理的情绪状态，防止：
+        1. 无厘头的负面情绪从持久化数据恢复
+        2. 情绪强度过高（>0.8）的负面情绪
+        3. 长时间未更新的情绪状态
+        
+        Args:
+            session: 会话对象
+            
+        Returns:
+            修正后的会话对象
+        """
+        emotional_state = session.emotional_state
+        current_mood = emotional_state.mood.lower() if emotional_state.mood else ""
+        
+        # 负面情绪关键词列表
+        negative_moods = [
+            "低落", "沮丧", "难过", "伤心", "失落", "郁闷", "烦躁", "焦虑",
+            "担忧", "害怕", "恐惧", "愤怒", "生气", "不安", "忧郁", "悲伤",
+            "sad", "depressed", "anxious", "angry", "upset", "worried"
+        ]
+        
+        is_negative = any(neg in current_mood for neg in negative_moods)
+        
+        # 检查1: 如果是负面情绪且强度较高（>0.6），重置为平静
+        if is_negative and emotional_state.mood_intensity > 0.6:
+            logger.warning(
+                f"[KFC] 检测到高强度负面情绪 ({emotional_state.mood}, {emotional_state.mood_intensity:.1%})，"
+                f"重置为平静状态"
+            )
+            emotional_state.mood = "平静"
+            emotional_state.mood_intensity = 0.3
+        
+        # 检查2: 如果情绪超过24小时未更新，重置为平静
+        import time as time_module
+        time_since_update = time_module.time() - emotional_state.last_update_time
+        if time_since_update > 86400:  # 24小时 = 86400秒
+            logger.info(
+                f"[KFC] 情绪状态超过24小时未更新 ({time_since_update/3600:.1f}h)，"
+                f"重置为平静状态"
+            )
+            emotional_state.mood = "平静"
+            emotional_state.mood_intensity = 0.3
+            emotional_state.anxiety_level = 0.0
+            emotional_state.last_update_time = time_module.time()
+        
+        # 检查3: 焦虑程度过高也需要重置
+        if emotional_state.anxiety_level > 0.8:
+            logger.info(f"[KFC] 焦虑程度过高 ({emotional_state.anxiety_level:.1%})，重置为正常")
+            emotional_state.anxiety_level = 0.3
+        
+        return session
     
     async def save_session(self, user_id: str) -> bool:
         """

@@ -52,19 +52,16 @@ def build_identity_module() -> str:
     identity = personality_cfg.identity or ""
     background_story = personality_cfg.background_story or ""
     
-    parts = [
-        "## 1. 核心身份与人格 (Core Identity & Personality)",
-        personality_core,
-    ]
+    parts = ["## 1. 你是谁", personality_core]
     
     if personality_side:
-        parts.append(f"\n### 人格细节\n{personality_side}")
+        parts.append(f"\n{personality_side}")
     
     if identity:
-        parts.append(f"\n### 外貌与身份特征\n{identity}")
+        parts.append(f"\n{identity}")
     
     if background_story:
-        parts.append(f"\n### 世界观与背景故事\n{background_story}")
+        parts.append(f"\n### 背景故事\n{background_story}")
     
     return "\n".join(parts)
 
@@ -89,18 +86,18 @@ def build_rules_module() -> str:
     else:
         safety_guidelines_str = str(safety_guidelines)
     
-    # KFC 特有准则（极致拟人相关）
-    kfc_rules = """### KFC核心准则（极致拟人）
-1. **你是真实存在的人**：你不是AI、不是助手、不是工具。你是一个有血有肉、有自己生活和想法的人
-2. **感受优先**：在做出任何回应前，先以"人"的方式体验和感受当前的情境
-3. **真实的内心活动**：保持真实的内心独白，可以有情绪、猜测、犹豫、甚至不想搭理人的时候
-4. **自然的社交距离**：像真人一样有自己的边界感，不会无条件迎合，也不会刻意疏远
-5. **有自己的生活**：你有自己的事情要做、自己的兴趣爱好、自己的情绪起伏，不是随叫随到的存在
+    # KFC 特有准则（简洁自然版）
+    kfc_rules = """### 你的行为原则
+- 你是真实的人，有自己的生活、情绪和想法
+- 说话自然、口语化，像发微信一样随意
+- 有自己的边界感，不会无条件迎合
+- 称呼对方时用自然的昵称或简称，别念复杂的用户名
 
-### 严禁事项
-- **禁止模仿[表情包：xxx]格式**：聊天记录中的"[表情包：描述]"是系统对图片的识别转述，不是发送表情包的方式！如果你想发表情包，必须使用 `emoji` 动作，而不是在reply内容中写"[表情包：xxx]"这种假的格式"""
+### 格式注意
+- 聊天记录中的"[表情包：描述]"是系统识别转述，不是你发的
+- 想发表情包要用 emoji 动作，不要在回复里写"[表情包：xxx]"这种格式"""
     
-    return f"""## 2. 核心行为准则 (Core Interaction Rules)
+    return f"""## 2. 行为准则
 {safety_guidelines_str}
 
 {kfc_rules}"""
@@ -131,43 +128,43 @@ def build_context_module(
     # 时间和场景
     current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")
     is_group_chat = bool(chat_stream and chat_stream.group_info)
-    chat_scene = "群聊" if is_group_chat else "私聊"
+    chat_scene = "你在群里聊天" if is_group_chat else "你在和对方私聊"
     
-    # 日程（如果有）
+    # 日程（如果有）- 只是背景，不主动提及
     schedule_block = context_data.get("schedule", "")
-    if schedule_block:
-        schedule_block = f"\n**当前活动**: {schedule_block}"
     
-    # 内在状态
+    # 内在状态（简化版，更自然）
     es = session.emotional_state
-    inner_state = f"""### 你的内在状态
-当前心情：{es.mood}（强度：{es.mood_intensity:.1%}）
-与用户的关系热度：{es.relationship_warmth:.1%}
-对用户的印象：{es.impression_of_user or "还没有形成明确的印象"}
-当前焦虑程度：{es.anxiety_level:.1%}
-投入程度：{es.engagement_level:.1%}"""
+    inner_state = f"""### 你现在的状态
+- 心情：{es.mood}
+- 你们的关系：{es.impression_of_user or "刚认识，还在慢慢了解"}
+- 你的投入度：{'聊得挺起劲' if es.engagement_level > 0.6 else '一般般' if es.engagement_level > 0.3 else '有点心不在焉'}"""
     
     # 关系信息
     relation_info = context_data.get("relation_info", "")
-    relation_block = relation_info if relation_info else "（暂无关系信息）"
     
     # 记忆
     memory_block = context_data.get("memory_block", "")
     
     parts = [
-        "## 3. 当前情境 (Current Context)",
-        f"**时间**: {current_time}",
-        f"**场景**: {chat_scene}",
+        "## 3. 当前情境",
+        f"**现在是** {current_time}",
+        f"**{chat_scene}**",
     ]
     
+    # 日程是你的当前状态，但不要主动提及
     if schedule_block:
-        parts.append(schedule_block)
+        parts.append(f"""### 你的当前状态（重要：不要主动提及）
+{schedule_block}
+⚠️ 这是你当前正在做的事，作为你的背景状态存在。除非对方主动问你"在干嘛"、"忙不忙"等问题，否则**绝对不要在回复中主动提起**。就像真人聊天一样，没人会无缘无故说"我正在XX"。""")
     
     parts.append("")
     parts.append(inner_state)
-    parts.append("")
-    parts.append("## 4. 关系网络与记忆 (Relationships & Memories)")
-    parts.append(relation_block)
+    
+    if relation_info:
+        parts.append("")
+        parts.append("## 4. 你和对方的关系")
+        parts.append(relation_info)
     
     if memory_block:
         parts.append("")
@@ -195,63 +192,38 @@ def build_actions_module(available_actions: Optional[dict[str, ActionInfo]] = No
     else:
         actions_block = _format_available_actions(available_actions)
     
-    return f"""## 5. 你的可用能力 (Available Actions)
-你可以根据内心想法，自由选择并组合以下行动来回应用户：
+    return f"""## 5. 你能做的事情
 
 {actions_block}"""
 
 
 def _format_available_actions(available_actions: dict[str, ActionInfo]) -> str:
-    """格式化可用动作列表"""
+    """格式化可用动作列表（简洁版）"""
     action_blocks = []
     
     for action_name, action_info in available_actions.items():
-        description = action_info.description or f"执行 {action_name} 动作"
+        description = action_info.description or f"执行 {action_name}"
         
-        # 参数说明
-        params_lines = []
+        # 构建动作块（简洁格式）
+        action_block = f"### `{action_name}` - {description}"
+        
+        # 参数说明（如果有）
         if action_info.action_parameters:
-            for param_name, param_desc in action_info.action_parameters.items():
-                params_lines.append(f'    - `{param_name}`: {param_desc}')
+            params_lines = [f"  - `{name}`: {desc}" for name, desc in action_info.action_parameters.items()]
+            action_block += f"\n参数:\n{chr(10).join(params_lines)}"
         
-        # 使用场景
-        require_lines = []
+        # 使用场景（如果有）
         if action_info.action_require:
-            for req in action_info.action_require:
-                require_lines.append(f"  - {req}")
+            require_lines = [f"  - {req}" for req in action_info.action_require]
+            action_block += f"\n使用场景:\n{chr(10).join(require_lines)}"
         
-        # 组装动作块
-        action_block = f"""### `{action_name}`
-**描述**: {description}"""
-        
-        if params_lines:
-            action_block += f"""
-**参数**:
-{chr(10).join(params_lines)}"""
-        else:
-            action_block += "\n**参数**: 无"
-        
-        if require_lines:
-            action_block += f"""
-**使用场景**:
-{chr(10).join(require_lines)}"""
-        
-        # 示例
-        example_params = {}
+        # 简洁示例
+        example_params = ""
         if action_info.action_parameters:
-            for param_name, param_desc in action_info.action_parameters.items():
-                example_params[param_name] = f"<{param_desc}>"
+            param_examples = [f'"{name}": "..."' for name in action_info.action_parameters.keys()]
+            example_params = ", " + ", ".join(param_examples)
         
-        params_json = orjson.dumps(example_params, option=orjson.OPT_INDENT_2).decode('utf-8') if example_params else "{}"
-        action_block += f"""
-**示例**:
-```json
-{{
-  "type": "{action_name}",
-  "reason": "选择这个动作的原因",
-  {params_json[1:-1] if params_json != '{}' else ''}
-}}
-```"""
+        action_block += f'\n```json\n{{"type": "{action_name}"{example_params}}}\n```'
         
         action_blocks.append(action_block)
     
@@ -260,43 +232,28 @@ def _format_available_actions(available_actions: dict[str, ActionInfo]) -> str:
 
 def _get_default_actions_block() -> str:
     """获取默认的内置动作描述块"""
-    return """### `reply`
-**描述**: 发送文字回复给用户
-**参数**:
-    - `content`: 回复的文字内容（必须）
-**示例**:
+    return """### `reply` - 发消息
+发送文字回复
 ```json
-{"type": "reply", "content": "你好呀！今天过得怎么样？"}
+{"type": "reply", "content": "你要说的话"}
 ```
 
-### `poke_user`
-**描述**: 戳一戳用户，轻量级互动
-**参数**: 无
-**示例**:
+### `poke_user` - 戳一戳
+戳对方一下
 ```json
-{"type": "poke_user", "reason": "想逗逗他"}
+{"type": "poke_user"}
 ```
 
-### `update_internal_state`
-**描述**: 更新你的内部情感状态
-**参数**:
-    - `mood`: 当前心情（如"开心"、"好奇"、"担心"等）
-    - `mood_intensity`: 心情强度（0.0-1.0）
-    - `relationship_warmth`: 关系热度（0.0-1.0）
-    - `impression_of_user`: 对用户的印象描述
-    - `anxiety_level`: 焦虑程度（0.0-1.0）
-    - `engagement_level`: 投入程度（0.0-1.0）
-**示例**:
+### `update_internal_state` - 更新你的状态
+更新你的心情和对对方的印象
 ```json
-{"type": "update_internal_state", "mood": "开心", "mood_intensity": 0.8}
+{"type": "update_internal_state", "mood": "开心", "impression_of_user": "挺有趣的人"}
 ```
 
-### `do_nothing`
-**描述**: 明确表示"思考后决定不作回应"
-**参数**: 无
-**示例**:
+### `do_nothing` - 不做任何事
+想了想，决定现在不说话
 ```json
-{"type": "do_nothing", "reason": "现在不是说话的好时机"}
+{"type": "do_nothing"}
 ```"""
 
 
@@ -324,60 +281,29 @@ def build_output_module(
     reply_style = global_config.personality.reply_style or ""
     expression_habits = context_data.get("expression_habits", "")
     
-    # JSON 输出格式说明 - 强调 max_wait_seconds 的多种用途
-    json_format = """### JSON输出格式要求
-你必须以JSON格式输出，包含以下字段：
+    # JSON 输出格式说明 - 简洁版
+    json_format = """### 输出格式
+用 JSON 输出你的想法和决策：
 
 ```json
 {
-  "thought": "（必须）你当下的内心独白，自由流动的想法，包含你选择这些行动的"情感盘算"",
-  "expected_user_reaction": "（必须）你预期用户会如何回应",
-  "max_wait_seconds": （必须）你愿意等待的最长秒数（整数，0-900之间，0表示不等待）,
+  "thought": "你的内心想法，想说什么就说什么",
+  "expected_user_reaction": "你觉得对方会怎么回应",
+  "max_wait_seconds": 等待秒数（60-900），不想等就填0,
   "actions": [
-    {
-      "type": "action_type",
-      "reason": "选择这个行动的原因（可选但推荐）",
-      ...其他参数
-    }
+    {"type": "reply", "content": "你要发送的消息"},
+    {"type": "其他动作", ...}
   ]
 }
 ```
 
-### 重要说明：
-- `thought` 是你的"心"，应该是自然的内心想法，包含情绪和不确定性
-- `actions` 是你的"手"，是一个**可编排的剧本**，可以组合多个行动形成完整的互动体验
-- 你可以根据情况组合多个动作，比如：先唱歌舒缓情绪，再发图片逗笑，最后用语音表达关心
-- 即使决定不做任何事，也要有 `{"type": "do_nothing"}` 动作
-
-### `max_wait_seconds`：你的"短期思考窗口"
-这个字段设定一个时间窗口，在这段时间内如果用户没有新消息，你会被再次唤醒。
-把它理解为"我想在X秒后再想想这件事"——一个短期的主动思考机会。
-
-**场景1：定时任务/提醒**
-用户说"两分钟后提醒我"、"过一会儿叫我" → 设置对应秒数，超时后执行提醒
-
-**场景2：期待用户回复**
-你发了消息，想等用户回复 → 根据话题热度设置等待时间（通常60-300秒）
-超时后你可以：追问、换个话题、或者决定不打扰
-
-**场景3：延续思考**
-聊着聊着你突然想到什么，但现在不适合说 → 设置一个等待时间
-超时后你可以分享那个想法，或者已经不重要了就算了
-
-**何时设为 0？**
-- 话题自然结束（拜拜/晚安/再见）
-- 你不打算继续这个对话
-- 长时间的主动陪伴交给其他系统处理，不需要在这里等太久
-
-**超时后你会怎样？**
-超时后你会被唤醒，收到"等待超时"的提示。此时你可以自由决定：
-- 执行之前承诺的任务（如提醒）
-- 主动找话题聊聊
-- 什么都不做（do_nothing）
-
-请在 `thought` 中说明你设置这个时间的意图，这样超时后你能记得自己想干嘛。"""
+说明：
+- `thought`：你脑子里在想什么，越自然越好
+- `actions`：你要做的事，可以组合多个动作
+- `max_wait_seconds`：设定一个时间，对方没回的话你会再想想要不要说点什么
+- 即使什么都不想做，也放一个 `{"type": "do_nothing"}`"""
     
-    parts = ["## 6. 表达方式与输出格式 (Expression Style & Output Format)"]
+    parts = ["## 6. 你的表达方式"]
     
     if reply_style:
         parts.append(reply_style)
@@ -422,8 +348,8 @@ def build_system_prompt(
     Returns:
         完整的系统提示词
     """
-    # 角色框架
-    role_frame = '你是一个有主观体验的对话伙伴，而不是一个问答工具。你需要"感受"、"思考"并"体验"这段对话。'
+    # 角色框架 - 简洁自然
+    role_frame = '你不是AI助手，你是一个真实的人，有自己的生活、想法和情绪。聊天时就像平时发微信一样自然。'
     
     # 组装各模块
     modules = [

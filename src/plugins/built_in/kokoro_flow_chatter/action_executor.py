@@ -549,30 +549,76 @@ class ActionExecutor:
         """
         执行内部状态更新动作
         
-        这个动作用于实现情感闭环，让AI可以主动更新自己的情感状态
+        V7重构：情绪变化必须合理
+        - 禁止 LLM 直接设置负面情绪（低落、沮丧、难过等）
+        - 情绪变化必须渐进，不能突然跳变
+        - 情绪强度变化限制在 ±0.3 以内
         """
         updated_fields = []
         emotional_state = session.emotional_state
+        blocked_fields = []
         
         if "mood" in params:
-            emotional_state.mood = params["mood"]
-            updated_fields.append("mood")
+            new_mood = str(params["mood"])
+            # V7: 检查是否是负面情绪
+            negative_moods = [
+                "低落", "沮丧", "难过", "伤心", "失落", "郁闷", "烦躁", "焦虑",
+                "担忧", "害怕", "恐惧", "愤怒", "生气", "不安", "忧郁", "悲伤",
+                "sad", "depressed", "anxious", "angry", "upset", "worried"
+            ]
+            is_negative = any(neg in new_mood.lower() for neg in negative_moods)
+            
+            if is_negative:
+                # 负面情绪需要检查是否有合理理由（通过检查上下文）
+                # 如果当前情绪是平静/正面的，不允许突然变成负面
+                current_mood = emotional_state.mood.lower()
+                positive_indicators = ["平静", "开心", "愉快", "高兴", "满足", "期待", "好奇", "neutral"]
+                
+                if any(pos in current_mood for pos in positive_indicators):
+                    # 从正面情绪直接跳到负面情绪，阻止这种变化
+                    logger.warning(
+                        f"[KFC] 阻止无厘头负面情绪变化: {emotional_state.mood} -> {new_mood}，"
+                        f"情绪变化必须有聊天上下文支撑"
+                    )
+                    blocked_fields.append("mood")
+                else:
+                    # 已经是非正面情绪，允许变化但记录警告
+                    emotional_state.mood = new_mood
+                    updated_fields.append("mood")
+                    logger.info(f"[KFC] 情绪变化: {emotional_state.mood} -> {new_mood}")
+            else:
+                # 非负面情绪，允许更新
+                emotional_state.mood = new_mood
+                updated_fields.append("mood")
         
         if "mood_intensity" in params:
             try:
-                intensity = float(params["mood_intensity"])
-                emotional_state.mood_intensity = max(0.0, min(1.0, intensity))
+                new_intensity = float(params["mood_intensity"])
+                new_intensity = max(0.0, min(1.0, new_intensity))
+                old_intensity = emotional_state.mood_intensity
+                
+                # V7: 限制情绪强度变化幅度（最多 ±0.3）
+                max_change = 0.3
+                if abs(new_intensity - old_intensity) > max_change:
+                    # 限制变化幅度
+                    if new_intensity > old_intensity:
+                        new_intensity = min(old_intensity + max_change, 1.0)
+                    else:
+                        new_intensity = max(old_intensity - max_change, 0.0)
+                    logger.info(
+                        f"[KFC] 限制情绪强度变化: {old_intensity:.2f} -> {new_intensity:.2f} "
+                        f"(原请求: {params['mood_intensity']})"
+                    )
+                
+                emotional_state.mood_intensity = new_intensity
                 updated_fields.append("mood_intensity")
             except (ValueError, TypeError):
                 pass
         
+        # relationship_warmth 不再由 LLM 更新，应该从全局关系系统读取
         if "relationship_warmth" in params:
-            try:
-                warmth = float(params["relationship_warmth"])
-                emotional_state.relationship_warmth = max(0.0, min(1.0, warmth))
-                updated_fields.append("relationship_warmth")
-            except (ValueError, TypeError):
-                pass
+            logger.debug("[KFC] 忽略 relationship_warmth 更新，应从全局关系系统读取")
+            blocked_fields.append("relationship_warmth")
         
         if "impression_of_user" in params:
             emotional_state.impression_of_user = str(params["impression_of_user"])
@@ -596,12 +642,16 @@ class ActionExecutor:
         
         emotional_state.last_update_time = time.time()
         
-        logger.debug(f"更新情感状态: {updated_fields}")
+        if blocked_fields:
+            logger.debug(f"更新情感状态: 更新={updated_fields}, 阻止={blocked_fields}")
+        else:
+            logger.debug(f"更新情感状态: {updated_fields}")
         
         return {
             "action_type": "update_internal_state",
             "success": True,
             "updated_fields": updated_fields,
+            "blocked_fields": blocked_fields,
         }
     
     async def _execute_do_nothing(self) -> dict[str, Any]:
