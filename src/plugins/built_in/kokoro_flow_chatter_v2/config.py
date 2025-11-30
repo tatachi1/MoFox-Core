@@ -67,7 +67,7 @@ class SessionConfig:
     """会话配置"""
     
     # Session 持久化目录（相对于 data/）
-    session_dir: str = "kokoro_flow_chatter_v2/sessions"
+    session_dir: str = "kokoro_flow_chatter/sessions"
     
     # Session 自动过期时间（秒），超过此时间未活动自动清理
     session_expire_seconds: int = 86400 * 7  # 7 天
@@ -94,8 +94,8 @@ class LLMConfig:
 
 
 @dataclass
-class KokoroFlowChatterV2Config:
-    """Kokoro Flow Chatter V2 总配置"""
+class KokoroFlowChatterConfig:
+    """Kokoro Flow Chatter 总配置"""
     
     # 是否启用
     enabled: bool = True
@@ -123,10 +123,10 @@ class KokoroFlowChatterV2Config:
 
 
 # 全局配置单例
-_config: Optional[KokoroFlowChatterV2Config] = None
+_config: Optional[KokoroFlowChatterConfig] = None
 
 
-def get_config() -> KokoroFlowChatterV2Config:
+def get_config() -> KokoroFlowChatterConfig:
     """获取全局配置"""
     global _config
     if _config is None:
@@ -134,19 +134,19 @@ def get_config() -> KokoroFlowChatterV2Config:
     return _config
 
 
-def load_config() -> KokoroFlowChatterV2Config:
-    """从全局配置加载 KFC V2 配置"""
+def load_config() -> KokoroFlowChatterConfig:
+    """从全局配置加载 KFC 配置"""
     from src.config.config import global_config
-    
-    config = KokoroFlowChatterV2Config()
+
+    config = KokoroFlowChatterConfig()
     
     # 尝试从全局配置读取
     if not global_config:
         return config
     
     try:
-        if hasattr(global_config, 'kokoro_flow_chatter_v2'):
-            kfc_cfg = getattr(global_config, 'kokoro_flow_chatter_v2')
+        if hasattr(global_config, 'kokoro_flow_chatter'):
+            kfc_cfg = getattr(global_config, 'kokoro_flow_chatter')
             
             # 基础配置
             if hasattr(kfc_cfg, 'enabled'):
@@ -191,7 +191,7 @@ def load_config() -> KokoroFlowChatterV2Config:
             if hasattr(kfc_cfg, 'session'):
                 sess_cfg = kfc_cfg.session
                 config.session = SessionConfig(
-                    session_dir=getattr(sess_cfg, 'session_dir', "kokoro_flow_chatter_v2/sessions"),
+                    session_dir=getattr(sess_cfg, 'session_dir', "kokoro_flow_chatter/sessions"),
                     session_expire_seconds=getattr(sess_cfg, 'session_expire_seconds', 86400 * 7),
                     max_mental_log_entries=getattr(sess_cfg, 'max_mental_log_entries', 100),
                 )
@@ -208,13 +208,13 @@ def load_config() -> KokoroFlowChatterV2Config:
     
     except Exception as e:
         from src.common.logger import get_logger
-        logger = get_logger("kfc_v2_config")
-        logger.warning(f"加载 KFC V2 配置失败，使用默认值: {e}")
+        logger = get_logger("kfc_config")
+        logger.warning(f"加载 KFC 配置失败，使用默认值: {e}")
     
     return config
 
 
-def reload_config() -> KokoroFlowChatterV2Config:
+def reload_config() -> KokoroFlowChatterConfig:
     """重新加载配置"""
     global _config
     _config = load_config()

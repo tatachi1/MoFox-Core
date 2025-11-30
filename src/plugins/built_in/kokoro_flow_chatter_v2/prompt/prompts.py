@@ -28,10 +28,15 @@ KFC_V2_MAIN_PROMPT = Prompt(
 ## 4. 当前情况
 {current_situation}
 
-## 5. 你可以做的事情
+## 5. 聊天历史总览
+以下是你和 {user_name} 的聊天记录，帮助你更好地理解对话上下文：
+
+{chat_history_block}
+
+## 6. 你可以做的事情
 {available_actions}
 
-## 6. 你的回复格式
+## 7. 你的回复格式
 {output_format}
 """,
 )

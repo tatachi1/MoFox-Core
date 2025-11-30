@@ -1,5 +1,5 @@
 """
-Kokoro Flow Chatter V2 - 私聊特化的心流聊天器
+Kokoro Flow Chatter - 私聊特化的心流聊天器
 
 重构版本，核心设计理念：
 1. Chatter 职责极简化：只负责"收到消息 → 规划执行"
@@ -18,7 +18,7 @@ from .models import (
     LLMResponse,
 )
 from .session import KokoroSession, SessionManager, get_session_manager
-from .chatter import KokoroFlowChatterV2
+from .chatter import KokoroFlowChatter
 from .replyer import generate_response
 from .proactive_thinker import (
     ProactiveThinker,
@@ -27,12 +27,12 @@ from .proactive_thinker import (
     stop_proactive_thinker,
 )
 from .config import (
-    KokoroFlowChatterV2Config,
+    KokoroFlowChatterConfig,
     get_config,
     load_config,
     reload_config,
 )
-from .plugin import KokoroFlowChatterV2Plugin
+from .plugin import KokoroFlowChatterPlugin
 from src.plugin_system.base.plugin_metadata import PluginMetadata
 
 __plugin_meta__ = PluginMetadata(
@@ -59,7 +59,7 @@ __all__ = [
     "SessionManager",
     "get_session_manager",
     # Core Components
-    "KokoroFlowChatterV2",
+    "KokoroFlowChatter",
     "generate_response",
     # Proactive Thinker
     "ProactiveThinker",
@@ -67,11 +67,11 @@ __all__ = [
     "start_proactive_thinker",
     "stop_proactive_thinker",
     # Config
-    "KokoroFlowChatterV2Config",
+    "KokoroFlowChatterConfig",
     "get_config",
     "load_config",
     "reload_config",
     # Plugin
-    "KokoroFlowChatterV2Plugin",
+    "KokoroFlowChatterPlugin",
     "__plugin_meta__",
 ]

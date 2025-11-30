@@ -263,7 +263,7 @@ class SessionManager:
     
     def __init__(
         self,
-        data_dir: str = "data/kokoro_flow_chatter_v2/sessions",
+        data_dir: str = "data/kokoro_flow_chatter/sessions",
         max_session_age_days: int = 30,
     ):
         if hasattr(self, "_initialized") and self._initialized:

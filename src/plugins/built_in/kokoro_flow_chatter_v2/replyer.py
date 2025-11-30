@@ -69,7 +69,7 @@ async def generate_response(
         success, raw_response, reasoning, model_name = await llm_api.generate_with_model(
             prompt=prompt,
             model_config=replyer_config,
-            request_type="kokoro_flow_chatter_v2",
+            request_type="kokoro_flow_chatter",
         )
         
         if not success:

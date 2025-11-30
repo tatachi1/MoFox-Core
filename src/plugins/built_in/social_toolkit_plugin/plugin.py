@@ -140,14 +140,7 @@ class PokeAction(BaseAction):
 
     # === 基本信息（必须填写）===
     action_name = "poke_user"
-    action_description = """可以让你戳其他用户，为互动增添一份小小的乐趣。
-    判定条件：
-    1. **互动时机**: 这是一个有趣的互动方式，可以在想提醒某人，或者单纯想开个玩笑时使用。
-    2. **用户请求**: 当用户明确要求使用戳一戳时。
-    3. **上下文需求**: 当上下文明确需要你戳一个或多个人时。
-    4. **频率与情绪**: 如果最近已经戳过，或者感觉对方情绪不高，请避免使用，不要打扰到别人哦。
-
-    请根据上述规则，回答“是”或“否”。"""
+    action_description = "可以让你戳其他用户，为互动增添一份小小的乐趣。"
     activation_type = ActionActivationType.ALWAYS
     parallel_action = True
 

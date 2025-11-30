@@ -80,13 +80,16 @@ class PromptBuilder:
             session, user_name, situation_type, extra_context
         )
         
-        # 5. 构建可用动作
+        # 5. 构建聊天历史总览
+        chat_history_block = await self._build_chat_history_block(chat_stream)
+        
+        # 6. 构建可用动作
         actions_block = self._build_actions_block(available_actions)
         
-        # 6. 获取输出格式
+        # 7. 获取输出格式
         output_format = await self._get_output_format()
         
-        # 7. 使用统一的 prompt 管理系统格式化
+        # 8. 使用统一的 prompt 管理系统格式化
         prompt = await global_prompt_manager.format_prompt(
             PROMPT_NAMES["main"],
             user_name=user_name,
@@ -94,6 +97,7 @@ class PromptBuilder:
             relation_block=relation_block,
             activity_stream=activity_stream or "（这是你们第一次聊天）",
             current_situation=current_situation,
+            chat_history_block=chat_history_block,
             available_actions=actions_block,
             output_format=output_format,
         )
@@ -154,6 +158,57 @@ class PromptBuilder:
             logger.warning(f"构建关系块失败: {e}")
         
         return f"你与 {user_name} 还不太熟悉，这是早期的交流阶段。"
+    
+    async def _build_chat_history_block(
+        self,
+        chat_stream: Optional["ChatStream"],
+    ) -> str:
+        """
+        构建聊天历史总览块
+        
+        从 chat_stream 获取历史消息，格式化为可读的聊天记录
+        类似于 AFC 的已读历史板块
+        """
+        if not chat_stream:
+            return "（暂无聊天记录）"
+        
+        try:
+            from src.chat.utils.chat_message_builder import build_readable_messages_with_id
+            from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
+            from src.common.data_models.database_data_model import DatabaseMessages
+            
+            stream_context = chat_stream.context
+            
+            # 获取已读消息
+            history_messages = stream_context.history_messages if stream_context else []
+            
+            if not history_messages:
+                # 如果内存中没有历史消息，从数据库加载
+                fallback_messages_dicts = await get_raw_msg_before_timestamp_with_chat(
+                    chat_id=chat_stream.stream_id,
+                    timestamp=time.time(),
+                    limit=30,  # 限制数量，私聊不需要太多
+                )
+                history_messages = [
+                    DatabaseMessages(**msg_dict) for msg_dict in fallback_messages_dicts
+                ]
+            
+            if not history_messages:
+                return "（暂无聊天记录）"
+            
+            # 构建可读消息
+            chat_content, _ = await build_readable_messages_with_id(
+                messages=[msg.flatten() for msg in history_messages[-30:]],  # 最多30条
+                timestamp_mode="normal_no_YMD",
+                truncate=False,
+                show_actions=False,
+            )
+            
+            return chat_content if chat_content else "（暂无聊天记录）"
+            
+        except Exception as e:
+            logger.warning(f"构建聊天历史块失败: {e}")
+            return "（获取聊天记录失败）"
     
     async def _build_activity_stream(
         self,
@@ -284,6 +339,12 @@ class PromptBuilder:
     ) -> str:
         """构建当前情况描述"""
         current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M")
+        
+        # 如果之前没有设置等待时间（max_wait_seconds == 0），视为 new_message
+        if situation_type in ("reply_in_time", "reply_late"):
+            max_wait = session.waiting_config.max_wait_seconds
+            if max_wait <= 0:
+                situation_type = "new_message"
         
         if situation_type == "new_message":
             return await global_prompt_manager.format_prompt(

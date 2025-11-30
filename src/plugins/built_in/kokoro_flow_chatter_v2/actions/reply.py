@@ -1,5 +1,5 @@
 """
-KFC V2 回复动作模块
+KFC 回复动作模块
 
 KFC 的 reply 动作与 AFC 不同：
 - 不调用 LLM 生成回复，content 由 Replyer 提前生成
@@ -17,12 +17,12 @@ logger = get_logger("kfc_reply_action")
 
 class KFCReplyAction(BaseAction):
     """KFC Reply 动作 - 发送已生成的回复内容
-    
+
     特点：
     - 不调用 LLM，直接发送 content 参数中的内容
     - content 由 Replyer 提前生成
-    - 仅限 KokoroFlowChatterV2 使用
-    
+    - 仅限 KokoroFlowChatter 使用
+
     注意：使用 kfc_reply 作为动作名称以避免与 AFC 的 reply 动作冲突
     """
 
@@ -35,8 +35,8 @@ class KFCReplyAction(BaseAction):
     mode_enable = ChatMode.ALL
     parallel_action = False
     
-    # Chatter 限制：仅允许 KokoroFlowChatterV2 使用
-    chatter_allow: ClassVar[list[str]] = ["KokoroFlowChatterV2"]
+    # Chatter 限制：仅允许 KokoroFlowChatter 使用
+    chatter_allow: ClassVar[list[str]] = ["KokoroFlowChatter"]
 
     # 动作参数定义
     action_parameters: ClassVar = {
