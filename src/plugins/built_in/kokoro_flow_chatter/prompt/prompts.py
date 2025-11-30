@@ -14,35 +14,35 @@ kfc_MAIN_PROMPT = Prompt(
     name="kfc_main",
     template="""# 你与 {user_name} 的私聊
 
-## 1. 你是谁
+## 人设
 {persona_block}
 
-## 2. 你与 {user_name} 的关系
+## 你与 {user_name} 的关系
 {relation_block}
 
-## 3. 相关记忆
+## 相关记忆
 {memory_block}
 
-## 4. 你们之间发生的事（活动流）
+## 你们之间最近的活动记录
 以下是你和 {user_name} 最近的互动历史，按时间顺序记录了你们的对话和你的心理活动：
 
 {activity_stream}
 
-## 5. 当前情况
+## 当前情况
 {current_situation}
 
-## 6. 聊天历史总览
+## 聊天历史总览
 以下是你和 {user_name} 的聊天记录，帮助你更好地理解对话上下文：
 
 {chat_history_block}
 
-## 7. 你可以做的事情
+## 你可以做的事情
 {available_actions}
 
-## 8. 你的表达习惯
+## 你的表达习惯
 {expression_habits}
 
-## 9. 你的回复格式
+## 你的回复格式
 {output_format}
 """,
 )
@@ -61,7 +61,7 @@ kfc_OUTPUT_FORMAT = Prompt(
         {{"type": "动作名称", ...动作参数}}
     ],
     "expected_reaction": "你期待对方的反应是什么",
-    "max_wait_seconds": 300
+    "max_wait_seconds": 等待时间（秒），0 表示不等待
 }}
 ```
 
@@ -69,7 +69,7 @@ kfc_OUTPUT_FORMAT = Prompt(
 - `thought`：你的内心独白，记录你此刻的想法和感受。要自然，不要技术性语言。
 - `actions`：你要执行的动作列表。每个动作是一个对象，必须包含 `type` 字段指定动作类型，其他字段根据动作类型不同而不同（参考上面每个动作的示例）。
 - `expected_reaction`：你期待对方如何回应（用于判断是否需要等待）
-- `max_wait_seconds`：设定等待时间（秒），0 表示不等待，超时后你会考虑是否要主动说点什么
+- `max_wait_seconds`：设定等待时间（秒），0 表示不等待，超时后你会考虑是否要主动说点什么。如果你认为聊天没有继续的必要，或不想打扰对方，可以设为 0。
 
 ### 注意事项
 - 动作参数直接写在动作对象里，不需要 `action_data` 包装
@@ -89,8 +89,7 @@ kfc_SITUATION_NEW_MESSAGE = Prompt(
 
 请决定你要怎么回应。你可以：
 - 发送文字消息回复
-- 发表情包
-- 戳一戳对方
+- 执行其他动作
 - 什么都不做（如果觉得没必要回复）
 - 或者组合多个动作""",
 )
@@ -123,12 +122,12 @@ kfc_SITUATION_TIMEOUT = Prompt(
 
 你之前发了消息后一直在等 {user_name} 的回复。
 你原本打算最多等 {max_wait_minutes:.1f} 分钟，现在已经等了 {elapsed_minutes:.1f} 分钟了，对方还是没回。
-你期待的反应是："{expected_reaction}"
+你当时期待的反应是："{expected_reaction}"
 
 你需要决定：
 1. 继续等待（设置新的 max_wait_seconds）
 2. 主动说点什么打破沉默
-3. 做点别的事情（戳一戳、发表情等）
+3. 做点别的事情（执行其他动作）
 4. 算了不等了（max_wait_seconds = 0）""",
 )
 
@@ -143,7 +142,7 @@ kfc_SITUATION_PROACTIVE = Prompt(
 
 请决定：
 1. 主动发起对话（想个话题开场）
-2. 发个表情或戳一戳试探一下
+2. 做点动作试探一下
 3. 算了，现在不是好时机（do_nothing）
 
 如果决定发起对话，想想用什么自然的方式开场，不要太突兀。""",
@@ -226,7 +225,7 @@ kfc_PLANNER_OUTPUT_FORMAT = Prompt(
         {{"type": "动作名称", ...动作参数}}
     ],
     "expected_reaction": "你期待对方的反应是什么",
-    "max_wait_seconds": 300
+    "max_wait_seconds": 等待时间（秒），0 表示不等待
 }}
 ```
 
@@ -251,61 +250,47 @@ kfc_REPLYER_PROMPT = Prompt(
     name="kfc_replyer",
     template="""# 你与 {user_name} 的私聊
 
-## 1. 你是谁
+## 人设
 {persona_block}
 
-## 2. 你与 {user_name} 的关系
+## 你与 {user_name} 的关系
 {relation_block}
 
-## 3. 相关记忆
+## 相关记忆
 {memory_block}
 
-## 4. 你们之间发生的事（活动流）
+## 你们之间发生的事（活动流）
 以下是你和 {user_name} 最近的互动历史，按时间顺序记录了你们的对话和你的心理活动：
 
 {activity_stream}
 
-## 5. 当前情况
+## 当前情况
 {current_situation}
 
-## 6. 聊天历史总览
+## 聊天历史总览
 以下是你和 {user_name} 的聊天记录，帮助你更好地理解对话上下文：
 
 {chat_history_block}
 
-## 7. 你的表达习惯
+## 你的表达习惯
 {expression_habits}
 
-## 8. 你的决策
+## 你的决策
 你已经决定要回复 {user_name}。
+你需要生成一段紧密相关且与历史消息相关的回复。
 
 **你的想法**：{thought}
 
 {reply_context}
 
-## 9. 回复要求
+## 要求
 
-**情景化表达**：
-- 根据你们的关系亲密度选择合适的语气和称呼
-- 参考活动流中的互动历史，保持对话的连贯性
-- 如果对方回复得晚/早，可以自然地表现出你的感受
+- 请注意不要输出多余内容(包括前后缀，冒号和引号，at，[xx：xxx]系统格式化文字或 @等 )。只输出回复内容。
+- 在称呼用户时，请使用更自然的昵称或简称。对于长英文名，可使用首字母缩写；对于中文名，可提炼合适的简称。禁止直接复述复杂的用户名或输出用户名中的任何符号，让称呼更像人类习惯，注意，简称不是必须的，合理的使用。
 
-**自然对话**：
-- 像真实的朋友聊天一样，不要生硬或公式化
-- 可以用口语、网络用语、语气词，让回复更生动
-- 长度适中，不要太长也不要太短
+你的回复应该是一条简短、完整且口语化的回复。
 
-**表达习惯**：
-- 参考上面的"表达习惯"部分，使用你习惯的语言风格
-- 保持人设的一致性
-
-**禁忌**：
-- 不要重复你之前说过的话
-- 不要输出 JSON 格式或技术性语言
-- 不要加引号、括号等多余符号
-- 不要用"我决定..."、"因此..."这种总结性语言
-
-现在，请直接输出你要说的话：""",
+现在，你说：""",
 )
 
 kfc_REPLYER_CONTEXT_NORMAL = Prompt(
