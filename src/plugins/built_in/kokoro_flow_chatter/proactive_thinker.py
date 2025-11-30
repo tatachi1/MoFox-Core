@@ -277,6 +277,9 @@ class ProactiveThinker:
         logger.info(f"[ProactiveThinker] 等待超时: user={session.user_id}")
         
         try:
+            # 获取用户名
+            user_name = await self._get_user_name(session.user_id, session.stream_id)
+            
             # 获取聊天流
             chat_stream = await self._get_chat_stream(session.stream_id)
             
@@ -292,7 +295,7 @@ class ProactiveThinker:
             # 调用 Planner 生成超时决策
             plan_response = await generate_plan(
                 session=session,
-                user_name=session.user_id,  # 这里可以改进，获取真实用户名
+                user_name=user_name,
                 situation_type="timeout",
                 chat_stream=chat_stream,
                 available_actions=action_manager.get_using_actions(),
@@ -304,7 +307,7 @@ class ProactiveThinker:
                 if action.type == "kfc_reply":
                     success, reply_text = await generate_reply_text(
                         session=session,
-                        user_name=session.user_id,
+                        user_name=user_name,
                         thought=plan_response.thought,
                         situation_type="timeout",
                         chat_stream=chat_stream,
@@ -449,6 +452,9 @@ class ProactiveThinker:
         logger.info(f"[ProactiveThinker] 主动思考触发: user={session.user_id}, reason={trigger_reason}")
         
         try:
+            # 获取用户名
+            user_name = await self._get_user_name(session.user_id, session.stream_id)
+            
             # 获取聊天流
             chat_stream = await self._get_chat_stream(session.stream_id)
             
@@ -476,7 +482,7 @@ class ProactiveThinker:
             # 调用 Planner
             plan_response = await generate_plan(
                 session=session,
-                user_name=session.user_id,
+                user_name=user_name,
                 situation_type="proactive",
                 chat_stream=chat_stream,
                 available_actions=action_manager.get_using_actions(),
@@ -501,7 +507,7 @@ class ProactiveThinker:
                 if action.type == "kfc_reply":
                     success, reply_text = await generate_reply_text(
                         session=session,
-                        user_name=session.user_id,
+                        user_name=user_name,
                         thought=plan_response.thought,
                         situation_type="proactive",
                         chat_stream=chat_stream,
@@ -564,6 +570,28 @@ class ProactiveThinker:
         except Exception as e:
             logger.warning(f"[ProactiveThinker] 获取 chat_stream 失败: {e}")
         return None
+    
+    async def _get_user_name(self, user_id: str, stream_id: str) -> str:
+        """获取用户名称（优先从 person_info 获取）"""
+        try:
+            from src.person_info.person_info import get_person_info_manager
+            
+            person_info_manager = get_person_info_manager()
+            # 从 stream_id 提取 platform（格式通常是 platform_xxx）
+            platform = "qq"  # 默认平台
+            if "_" in stream_id:
+                platform = stream_id.split("_")[0]
+            
+            person_id = person_info_manager.get_person_id(platform, user_id)
+            person_name = await person_info_manager.get_value(person_id, "person_name")
+            
+            if person_name:
+                return person_name
+        except Exception as e:
+            logger.debug(f"[ProactiveThinker] 获取用户名失败: {e}")
+        
+        # 回退到 user_id
+        return user_id
     
     def get_stats(self) -> dict:
         """获取统计信息"""
