@@ -140,7 +140,7 @@ class PromptBuilder:
         
         # 1. 添加说话风格（来自配置）
         if global_config and global_config.personality.reply_style:
-            parts.append(f"**说话风格**：\n{global_config.personality.reply_style}")
+            parts.append(f"**说话风格**：\n你必须参考你的说话风格：\n{global_config.personality.reply_style}")
         
         # 2. 添加学习到的表达习惯
         if learned_habits and learned_habits.strip():
