@@ -43,6 +43,15 @@ class ProactiveConfig:
     
     # 主动发起概率（0.0 ~ 1.0）
     trigger_probability: float = 0.3
+    
+    # 关系门槛：最低好感度，达到此值才会主动关心
+    min_affinity_for_proactive: float = 0.3
+    
+    # 是否启用早安问候
+    enable_morning_greeting: bool = True
+    
+    # 是否启用晚安问候
+    enable_night_greeting: bool = True
 
 
 @dataclass
@@ -178,6 +187,9 @@ def load_config() -> KokoroFlowChatterConfig:
                     quiet_hours_start=getattr(pro_cfg, 'quiet_hours_start', "23:00"),
                     quiet_hours_end=getattr(pro_cfg, 'quiet_hours_end', "07:00"),
                     trigger_probability=getattr(pro_cfg, 'trigger_probability', 0.3),
+                    min_affinity_for_proactive=getattr(pro_cfg, 'min_affinity_for_proactive', 0.3),
+                    enable_morning_greeting=getattr(pro_cfg, 'enable_morning_greeting', True),
+                    enable_night_greeting=getattr(pro_cfg, 'enable_night_greeting', True),
                 )
             
             # 提示词配置

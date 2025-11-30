@@ -1,5 +1,5 @@
 [inner]
-version = "7.9.3"
+version = "7.9.4"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -673,3 +673,10 @@ min_interval_between_proactive = 1800 # 两次主动思考之间的最小间隔�
 # 格式为 "HH:MM"，使用24小时制。如果 start > end，表示跨越午夜（如 23:00 到 07:00）。
 quiet_hours_start = "23:00" # 勿扰开始时间
 quiet_hours_end = "07:00" # 勿扰结束时间
+
+# 5. 触发概率：每次检查时主动发起的概率，用于避免过于频繁打扰。
+trigger_probability = 0.3 # 0.0~1.0，默认30%概率
+
+# 6. 自然问候：在特定的时间，她会像朋友一样送上问候。
+enable_morning_greeting = true # 是否启用早安问候 (例如: 8:00 - 9:00)
+enable_night_greeting = true # 是否启用晚安问候 (例如: 22:00 - 23:00)

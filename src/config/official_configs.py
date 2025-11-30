@@ -923,6 +923,20 @@ class KokoroFlowChatterProactiveConfig(ValidatedConfigBase):
     enable_night_greeting: bool = Field(
         default=True, description="是否启用晚安问候 (例如: 22:00 - 23:00)"
     )
+    
+    # 5. 勿扰时段：在这段时间内不会主动发起对话
+    quiet_hours_start: str = Field(
+        default="23:00", description="勿扰时段开始时间，格式: HH:MM"
+    )
+    quiet_hours_end: str = Field(
+        default="07:00", description="勿扰时段结束时间，格式: HH:MM"
+    )
+    
+    # 6. 触发概率：每次检查时主动发起的概率
+    trigger_probability: float = Field(
+        default=0.3, ge=0.0, le=1.0,
+        description="主动思考触发概率（0.0~1.0），用于避免过于频繁打扰"
+    )
 
 
 class KokoroFlowChatterConfig(ValidatedConfigBase):

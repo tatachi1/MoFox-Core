@@ -73,22 +73,27 @@ class ProactiveThinker:
         }
     
     def _load_config(self) -> None:
-        """加载配置"""
-        # 默认配置
-        self.waiting_check_interval = 15.0  # 等待检查间隔（秒）
-        self.proactive_check_interval = 300.0  # 主动思考检查间隔（秒）
-        self.silence_threshold = 7200  # 沉默阈值（秒）
-        self.min_proactive_interval = 1800  # 两次主动思考最小间隔（秒）
-        self.quiet_hours_start = "23:00"
-        self.quiet_hours_end = "07:00"
+        """加载配置 - 使用统一的配置系统"""
+        from .config import get_config
         
-        # 从全局配置读取
-        if global_config and hasattr(global_config, 'kokoro_flow_chatter'):
-            kfc_config = global_config.kokoro_flow_chatter
-            if hasattr(kfc_config, 'proactive_thinking'):
-                proactive_cfg = kfc_config.proactive_thinking
-                self.silence_threshold = getattr(proactive_cfg, 'silence_threshold_seconds', 7200)
-                self.min_proactive_interval = getattr(proactive_cfg, 'min_interval_between_proactive', 1800)
+        config = get_config()
+        proactive_cfg = config.proactive
+        
+        # 等待检查间隔（秒）
+        self.waiting_check_interval = 15.0
+        # 主动思考检查间隔（秒）
+        self.proactive_check_interval = 300.0
+        
+        # 从配置读取主动思考相关设置
+        self.proactive_enabled = proactive_cfg.enabled
+        self.silence_threshold = proactive_cfg.silence_threshold_seconds
+        self.min_proactive_interval = proactive_cfg.min_interval_between_proactive
+        self.quiet_hours_start = proactive_cfg.quiet_hours_start
+        self.quiet_hours_end = proactive_cfg.quiet_hours_end
+        self.trigger_probability = proactive_cfg.trigger_probability
+        self.min_affinity_for_proactive = proactive_cfg.min_affinity_for_proactive
+        self.enable_morning_greeting = proactive_cfg.enable_morning_greeting
+        self.enable_night_greeting = proactive_cfg.enable_night_greeting
     
     async def start(self) -> None:
         """启动主动思考器"""
@@ -98,7 +103,7 @@ class ProactiveThinker:
         
         self._running = True
         
-        # 注册等待检查任务
+        # 注册等待检查任务（始终启用，用于处理等待中的 Session）
         self._waiting_schedule_id = await unified_scheduler.create_schedule(
             callback=self._check_waiting_sessions,
             trigger_type=TriggerType.TIME,
@@ -109,18 +114,20 @@ class ProactiveThinker:
             timeout=60.0,
         )
         
-        # 注册主动思考检查任务
-        self._proactive_schedule_id = await unified_scheduler.create_schedule(
-            callback=self._check_proactive_sessions,
-            trigger_type=TriggerType.TIME,
-            trigger_config={"delay_seconds": self.proactive_check_interval},
-            is_recurring=True,
-            task_name=self.TASK_PROACTIVE_CHECK,
-            force_overwrite=True,
-            timeout=120.0,
-        )
-        
-        logger.info("[ProactiveThinker] 已启动")
+        # 注册主动思考检查任务（仅在启用时注册）
+        if self.proactive_enabled:
+            self._proactive_schedule_id = await unified_scheduler.create_schedule(
+                callback=self._check_proactive_sessions,
+                trigger_type=TriggerType.TIME,
+                trigger_config={"delay_seconds": self.proactive_check_interval},
+                is_recurring=True,
+                task_name=self.TASK_PROACTIVE_CHECK,
+                force_overwrite=True,
+                timeout=120.0,
+            )
+            logger.info("[ProactiveThinker] 已启动（主动思考已启用）")
+        else:
+            logger.info("[ProactiveThinker] 已启动（主动思考已禁用）")
     
     async def stop(self) -> None:
         """停止主动思考器"""
@@ -531,7 +538,7 @@ class ProactiveThinker:
                 return None
         
         # 概率触发（避免每次检查都触发）
-        if random.random() > 0.3:  # 30% 概率
+        if random.random() > self.trigger_probability:
             return None
         
         silence_hours = silence_duration / 3600
