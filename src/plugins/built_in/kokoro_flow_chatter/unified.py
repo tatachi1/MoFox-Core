@@ -561,7 +561,7 @@ def _log_pretty_response(response: LLMResponse, stream_id: str | None = None) ->
     
     for i, reply in enumerate(replies):
         if len(replies) > 1:
-            logger.info(f"[KFC] 💬[{i+1}] {reply}")
+            logger.info(f"[KFC] 💬 [{i+1}] {reply}")
         else:
             logger.info(f"[KFC] 💬 {reply}")
     
@@ -569,7 +569,7 @@ def _log_pretty_response(response: LLMResponse, stream_id: str | None = None) ->
         logger.info(f"[KFC] 🎯 {', '.join(actions)}")
     
     if response.max_wait_seconds > 0 or response.expected_reaction:
-        meta = f"⏱{response.max_wait_seconds}s" if response.max_wait_seconds > 0 else ""
+        meta = f"⏱ {response.max_wait_seconds}s" if response.max_wait_seconds > 0 else ""
         if response.expected_reaction:
             meta += f" 预期: {response.expected_reaction}"
         logger.info(f"[KFC] {meta.strip()}")

@@ -90,6 +90,11 @@ class SendHandler:
             logger.critical("现在暂时不支持解析此回复！")
             return None
 
+        # 🔧 确保 reply 消息段始终在列表最前面
+        # 排序原则：reply 类型优先级最高（排序值为 0），其他类型保持原有顺序（排序值为 1）
+        # 使用 stable sort 确保非 reply 元素的相对顺序不变
+        processed_message.sort(key=lambda seg: 0 if isinstance(seg, dict) and seg.get("type") == "reply" else 1)
+
         if group_info and group_info.get("group_id"):
             logger.debug("发送群聊消息")
             target_id = int(group_info["group_id"])
