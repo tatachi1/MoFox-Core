@@ -367,7 +367,7 @@ class StreamLoopManager:
                             await asyncio.sleep(0.1)
                         else:
                             self.stats["total_failures"] += 1
-                            logger.warning(f"❌ [流工作器] stream={stream_id[:8]}, 任务ID={task_id}, 处理失败")
+                            logger.debug(f"❌ [流工作器] stream={stream_id[:8]}, 任务ID={task_id}, 处理失败")
 
                     # 5. 计算下次检查间隔
                     logger.debug(f"🔍 [流工作器] stream={stream_id[:8]}, 循环#{loop_count}, 计算间隔...")
@@ -476,8 +476,8 @@ class StreamLoopManager:
 
         # 🔒 防止并发处理：如果已经在处理中，直接返回
         if context.is_chatter_processing:
-            logger.warning(f"🔒 [并发保护] stream={stream_id[:8]}, Chatter 正在处理中，跳过本次处理请求")
-            return False
+            logger.debug(f"🔒 [并发保护] stream={stream_id[:8]}, Chatter 正在处理中，跳过本次处理请求")
+            return True  # 返回 True，这是正常的保护机制，不是失败
 
         # 设置处理状态为正在处理
         self._set_stream_processing_status(stream_id, True)
