@@ -5,6 +5,7 @@ from typing import Any, TYPE_CHECKING
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.logger import get_logger
+from src.config.config import global_config
 from src.plugin_system.base.base_action import BaseAction
 from src.plugin_system.base.component_types import ActionInfo, ComponentType
 from src.plugin_system.core.component_registry import component_registry
