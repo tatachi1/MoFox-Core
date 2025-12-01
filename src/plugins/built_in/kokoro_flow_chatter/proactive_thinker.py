@@ -385,7 +385,13 @@ class ProactiveThinker:
             )
             return
         
-        logger.info(f"[ProactiveThinker] 等待超时: user={session.user_id}")
+        # 增加连续超时计数
+        session.consecutive_timeout_count += 1
+        
+        logger.info(
+            f"[ProactiveThinker] 等待超时: user={session.user_id}, "
+            f"consecutive_timeout={session.consecutive_timeout_count}"
+        )
         
         try:
             # 获取用户名
@@ -403,6 +409,18 @@ class ProactiveThinker:
             action_modifier = ActionModifier(action_manager, session.stream_id)
             await action_modifier.modify_actions(chatter_name="KokoroFlowChatter")
             
+            # 计算用户最后回复距今的时间
+            time_since_user_reply = None
+            if session.last_user_message_at:
+                time_since_user_reply = time.time() - session.last_user_message_at
+            
+            # 构建超时上下文信息
+            extra_context = {
+                "consecutive_timeout_count": session.consecutive_timeout_count,
+                "time_since_user_reply": time_since_user_reply,
+                "time_since_user_reply_str": self._format_duration(time_since_user_reply) if time_since_user_reply else "未知",
+            }
+            
             # 调用 Planner 生成超时决策
             plan_response = await generate_plan(
                 session=session,
@@ -410,6 +428,7 @@ class ProactiveThinker:
                 situation_type="timeout",
                 chat_stream=chat_stream,
                 available_actions=action_manager.get_using_actions(),
+                extra_context=extra_context,
             )
             
             # 为 kfc_reply 动作注入必要的上下文信息
@@ -419,6 +438,7 @@ class ProactiveThinker:
                     action.params["user_name"] = user_name
                     action.params["thought"] = plan_response.thought
                     action.params["situation_type"] = "timeout"
+                    action.params["extra_context"] = extra_context
             
             # 执行动作（回复生成在 Action.execute() 中完成）
             for action in plan_response.actions:
@@ -457,7 +477,8 @@ class ProactiveThinker:
             logger.info(
                 f"[ProactiveThinker] 超时决策完成: user={session.user_id}, "
                 f"actions={[a.type for a in plan_response.actions]}, "
-                f"continue_wait={plan_response.max_wait_seconds > 0}"
+                f"continue_wait={plan_response.max_wait_seconds > 0}, "
+                f"consecutive_timeout={session.consecutive_timeout_count}"
             )
             
         except Exception as e:
@@ -680,6 +701,23 @@ class ProactiveThinker:
         
         # 回退到 user_id
         return user_id
+    
+    def _format_duration(self, seconds: float | None) -> str:
+        """格式化时间间隔为人类可读的字符串"""
+        if seconds is None or seconds < 0:
+            return "未知"
+        
+        if seconds < 60:
+            return f"{int(seconds)} 秒"
+        elif seconds < 3600:
+            minutes = seconds / 60
+            return f"{minutes:.0f} 分钟"
+        elif seconds < 86400:
+            hours = seconds / 3600
+            return f"{hours:.1f} 小时"
+        else:
+            days = seconds / 86400
+            return f"{days:.1f} 天"
     
     def get_stats(self) -> dict:
         """获取统计信息"""

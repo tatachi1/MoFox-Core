@@ -531,6 +531,24 @@ class PromptBuilder:
             elapsed = session.waiting_config.get_elapsed_seconds()
             max_wait = session.waiting_config.max_wait_seconds
             expected = session.waiting_config.expected_reaction
+            
+            # 构建连续超时上下文
+            timeout_context_parts = []
+            
+            # 添加连续超时次数信息
+            consecutive_count = extra_context.get("consecutive_timeout_count", 0)
+            if consecutive_count > 1:
+                timeout_context_parts.append(f"⚠️ 这已经是你连续第 {consecutive_count} 次等到超时了。")
+            
+            # 添加距离用户上次回复的时间
+            time_since_user_reply_str = extra_context.get("time_since_user_reply_str")
+            if time_since_user_reply_str:
+                timeout_context_parts.append(f"距离 {user_name} 上一次回复你已经过去了 {time_since_user_reply_str}。")
+            
+            timeout_context = "\n".join(timeout_context_parts)
+            if timeout_context:
+                timeout_context = "\n" + timeout_context + "\n"
+            
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_timeout"],
                 current_time=current_time,
@@ -538,6 +556,7 @@ class PromptBuilder:
                 elapsed_minutes=elapsed / 60,
                 max_wait_minutes=max_wait / 60,
                 expected_reaction=expected or "对方能回复点什么",
+                timeout_context=timeout_context,
             )
         
         elif situation_type == "proactive":

@@ -123,12 +123,15 @@ kfc_SITUATION_TIMEOUT = Prompt(
 你之前发了消息后一直在等 {user_name} 的回复。
 你原本打算最多等 {max_wait_minutes:.1f} 分钟，现在已经等了 {elapsed_minutes:.1f} 分钟了，对方还是没回。
 你当时期待的反应是："{expected_reaction}"
-
+{timeout_context}
 你需要决定：
 1. 继续等待（设置新的 max_wait_seconds）
 2. 主动说点什么打破沉默
 3. 做点别的事情（执行其他动作）
-4. 算了不等了（max_wait_seconds = 0）""",
+4. 算了不等了（max_wait_seconds = 0）
+
+【注意】如果已经连续多次超时，对方可能暂时不方便回复。频繁主动发消息可能会打扰到对方。
+考虑是否应该暂时放下期待，让对方有空间。""",
 )
 
 kfc_SITUATION_PROACTIVE = Prompt(

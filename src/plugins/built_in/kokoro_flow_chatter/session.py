@@ -66,6 +66,12 @@ class KokoroSession:
         
         # 上次主动思考时间
         self.last_proactive_at: Optional[float] = None
+        
+        # 连续超时计数（用于避免过度打扰用户）
+        self.consecutive_timeout_count: int = 0
+        
+        # 用户最后发消息的时间（用于计算距离用户上次回复的时间）
+        self.last_user_message_at: Optional[float] = None
     
     @property
     def status(self) -> SessionStatus:
@@ -95,13 +101,19 @@ class KokoroSession:
         timestamp: Optional[float] = None,
     ) -> MentalLogEntry:
         """添加用户消息事件"""
+        msg_time = timestamp or time.time()
+        
         entry = MentalLogEntry(
             event_type=EventType.USER_MESSAGE,
-            timestamp=timestamp or time.time(),
+            timestamp=msg_time,
             content=content,
             user_name=user_name,
             user_id=user_id,
         )
+        
+        # 收到用户消息，重置连续超时计数
+        self.consecutive_timeout_count = 0
+        self.last_user_message_at = msg_time
         
         # 如果之前在等待，记录收到回复的情况
         if self.status == SessionStatus.WAITING and self.waiting_config.is_active():
@@ -213,6 +225,8 @@ class KokoroSession:
             "last_activity_at": self.last_activity_at,
             "total_interactions": self.total_interactions,
             "last_proactive_at": self.last_proactive_at,
+            "consecutive_timeout_count": self.consecutive_timeout_count,
+            "last_user_message_at": self.last_user_message_at,
         }
     
     @classmethod
@@ -243,6 +257,10 @@ class KokoroSession:
         session.last_activity_at = data.get("last_activity_at", time.time())
         session.total_interactions = data.get("total_interactions", 0)
         session.last_proactive_at = data.get("last_proactive_at")
+        
+        # 连续超时相关
+        session.consecutive_timeout_count = data.get("consecutive_timeout_count", 0)
+        session.last_user_message_at = data.get("last_user_message_at")
         
         return session
 
