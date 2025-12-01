@@ -150,7 +150,6 @@ class CRUDBase(Generic[T]):
             cache = await get_cache()
             cached_dict = await cache.get(cache_key)
             if cached_dict is not None:
-                logger.debug(f"缓存命中: {cache_key}")
                 # 从字典恢复对象
                 return _dict_to_model(self.model, cached_dict)
 
@@ -195,7 +194,6 @@ class CRUDBase(Generic[T]):
             cache = await get_cache()
             cached_dict = await cache.get(cache_key)
             if cached_dict is not None:
-                logger.debug(f"缓存命中: {cache_key}")
                 # 从字典恢复对象
                 return _dict_to_model(self.model, cached_dict)
 
@@ -248,7 +246,6 @@ class CRUDBase(Generic[T]):
             cache = await get_cache()
             cached_dicts = await cache.get(cache_key)
             if cached_dicts is not None:
-                logger.debug(f"缓存命中: {cache_key}")
                 # 从字典列表恢复对象列表
                 return [_dict_to_model(self.model, d) for d in cached_dicts]  # type: ignore
 

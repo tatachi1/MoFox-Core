@@ -166,18 +166,18 @@ class StreamContext(BaseDataModel):
                             "platform": message.chat_info.platform,
                             "stream_id": self.stream_id,
                         }
-                        await unified_manager.add_message(message_dict)  # type: ignore
-                        logger.debug(f"��Ϣ�����ӵ��������ϵͳ: {message.message_id}")
+                        await unified_manager.add_message(message_dict)
+                        logger.debug(f"消息已添加到统一记忆系统: {message.message_id}")
             except Exception as e:
-                logger.error(f"������Ϣ���������ϵͳʧ��: {e}")
+                logger.error(f"添加消息到统一记忆系统失败: {e}")
 
             return True
         except Exception as e:
-            logger.error(f"������Ϣ������������ʧ�� {self.stream_id}: {e}")
+            logger.error(f"添加消息到上下文失败 {self.stream_id}: {e}")
             return False
 
     async def update_message(self, message_id: str, updates: dict[str, Any]) -> bool:
-        """�����������е���Ϣ"""
+        """更新上下文中的消息信息"""
         try:
             for message in self.unread_messages:
                 if str(message.message_id) == str(message_id):
@@ -199,10 +199,10 @@ class StreamContext(BaseDataModel):
                         message.should_reply = updates["should_reply"]
                     break
 
-            logger.debug(f"���µ�����������Ϣ: {self.stream_id}/{message_id}")
+            logger.debug(f"更新消息信息: {self.stream_id}/{message_id}")
             return True
         except Exception as e:
-            logger.error(f"���µ�����������Ϣʧ�� {self.stream_id}/{message_id}: {e}")
+            logger.error(f"更新消息信息失败 {self.stream_id}/{message_id}: {e}")
             return False
 
     def add_action_to_message(self, message_id: str, action: str):

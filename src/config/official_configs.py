@@ -888,3 +888,85 @@ class ProactiveThinkingConfig(ValidatedConfigBase):
     # --- 新增：调试与监控 ---
     enable_statistics: bool = Field(default=True, description="是否启用统计功能（记录触发次数、决策分布等）")
     log_decisions: bool = Field(default=False, description="是否记录每次决策的详细日志（用于调试）")
+
+
+class KokoroFlowChatterProactiveConfig(ValidatedConfigBase):
+    """
+    Kokoro Flow Chatter 主动思考子配置
+    
+    设计哲学：主动行为源于内部状态和外部环境的自然反应，而非机械的限制。
+    她的主动是因为挂念、因为关心、因为想问候，而不是因为"任务"。
+    """
+    enabled: bool = Field(default=True, description="是否启用KFC的私聊主动思考")
+    
+    # 1. 沉默触发器：当感到长久的沉默时，她可能会想说些什么
+    silence_threshold_seconds: int = Field(
+        default=7200, ge=60, le=86400,
+        description="用户沉默超过此时长（秒），可能触发主动思考（默认2小时）"
+    )
+    
+    # 2. 关系门槛：她不会对不熟悉的人过于主动
+    min_affinity_for_proactive: float = Field(
+        default=0.3, ge=0.0, le=1.0,
+        description="需要达到最低好感度，她才会开始主动关心"
+    )
+    
+    # 3. 频率呼吸：为了避免打扰，她的关心总是有间隔的
+    min_interval_between_proactive: int = Field(
+        default=1800, ge=0,
+        description="两次主动思考之间的最小间隔（秒，默认30分钟）"
+    )
+    
+    # 4. 自然问候：在特定的时间，她会像朋友一样送上问候
+    enable_morning_greeting: bool = Field(
+        default=True, description="是否启用早安问候 (例如: 8:00 - 9:00)"
+    )
+    enable_night_greeting: bool = Field(
+        default=True, description="是否启用晚安问候 (例如: 22:00 - 23:00)"
+    )
+    
+    # 5. 勿扰时段：在这段时间内不会主动发起对话
+    quiet_hours_start: str = Field(
+        default="23:00", description="勿扰时段开始时间，格式: HH:MM"
+    )
+    quiet_hours_end: str = Field(
+        default="07:00", description="勿扰时段结束时间，格式: HH:MM"
+    )
+    
+    # 6. 触发概率：每次检查时主动发起的概率
+    trigger_probability: float = Field(
+        default=0.3, ge=0.0, le=1.0,
+        description="主动思考触发概率（0.0~1.0），用于避免过于频繁打扰"
+    )
+
+
+class KokoroFlowChatterConfig(ValidatedConfigBase):
+    """
+    Kokoro Flow Chatter 配置类 - 私聊专用心流对话系统
+    
+    设计理念：KFC不是独立人格，它复用全局的人设、情感框架和回复模型，
+    只作为Bot核心人格在私聊中的一种特殊表现模式。
+    """
+
+    # --- 总开关 ---
+    enable: bool = Field(
+        default=True, 
+        description="开启后KFC将接管所有私聊消息；关闭后私聊消息将由AFC处理"
+    )
+
+    # --- 核心行为配置 ---
+    max_wait_seconds_default: int = Field(
+        default=300, ge=30, le=3600,
+        description="默认的最大等待秒数（AI发送消息后愿意等待用户回复的时间）"
+    )
+    enable_continuous_thinking: bool = Field(
+        default=True, 
+        description="是否在等待期间启用心理活动更新"
+    )
+
+    # --- 私聊专属主动思考配置 ---
+    proactive_thinking: KokoroFlowChatterProactiveConfig = Field(
+        default_factory=KokoroFlowChatterProactiveConfig,
+        description="私聊专属主动思考配置"
+    )
+

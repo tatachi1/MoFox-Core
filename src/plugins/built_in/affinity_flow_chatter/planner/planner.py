@@ -264,7 +264,7 @@ class ChatterActionPlanner:
                 # 3. 在规划前，先进行动作修改
                 from src.chat.planner_actions.action_modifier import ActionModifier
                 action_modifier = ActionModifier(self.action_manager, self.chat_id)
-                await action_modifier.modify_actions()
+                await action_modifier.modify_actions(chatter_name="AffinityFlowChatter")
 
                 # 4. 生成初始计划
                 initial_plan = await self.generator.generate(ChatMode.FOCUS)

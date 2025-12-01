@@ -663,6 +663,18 @@ class ChatterPlanFilter:
                             f"[{action}] 找不到目标消息，target_message_id: {action_data.get('target_message_id')}"
                         )
 
+                # reply 动作必须有目标消息，如果仍然为 None，则使用最新消息
+                if action in ["reply", "proactive_reply"] and action_message_obj is None:
+                    logger.warning(f"[{action}] 目标消息为空，强制使用最新消息作为兜底")
+                    latest_message_dict = self._get_latest_message(message_id_list)
+                    if latest_message_dict:
+                        from src.common.data_models.database_data_model import DatabaseMessages
+                        try:
+                            action_message_obj = DatabaseMessages(**latest_message_dict)
+                            logger.info(f"[{action}] 成功使用最新消息: {action_message_obj.message_id}")
+                        except Exception as e:
+                            logger.error(f"[{action}] 无法转换最新消息: {e}")
+                
                 return ActionPlannerInfo(
                     action_type=action,
                     reasoning=reasoning,

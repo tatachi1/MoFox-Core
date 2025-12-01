@@ -199,7 +199,6 @@ class QueryBuilder(Generic[T]):
             cache = await get_cache()
             cached_dicts = await cache.get(cache_key)
             if cached_dicts is not None:
-                logger.debug(f"缓存命中: {cache_key}")
                 dict_rows = [dict(row) for row in cached_dicts]
                 if as_dict:
                     return dict_rows
@@ -238,7 +237,6 @@ class QueryBuilder(Generic[T]):
             cache = await get_cache()
             cached_dict = await cache.get(cache_key)
             if cached_dict is not None:
-                logger.debug(f"缓存命中: {cache_key}")
                 row = dict(cached_dict)
                 if as_dict:
                     return row
@@ -277,7 +275,6 @@ class QueryBuilder(Generic[T]):
             cache = await get_cache()
             cached = await cache.get(cache_key)
             if cached is not None:
-                logger.debug(f"缓存命中: {cache_key}")
                 return cached
 
         # 构建count查询

@@ -1,0 +1,376 @@
+"""
+Kokoro Flow Chatter - Chatter 主类
+
+支持两种工作模式：
+1. unified（统一模式）: 单次 LLM 调用完成思考 + 回复生成
+2. split（分离模式）: Planner + Replyer 两次 LLM 调用
+
+核心设计：
+- Chatter 只负责 "收到消息 → 规划执行" 的流程
+- 无论 Session 之前是什么状态，流程都一样
+- 区别只体现在提示词中
+
+不负责：
+- 等待超时处理（由 ProactiveThinker 负责）
+- 连续思考（由 ProactiveThinker 负责）
+- 主动发起对话（由 ProactiveThinker 负责）
+"""
+
+import asyncio
+import time
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from src.chat.planner_actions.action_manager import ChatterActionManager
+from src.common.data_models.message_manager_data_model import StreamContext
+from src.common.logger import get_logger
+from src.plugin_system.base.base_chatter import BaseChatter
+from src.plugin_system.base.component_types import ChatType
+
+from .config import KFCMode, get_config
+from .models import SessionStatus
+from .session import get_session_manager
+
+if TYPE_CHECKING:
+    pass
+
+logger = get_logger("kfc_chatter")
+
+
+class KokoroFlowChatter(BaseChatter):
+    """
+    Kokoro Flow Chatter - 私聊特化的心流聊天器
+
+    支持两种工作模式（通过配置切换）：
+    - unified: 单次 LLM 调用完成思考和回复
+    - split: Planner + Replyer 两次 LLM 调用
+
+    核心设计：
+    - Chatter 只负责 "收到消息 → 规划执行" 的流程
+    - 无论 Session 之前是什么状态，流程都一样
+    - 区别只体现在提示词中
+
+    不负责：
+    - 等待超时处理（由 ProactiveThinker 负责）
+    - 连续思考（由 ProactiveThinker 负责）
+    - 主动发起对话（由 ProactiveThinker 负责）
+    """
+
+    chatter_name: str = "KokoroFlowChatter"
+    chatter_description: str = "心流聊天器 - 私聊特化的深度情感交互处理器"
+    chat_types: ClassVar[list[ChatType]] = [ChatType.PRIVATE]
+    
+    def __init__(
+        self,
+        stream_id: str,
+        action_manager: "ChatterActionManager",
+        plugin_config: dict | None = None,
+    ):
+        super().__init__(stream_id, action_manager, plugin_config)
+        
+        # 核心组件
+        self.session_manager = get_session_manager()
+        
+        # 加载配置
+        self._config = get_config()
+        self._mode = self._config.mode
+        
+        # 并发控制
+        self._lock = asyncio.Lock()
+        self._processing = False
+        
+        # 统计
+        self._stats: dict[str, Any] = {
+            "messages_processed": 0,
+            "successful_responses": 0,
+            "failed_responses": 0,
+        }
+        
+        # 输出初始化信息
+        mode_str = "统一模式" if self._mode == KFCMode.UNIFIED else "分离模式"
+        logger.info(f"初始化完成 (模式: {mode_str}): stream_id={stream_id}")
+    
+    async def execute(self, context: StreamContext) -> dict:
+        """
+        执行聊天处理
+        
+        流程：
+        1. 获取 Session
+        2. 获取未读消息
+        3. 记录用户消息到 mental_log
+        4. 确定 situation_type（根据之前的等待状态）
+        5. 根据模式调用对应的生成器
+        6. 执行动作
+        7. 更新 Session（记录 Bot 规划，设置等待状态）
+        8. 保存 Session
+        """
+        async with self._lock:
+            self._processing = True
+            
+            try:
+                # 1. 获取未读消息
+                unread_messages = context.get_unread_messages()
+                if not unread_messages:
+                    return self._build_result(success=True, message="no_unread_messages")
+                
+                # 2. 取最后一条消息作为主消息
+                target_message = unread_messages[-1]
+                user_info = target_message.user_info
+                
+                if not user_info:
+                    return self._build_result(success=False, message="no_user_info")
+                
+                user_id = str(user_info.user_id)
+                user_name = user_info.user_nickname or user_id
+                
+                # 3. 获取或创建 Session
+                session = await self.session_manager.get_session(user_id, self.stream_id)
+                
+                # 4. 确定 situation_type（根据之前的等待状态）
+                situation_type = self._determine_situation_type(session)
+                
+                # 5. **立即**结束等待状态，防止 ProactiveThinker 并发处理
+                if session.status == SessionStatus.WAITING:
+                    session.end_waiting()
+                    await self.session_manager.save_session(user_id)
+                
+                # 6. 记录用户消息到 mental_log
+                for msg in unread_messages:
+                    msg_content = msg.processed_plain_text or msg.display_message or ""
+                    msg_user_name = msg.user_info.user_nickname if msg.user_info else user_name
+                    msg_user_id = str(msg.user_info.user_id) if msg.user_info else user_id
+                    
+                    session.add_user_message(
+                        content=msg_content,
+                        user_name=msg_user_name,
+                        user_id=msg_user_id,
+                        timestamp=msg.time,
+                    )
+                
+                # 7. 加载可用动作（通过 ActionModifier 过滤）
+                from src.chat.planner_actions.action_modifier import ActionModifier
+                
+                action_modifier = ActionModifier(self.action_manager, self.stream_id)
+                await action_modifier.modify_actions(chatter_name="KokoroFlowChatter")
+                available_actions = self.action_manager.get_using_actions()
+                
+                # 8. 获取聊天流
+                chat_stream = await self._get_chat_stream()
+                
+                # 9. 根据模式调用对应的生成器
+                if self._mode == KFCMode.UNIFIED:
+                    plan_response = await self._execute_unified_mode(
+                        session=session,
+                        user_name=user_name,
+                        situation_type=situation_type,
+                        chat_stream=chat_stream,
+                        available_actions=available_actions,
+                    )
+                else:
+                    plan_response = await self._execute_split_mode(
+                        session=session,
+                        user_name=user_name,
+                        user_id=user_id,
+                        situation_type=situation_type,
+                        chat_stream=chat_stream,
+                        available_actions=available_actions,
+                    )
+                
+                # 10. 执行动作
+                exec_results = []
+                has_reply = False
+                for action in plan_response.actions:
+                    result = await self.action_manager.execute_action(
+                        action_name=action.type,
+                        chat_id=self.stream_id,
+                        target_message=target_message,
+                        reasoning=plan_response.thought,
+                        action_data=action.params,
+                        thinking_id=None,
+                        log_prefix="[KFC]",
+                    )
+                    exec_results.append(result)
+                    if result.get("success") and action.type in ("kfc_reply", "respond"):
+                        has_reply = True
+                
+                # 11. 记录 Bot 规划到 mental_log
+                session.add_bot_planning(
+                    thought=plan_response.thought,
+                    actions=[a.to_dict() for a in plan_response.actions],
+                    expected_reaction=plan_response.expected_reaction,
+                    max_wait_seconds=plan_response.max_wait_seconds,
+                )
+                
+                # 12. 更新 Session 状态
+                if plan_response.max_wait_seconds > 0:
+                    session.start_waiting(
+                        expected_reaction=plan_response.expected_reaction,
+                        max_wait_seconds=plan_response.max_wait_seconds,
+                    )
+                else:
+                    session.end_waiting()
+                
+                # 13. 标记消息为已读
+                for msg in unread_messages:
+                    context.mark_message_as_read(str(msg.message_id))
+                
+                # 14. 保存 Session
+                await self.session_manager.save_session(user_id)
+                
+                # 15. 更新统计
+                self._stats["messages_processed"] += len(unread_messages)
+                if has_reply:
+                    self._stats["successful_responses"] += 1
+                
+                # 输出完成信息
+                mode_str = "unified" if self._mode == KFCMode.UNIFIED else "split"
+                logger.info(
+                    f"处理完成 ({mode_str}): "
+                    f"user={user_name}, situation={situation_type}, "
+                    f"actions={[a.type for a in plan_response.actions]}, "
+                    f"wait={plan_response.max_wait_seconds}s"
+                )
+                
+                return self._build_result(
+                    success=True,
+                    message="processed",
+                    has_reply=has_reply,
+                    thought=plan_response.thought,
+                    situation_type=situation_type,
+                    mode=mode_str,
+                )
+                
+            except Exception as e:
+                self._stats["failed_responses"] += 1
+                logger.error(f"[KFC] 处理失败: {e}")
+                import traceback
+                traceback.print_exc()
+                return self._build_result(success=False, message=str(e), error=True)
+            
+            finally:
+                self._processing = False
+    
+    async def _execute_unified_mode(
+        self,
+        session,
+        user_name: str,
+        situation_type: str,
+        chat_stream,
+        available_actions,
+    ):
+        """
+        统一模式：单次 LLM 调用完成思考 + 回复生成
+        
+        LLM 输出的 JSON 中 kfc_reply 动作已包含 content 字段，
+        无需再调用 Replyer 生成回复。
+        """
+        from .unified import generate_unified_response
+        
+        plan_response = await generate_unified_response(
+            session=session,
+            user_name=user_name,
+            situation_type=situation_type,
+            chat_stream=chat_stream,
+            available_actions=available_actions,
+        )
+        
+        # 统一模式下 content 已经在 actions 中，无需注入
+        return plan_response
+    
+    async def _execute_split_mode(
+        self,
+        session,
+        user_name: str,
+        user_id: str,
+        situation_type: str,
+        chat_stream,
+        available_actions,
+    ):
+        """
+        分离模式：Planner + Replyer 两次 LLM 调用
+        
+        1. Planner 生成行动计划（JSON，kfc_reply 不含 content）
+        2. 为 kfc_reply 动作注入上下文，由 Action.execute() 调用 Replyer 生成回复
+        """
+        from .planner import generate_plan
+        
+        plan_response = await generate_plan(
+            session=session,
+            user_name=user_name,
+            situation_type=situation_type,
+            chat_stream=chat_stream,
+            available_actions=available_actions,
+        )
+        
+        # 为 kfc_reply 动作注入回复生成所需的上下文
+        for action in plan_response.actions:
+            if action.type == "kfc_reply":
+                action.params["user_id"] = user_id
+                action.params["user_name"] = user_name
+                action.params["thought"] = plan_response.thought
+                action.params["situation_type"] = situation_type
+        
+        return plan_response
+    
+    def _determine_situation_type(self, session) -> str:
+        """
+        确定当前情况类型
+        
+        根据 Session 之前的状态决定提示词的 situation_type
+        """
+        if session.status == SessionStatus.WAITING:
+            # 之前在等待
+            if session.waiting_config.is_timeout():
+                # 超时了才收到回复
+                return "reply_late"
+            else:
+                # 在预期内收到回复
+                return "reply_in_time"
+        else:
+            # 之前是 IDLE
+            return "new_message"
+    
+    async def _get_chat_stream(self):
+        """获取聊天流对象"""
+        try:
+            from src.chat.message_receive.chat_stream import get_chat_manager
+            
+            chat_manager = get_chat_manager()
+            if chat_manager:
+                return await chat_manager.get_stream(self.stream_id)
+        except Exception as e:
+            logger.warning(f"[KFC] 获取 chat_stream 失败: {e}")
+        return None
+    
+    def _build_result(
+        self,
+        success: bool,
+        message: str = "",
+        error: bool = False,
+        **kwargs,
+    ) -> dict:
+        """构建返回结果"""
+        result = {
+            "success": success,
+            "stream_id": self.stream_id,
+            "message": message,
+            "error": error,
+            "timestamp": time.time(),
+        }
+        result.update(kwargs)
+        return result
+    
+    def get_stats(self) -> dict[str, Any]:
+        """获取统计信息"""
+        stats = self._stats.copy()
+        stats["mode"] = self._mode.value
+        return stats
+    
+    @property
+    def is_processing(self) -> bool:
+        """是否正在处理"""
+        return self._processing
+    
+    @property
+    def mode(self) -> KFCMode:
+        """当前工作模式"""
+        return self._mode

@@ -194,7 +194,6 @@ def cached(
             cached_result = await cache.get(cache_key)
 
             if cached_result is not None:
-                logger.debug(f"缓存命中: {cache_key}")
                 return cached_result
 
             # 执行函数

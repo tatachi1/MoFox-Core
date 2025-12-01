@@ -209,6 +209,7 @@ class ActionInfo(ComponentInfo):
     mode_enable: ChatMode = ChatMode.ALL
     parallel_action: bool = False
     chat_type_allow: ChatType = ChatType.ALL  # 允许的聊天类型
+    chatter_allow: list[str] = field(default_factory=list)  # 允许的 Chatter 列表，空则允许所有
     # 二步Action相关属性
     is_two_step_action: bool = False  # 是否为二步Action
     step_one_description: str = ""  # 第一步的描述
@@ -226,6 +227,8 @@ class ActionInfo(ComponentInfo):
             self.associated_types = []
         if self.sub_actions is None:
             self.sub_actions = []
+        if self.chatter_allow is None:
+            self.chatter_allow = []
         self.component_type = ComponentType.ACTION
 
 

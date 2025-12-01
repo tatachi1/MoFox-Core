@@ -559,6 +559,7 @@ class BaseAction(ABC):
             action_require=getattr(cls, "action_require", []).copy(),
             associated_types=getattr(cls, "associated_types", []).copy(),
             chat_type_allow=getattr(cls, "chat_type_allow", ChatType.ALL),
+            chatter_allow=getattr(cls, "chatter_allow", []).copy(),
             # 二步Action相关属性
             is_two_step_action=getattr(cls, "is_two_step_action", False),
             step_one_description=getattr(cls, "step_one_description", ""),

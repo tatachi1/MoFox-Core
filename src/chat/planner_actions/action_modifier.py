@@ -58,6 +58,7 @@ class ActionModifier:
     async def modify_actions(
         self,
         message_content: str = "",
+        chatter_name: str = "",
     ):  # sourcery skip: use-named-expression
         """
         动作修改流程，整合传统观察处理和新的激活类型判定
@@ -67,6 +68,10 @@ class ActionModifier:
         2. 基于激活类型的智能动作判定，最终确定可用动作集
 
         处理后，ActionManager 将包含最终的可用动作集，供规划器直接使用
+        
+        Args:
+            message_content: 消息内容
+            chatter_name: 当前使用的 Chatter 名称，用于过滤只允许特定 Chatter 使用的动作
         """
         assert global_config is not None
         # 初始化log_prefix
@@ -84,13 +89,14 @@ class ActionModifier:
 
         logger.debug(f"{self.log_prefix}开始完整动作修改流程")
 
+        removals_s0: list[tuple[str, str]] = []  # 第0阶段：聊天类型和Chatter过滤
         removals_s1: list[tuple[str, str]] = []
         removals_s2: list[tuple[str, str]] = []
         removals_s3: list[tuple[str, str]] = []
 
         all_actions = self.action_manager.get_using_actions()
 
-        # === 第0阶段：根据聊天类型过滤动作 ===
+        # === 第0阶段：根据聊天类型和Chatter过滤动作 ===
         from src.chat.utils.utils import get_chat_type_and_target_info
         from src.plugin_system.base.component_types import ChatType, ComponentType
         from src.plugin_system.core.component_registry import component_registry
@@ -99,26 +105,35 @@ class ActionModifier:
         is_group_chat, _ = await get_chat_type_and_target_info(self.chat_id)
         all_registered_actions = component_registry.get_components_by_type(ComponentType.ACTION)
 
-        chat_type_removals = []
         for action_name in list(all_actions.keys()):
             if action_name in all_registered_actions:
                 action_info = all_registered_actions[action_name]
+                
+                # 检查聊天类型限制
                 chat_type_allow = getattr(action_info, "chat_type_allow", ChatType.ALL)
-
-                # 检查是否符合聊天类型限制
-                should_keep = (
+                should_keep_chat_type = (
                     chat_type_allow == ChatType.ALL
                     or (chat_type_allow == ChatType.GROUP and is_group_chat)
                     or (chat_type_allow == ChatType.PRIVATE and not is_group_chat)
                 )
-
-                if not should_keep:
-                    chat_type_removals.append((action_name, f"不支持{'群聊' if is_group_chat else '私聊'}"))
+                
+                if not should_keep_chat_type:
+                    removals_s0.append((action_name, f"不支持{'群聊' if is_group_chat else '私聊'}"))
                     self.action_manager.remove_action_from_using(action_name)
+                    continue
+                
+                # 检查 Chatter 限制
+                chatter_allow = getattr(action_info, "chatter_allow", [])
+                if chatter_allow and chatter_name:
+                    # 如果设置了 chatter_allow 且提供了 chatter_name，则检查是否匹配
+                    if chatter_name not in chatter_allow:
+                        removals_s0.append((action_name, f"仅限 {', '.join(chatter_allow)} 使用"))
+                        self.action_manager.remove_action_from_using(action_name)
+                        continue
 
-        if chat_type_removals:
-            logger.info(f"{self.log_prefix} 第0阶段：根据聊天类型过滤 - 移除了 {len(chat_type_removals)} 个动作")
-            for action_name, reason in chat_type_removals:
+        if removals_s0:
+            logger.info(f"{self.log_prefix} 第0阶段：类型/Chatter过滤 - 移除了 {len(removals_s0)} 个动作")
+            for action_name, reason in removals_s0:
                 logger.debug(f"{self.log_prefix} - 移除 {action_name}: {reason}")
 
         message_list_before_now_half = await get_raw_msg_before_timestamp_with_chat(
@@ -174,7 +189,7 @@ class ActionModifier:
                 logger.debug(f"{self.log_prefix}阶段三移除动作: {action_name}，原因: {reason}")
 
         # === 统一日志记录 ===
-        all_removals = chat_type_removals + removals_s1 + removals_s2 + removals_s3
+        all_removals = removals_s0 + removals_s1 + removals_s2 + removals_s3
         removals_summary: str = ""
         if all_removals:
             removals_summary = " | ".join([f"{name}({reason})" for name, reason in all_removals])
