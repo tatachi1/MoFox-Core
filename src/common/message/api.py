@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 from mofox_wire import MessageServer
 
@@ -18,6 +19,8 @@ def get_global_api() -> MessageServer:
     if global_api is not None:
         return global_api
 
+    assert global_config is not None
+
     bus_config = global_config.message_bus
     host = os.getenv("HOST", "127.0.0.1")
     port_str = os.getenv("PORT", "8000")
@@ -27,7 +30,7 @@ def get_global_api() -> MessageServer:
     except ValueError:
         port = 8000
 
-    kwargs: dict[str, object] = {
+    kwargs: dict[str, Any] = {
         "host": host,
         "port": port,
         "app": get_global_server().get_app(),

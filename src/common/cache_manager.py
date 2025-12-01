@@ -38,6 +38,9 @@ class CacheManager:
         初始化缓存管理器。
         """
         if not hasattr(self, "_initialized"):
+            assert global_config is not None
+            assert model_config is not None
+
             self.default_ttl = default_ttl or 3600
             self.semantic_cache_collection_name = "semantic_cache"
 
@@ -87,6 +90,7 @@ class CacheManager:
                     embedding_array = embedding_array.flatten()
 
                 # 检查维度是否符合预期
+                assert global_config is not None
                 expected_dim = (
                     getattr(CacheManager, "embedding_dimension", None)
                     or global_config.lpmm_knowledge.embedding_dimension

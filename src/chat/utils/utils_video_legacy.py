@@ -31,9 +31,9 @@ def _extract_frames_worker(
     max_image_size: int,
     frame_extraction_mode: str,
     frame_interval_seconds: float | None,
-) -> list[Any] | list[tuple[str, str]]:
+) -> list[tuple[str, float]] | list[tuple[str, str]]:
     """线程池中提取视频帧的工作函数"""
-    frames = []
+    frames: list[tuple[str, float]] = []
     try:
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -42,7 +42,7 @@ def _extract_frames_worker(
 
         if frame_extraction_mode == "time_interval":
             # 新模式：按时间间隔抽帧
-            time_interval = frame_interval_seconds
+            time_interval = frame_interval_seconds or 2.0
             next_frame_time = 0.0
             extracted_count = 0  # 初始化提取帧计数器
 
@@ -61,7 +61,7 @@ def _extract_frames_worker(
                     # 调整图像大小
                     if max(pil_image.size) > max_image_size:
                         ratio = max_image_size / max(pil_image.size)
-                        new_size = tuple(int(dim * ratio) for dim in pil_image.size)
+                        new_size = (int(pil_image.size[0] * ratio), int(pil_image.size[1] * ratio))
                         pil_image = pil_image.resize(new_size, Image.Resampling.LANCZOS)
 
                     # 转换为base64
@@ -135,6 +135,8 @@ class LegacyVideoAnalyzer:
 
     def __init__(self):
         """初始化视频分析器"""
+        assert global_config is not None
+        assert model_config is not None
         # 使用专用的视频分析配置
         try:
             self.video_llm = LLMRequest(
@@ -238,6 +240,7 @@ class LegacyVideoAnalyzer:
             estimated_frames = min(self.max_frames, total_frames // frame_interval + 1)
         else:
             estimated_frames = self.max_frames
+            frame_interval = 1
 
         logger.info(f"计算得出帧间隔: {frame_interval} (将提取约{estimated_frames}帧)")
 
@@ -274,7 +277,7 @@ class LegacyVideoAnalyzer:
                 return await self._extract_frames_fallback(video_path)
 
             logger.info(f"✅ 成功提取{len(frames)}帧 (线程池模式)")
-            return frames
+            return frames  # type: ignore
 
         except Exception as e:
             logger.error(f"线程池帧提取失败: {e}")
@@ -313,7 +316,7 @@ class LegacyVideoAnalyzer:
                     # 调整图像大小
                     if max(pil_image.size) > self.max_image_size:
                         ratio = self.max_image_size / max(pil_image.size)
-                        new_size = tuple(int(dim * ratio) for dim in pil_image.size)
+                        new_size = (int(pil_image.size[0] * ratio), int(pil_image.size[1] * ratio))
                         pil_image = pil_image.resize(new_size, Image.Resampling.LANCZOS)
 
                     # 转换为base64
@@ -461,11 +464,11 @@ class LegacyVideoAnalyzer:
         # logger.info(f"✅ 多帧消息构建完成，包含{len(frames)}张图片")
 
         # 获取模型信息和客户端
-        model_info, api_provider, client = self.video_llm._select_model()
+        model_info, api_provider, client = self.video_llm._select_model()  # type: ignore
         # logger.info(f"使用模型: {model_info.name} 进行多帧分析")
 
         # 直接执行多图片请求
-        api_response = await self.video_llm._execute_request(
+        api_response = await self.video_llm._execute_request(  # type: ignore
             api_provider=api_provider,
             client=client,
             request_type=RequestType.RESPONSE,

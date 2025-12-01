@@ -30,6 +30,7 @@ class ActionModifier:
 
     def __init__(self, action_manager: ChatterActionManager, chat_id: str):
         """初始化动作处理器"""
+        assert model_config is not None
         self.chat_id = chat_id
         # chat_stream 和 log_prefix 将在异步方法中初始化
         self.chat_stream: "ChatStream | None" = None
@@ -72,6 +73,7 @@ class ActionModifier:
             message_content: 消息内容
             chatter_name: 当前使用的 Chatter 名称，用于过滤只允许特定 Chatter 使用的动作
         """
+        assert global_config is not None
         # 初始化log_prefix
         await self._initialize_log_prefix()
         # 根据 stream_id 加载当前可用的动作

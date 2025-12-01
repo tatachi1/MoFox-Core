@@ -64,8 +64,6 @@ class ImageManager:
             # except Exception as e:
             #     logger.error(f"数据库连接失败: {e}")
 
-            self._initialized = True
-
     def _ensure_image_dir(self):
         """确保图像存储目录存在"""
         os.makedirs(self.IMAGE_DIR, exist_ok=True)
@@ -159,6 +157,7 @@ class ImageManager:
     async def get_emoji_description(self, image_base64: str) -> str:
         """获取表情包描述，统一使用EmojiManager中的逻辑进行处理和缓存"""
         try:
+            assert global_config is not None
             from src.chat.emoji_system.emoji_manager import get_emoji_manager
 
             emoji_manager = get_emoji_manager()
@@ -190,7 +189,7 @@ class ImageManager:
                 return "[表情包(描述生成失败)]"
 
             # 4. (可选) 如果启用了“偷表情包”，则将图片和完整描述存入待注册区
-            if global_config and global_config.emoji and global_config.emoji.steal_emoji:
+            if global_config.emoji and global_config.emoji.steal_emoji:
                 logger.debug(f"偷取表情包功能已开启，保存待注册表情包: {image_hash}")
                 try:
                     image_format = (Image.open(io.BytesIO(image_bytes)).format or "jpeg").lower()
@@ -345,14 +344,15 @@ class ImageManager:
             # --- 新的帧选择逻辑：均匀抽取4帧 ---
             num_frames = len(all_frames)
             if num_frames <= 4:
-                # 如果总帧数小于等于4，则全部选中
+                # 如果总宽度小于等于4，则全部选中
                 selected_frames = all_frames
+                indices = list(range(num_frames))
             else:
                 # 使用linspace计算4个均匀分布的索引
                 indices = np.linspace(0, num_frames - 1, 4, dtype=int)
                 selected_frames = [all_frames[i] for i in indices]
 
-            logger.debug(f"GIF Frame Analysis: Total frames={num_frames}, Selected indices={indices if num_frames > 4 else list(range(num_frames))}")
+            logger.debug(f"GIF Frame Analysis: Total frames={num_frames}, Selected indices={indices}")
             # --- 帧选择逻辑结束 ---
 
             # 如果选择后连一帧都没有（比如GIF只有一帧且后续处理失败？）或者原始GIF就没帧，也返回None

@@ -23,6 +23,9 @@ class StreamLoopManager:
     """流循环管理器 - 每个流一个独立的无限循环任务"""
 
     def __init__(self, max_concurrent_streams: int | None = None):
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         # 统计信息
         self.stats: dict[str, Any] = {
             "active_streams": 0,
@@ -570,7 +573,6 @@ class StreamLoopManager:
         except Exception as e:
             logger.warning(f"刷新StreamContext缓存失败: stream={stream_id}, error={e}")
             return []
-
     async def _update_stream_energy(self, stream_id: str, context: Any) -> None:
         """更新流的能量值
 
@@ -578,6 +580,9 @@ class StreamLoopManager:
             stream_id: 流ID
             context: 流上下文 (StreamContext)
         """
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         try:
             from src.chat.message_receive.chat_stream import get_chat_manager
 
@@ -635,6 +640,9 @@ class StreamLoopManager:
         Returns:
             float: 间隔时间（秒）
         """
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         # 基础间隔
         base_interval = getattr(global_config.chat, "distribution_interval", 5.0)
 

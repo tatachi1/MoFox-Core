@@ -21,10 +21,15 @@ from structlog.typing import EventDict, WrappedLogger
 class DaemonQueueListener(QueueListener):
     """QueueListener 的工作线程作为守护进程运行，以避免阻塞关闭。"""
 
-    def _configure_listener(self):
-        super()._configure_listener()
-        if hasattr(self, "_thread") and self._thread is not None:  # type: ignore[attr-defined]
-            self._thread.daemon = True  # type: ignore[attr-defined]
+    def start(self):
+        """Start the listener.
+        This starts up a background thread to monitor the queue for
+        LogRecords to process.
+        """
+        # 覆盖 start 方法以设置 daemon=True
+        # 注意：_monitor 是 QueueListener 的内部方法
+        self._thread = threading.Thread(target=self._monitor, daemon=True)  # type: ignore
+        self._thread.start()
 
     def stop(self):
         """停止监听器，避免在退出时无限期阻塞。"""
@@ -345,10 +350,12 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
             "websockets",
             "httpcore",
             "requests",
+            "aiosqlite",
             "peewee",
             "openai",
             "uvicorn",
             "rjieba",
+            "message_bus",
         ],
         "library_log_levels": {"aiohttp": "WARNING"},
     }

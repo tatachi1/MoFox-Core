@@ -196,6 +196,7 @@ class _ModelSelector:
             + candidate_models_usage[k].avg_latency * self.LATENCY_WEIGHT,
         )
 
+        assert model_config is not None, "model_config 不能为 None"
         model_info = model_config.get_model_info(least_used_model_name)
         api_provider = model_config.get_provider(model_info.api_provider)
         # 自动事件循环检测：ClientRegistry 会自动检测事件循环变化并处理缓存失效
@@ -849,6 +850,7 @@ class _RequestStrategy:
             raise RuntimeError("所有模型均未能生成响应，且无具体异常信息。")
 
         # 如果不抛出异常，返回一个备用响应
+        assert model_config is not None, "model_config 不能为 None"
         fallback_model_info = model_config.get_model_info(self.model_list[0])
         return APIResponse(content="所有模型都请求失败"), fallback_model_info
 
@@ -1141,12 +1143,33 @@ class LLMRequest:
             if embeddings and not isinstance(embeddings[0], list):
                 embeddings = [embeddings]  # type: ignore[list-item]
 
-            return embeddings, model_info.name
+            # 批量请求返回二维列表
+            return embeddings, model_info.name  # type: ignore[return-value]
 
+        # 单个请求返回一维列表
         if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
-            return embeddings[0], model_info.name
+            return embeddings[0], model_info.name  # type: ignore[return-value]
 
-        return embeddings, model_info.name
+        return embeddings, model_info.name  # type: ignore[return-value]
+
+    async def execute_with_messages(
+        self,
+        message_list: list[Message],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> APIResponse:
+        """
+        使用自定义消息列表执行请求（支持多模态/多图）。
+        """
+        start_time = time.time()
+        response, model_info = await self._strategy.execute_with_failover(
+            RequestType.RESPONSE,
+            message_list=message_list,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        await self._record_usage(model_info, response.usage, time.time() - start_time, "/chat/completions")
+        return response
 
     async def _record_usage(self, model_info: ModelInfo, usage: UsageRecord | None, time_cost: float, endpoint: str):
         """
@@ -1218,7 +1241,8 @@ class LLMRequest:
                 # 遍历工具的参数
                 for param in tool.get("parameters", []):
                     # 严格验证参数格式是否为包含5个元素的元组
-                    assert isinstance(param, tuple) and len(param) == 5, "参数必须是包含5个元素的元组"
+                    assert isinstance(param, tuple), "参数必须是元组"
+                    assert len(param) == 5, "参数必须包含5个元素"
                     builder.add_param(
                         name=param[0],
                         param_type=param[1],

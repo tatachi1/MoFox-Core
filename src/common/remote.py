@@ -42,6 +42,7 @@ class TelemetryHeartBeatTask(AsyncTask):
     @staticmethod
     def _get_sys_info() -> dict[str, str]:
         """获取系统信息"""
+        assert global_config is not None
         info_dict = {
             "os_type": "Unknown",
             "py_version": platform.python_version(),

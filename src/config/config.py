@@ -177,7 +177,7 @@ def _remove_obsolete_keys(target: TOMLDocument | dict | Table, reference: TOMLDo
         if key not in reference:
             del target[key]
         elif isinstance(target.get(key), dict | Table) and isinstance(reference.get(key), dict | Table):
-            _remove_obsolete_keys(target[key], reference[key])
+            _remove_obsolete_keys(target[key], reference[key])  # type: ignore
 
 
 def _update_dict(target: TOMLDocument | dict | Table, source: TOMLDocument | dict):
@@ -437,9 +437,9 @@ class Config(ValidatedConfigBase):
 class APIAdapterConfig(ValidatedConfigBase):
     """API Adapter配置类"""
 
-    models: list[ModelInfo] = Field(..., min_items=1, description="模型列表")
+    models: list[ModelInfo] = Field(..., min_length=1, description="模型列表")
     model_task_config: ModelTaskConfig = Field(..., description="模型任务配置")
-    api_providers: list[APIProvider] = Field(..., min_items=1, description="API提供商列表")
+    api_providers: list[APIProvider] = Field(..., min_length=1, description="API提供商列表")
 
     def __init__(self, **data):
         super().__init__(**data)

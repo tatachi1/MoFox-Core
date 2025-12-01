@@ -6,9 +6,17 @@ import orjson
 from rich.traceback import install
 
 from src.common.logger import get_logger
-from src.config.config import global_config, model_config
+from src.config.config import global_config as _global_config, model_config as _model_config
 from src.llm_models.utils_model import LLMRequest
 from src.person_info.person_info import get_person_info_manager
+
+if _global_config is None:
+    raise ValueError("global_config is not initialized")
+if _model_config is None:
+    raise ValueError("model_config is not initialized")
+
+global_config = _global_config
+model_config = _model_config
 
 install(extra_lines=3)
 

@@ -16,6 +16,7 @@ async def get_api_key(api_key: str = Security(api_key_header_auth)) -> str:
     FastAPI 依赖项，用于验证API密钥。
     从请求头中提取 X-API-Key 并验证它是否存在于配置的有效密钥列表中。
     """
+    assert bot_config is not None
     valid_keys = bot_config.plugin_http_system.plugin_api_valid_keys
     if not valid_keys:
         logger.warning("API密钥认证已启用，但未配置任何有效的API密钥。所有请求都将被拒绝。")

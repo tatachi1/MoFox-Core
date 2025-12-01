@@ -2,6 +2,7 @@ import asyncio
 import math
 import os
 from dataclasses import dataclass
+from typing import Any
 
 # import tqdm
 import aiofiles
@@ -121,7 +122,7 @@ class EmbeddingStore:
 
         self.store = {}
 
-        self.faiss_index = None
+        self.faiss_index: Any = None
         self.idx2hash = None
 
     @staticmethod
@@ -157,6 +158,8 @@ class EmbeddingStore:
 
         from src.config.config import model_config
         from src.llm_models.utils_model import LLMRequest
+
+        assert model_config is not None
 
         # 限制 chunk_size 和 max_workers 在合理范围内
         chunk_size = max(MIN_CHUNK_SIZE, min(chunk_size, MAX_CHUNK_SIZE))
@@ -402,6 +405,7 @@ class EmbeddingStore:
 
     def build_faiss_index(self) -> None:
         """重新构建Faiss索引，以余弦相似度为度量"""
+        assert global_config is not None
         # 获取所有的embedding
         array = []
         self.idx2hash = {}

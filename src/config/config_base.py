@@ -177,7 +177,9 @@ class ValidatedConfigBase(BaseModel):
                 element_index = field_path[1]
 
                 # 尝试获取父字段的类型信息
-                parent_field_info = cls.model_fields.get(parent_field)
+                parent_field_info = None
+                if isinstance(parent_field, str):
+                    parent_field_info = cls.model_fields.get(parent_field)
 
                 if parent_field_info and hasattr(parent_field_info, "annotation"):
                     expected_type = parent_field_info.annotation
@@ -214,7 +216,9 @@ class ValidatedConfigBase(BaseModel):
             # 处理模型类型错误
             elif error_type in ["model_type", "dict_type", "is_instance_of"]:
                 field_name = field_path[0] if field_path else "unknown"
-                field_info = cls.model_fields.get(field_name)
+                field_info = None
+                if isinstance(field_name, str):
+                    field_info = cls.model_fields.get(field_name)
 
                 if field_info and hasattr(field_info, "annotation"):
                     expected_type = field_info.annotation

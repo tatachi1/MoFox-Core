@@ -52,6 +52,7 @@ async def find_messages(
         消息字典列表，如果出错则返回空列表。
     """
     try:
+        assert global_config is not None
         async with get_db_session() as session:
             query = select(Messages)
 

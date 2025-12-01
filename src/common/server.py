@@ -30,6 +30,7 @@ def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
 
 class Server:
     def __init__(self, host: str | None = None, port: int | None = None, app_name: str = "MoFox-Bot"):
+        assert bot_config is not None
         # 根据配置初始化速率限制器
         limiter = Limiter(
             key_func=get_remote_address,
