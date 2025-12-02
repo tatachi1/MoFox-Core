@@ -199,6 +199,8 @@ class KokoroSession:
         """结束等待"""
         self.status = SessionStatus.IDLE
         self.waiting_config.reset()
+        # 更新活动时间，防止 ProactiveThinker 并发处理
+        self.last_activity_at = time.time()
     
     def get_recent_entries(self, limit: int = 20) -> list[MentalLogEntry]:
         """获取最近的心理活动日志"""

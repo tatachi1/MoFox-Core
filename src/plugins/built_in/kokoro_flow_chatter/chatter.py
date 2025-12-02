@@ -125,6 +125,9 @@ class KokoroFlowChatter(BaseChatter):
                 # 3. 获取或创建 Session
                 session = await self.session_manager.get_session(user_id, self.stream_id)
                 
+                # 3.5 **立即**更新活动时间，阻止 ProactiveThinker 并发处理
+                session.last_activity_at = time.time()
+                
                 # 4. 确定 situation_type（根据之前的等待状态）
                 situation_type = self._determine_situation_type(session)
                 

@@ -460,6 +460,13 @@ class ProactiveThinker:
                         action.params["situation_type"] = "timeout"
                     action.params["extra_context"] = extra_context
             
+            # ★ 在执行动作前最后一次检查状态，防止与 Chatter 并发
+            if session.status != SessionStatus.WAITING:
+                logger.info(
+                    f"[ProactiveThinker] Session {session.user_id} 已被 Chatter 处理，取消执行动作"
+                )
+                return
+            
             # 执行动作（回复生成在 Action.execute() 中完成）
             for action in plan_response.actions:
                 await action_manager.execute_action(
