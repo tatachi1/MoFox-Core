@@ -21,6 +21,11 @@ from src.common.core_sink_manager import (
     shutdown_core_sink_manager,
 )
 from src.common.logger import get_logger
+from src.common.mem_monitor import (
+    MEM_MONITOR_ENABLED,
+    start_background_monitor,
+    stop_background_monitor,
+)
 
 # 全局背景任务集合
 _background_tasks = set()
@@ -211,6 +216,12 @@ class MainSystem:
         self._cleanup_started = True
         self._shutting_down = True
         logger.info("开始系统清理流程...")
+
+        # 停止内存监控线程（无需 await，同步操作）
+        try:
+            stop_background_monitor(timeout=3.0)
+        except Exception as e:
+            logger.error(f"停止内存监控时出错: {e}")
 
         cleanup_tasks = []
 
@@ -567,6 +578,15 @@ MoFox_Bot(第三方修改版)
             logger.info("所有适配器已启动")
         except Exception as e:
             logger.error(f"启动适配器失败: {e}")
+
+        # 启动内存监控
+        try:
+            if MEM_MONITOR_ENABLED:
+                started = start_background_monitor(interval_sec=300)
+                if started:
+                    logger.info("[DEV] 已启动 (间隔=300s)")
+        except Exception as e:
+            logger.error(f"启动内存监控失败: {e}")
 
     async def _init_planning_components(self) -> None:
         """初始化计划相关组件"""

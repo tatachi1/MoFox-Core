@@ -51,6 +51,8 @@ httpx[socks]
 packaging
 rich
 psutil
+objgraph
+Pympler
 cryptography
 json-repair
 reportportal-client
