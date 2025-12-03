@@ -670,13 +670,14 @@ class ExpressionLearner:
 
         current_time = time.time()
 
-        # 获取上次学习时间，过滤掉机器人自己的消息
+        # 获取上次学习时间，过滤掉机器人自己的消息和无意义消息
         random_msg: list[dict[str, Any]] | None = await get_raw_msg_by_timestamp_with_chat_inclusive(
             chat_id=self.chat_id,
             timestamp_start=self.last_learning_time,
             timestamp_end=current_time,
             limit=num,
             filter_bot=True,  # 过滤掉机器人自己的消息，防止学习自己的表达方式
+            filter_meaningless=True,  # 🔥 过滤掉表情包、通知等无意义消息
         )
 
         # print(random_msg)
@@ -685,8 +686,14 @@ class ExpressionLearner:
         # 转化成str
         chat_id: str = random_msg[0]["chat_id"]
         # random_msg_str: str = build_readable_messages(random_msg, timestamp_mode="normal")
-        random_msg_str: str = await build_anonymous_messages(random_msg)
+        # 🔥 启用表达学习场景的过滤，过滤掉纯回复、纯@、纯图片等无意义内容
+        random_msg_str: str = await build_anonymous_messages(random_msg, filter_for_learning=True)
         # print(f"random_msg_str:{random_msg_str}")
+        
+        # 🔥 检查过滤后是否还有足够的内容
+        if not random_msg_str or len(random_msg_str.strip()) < 20:
+            logger.debug(f"过滤后消息内容不足，跳过本次{type_str}学习")
+            return None
 
         prompt: str = await global_prompt_manager.format_prompt(
             prompt,

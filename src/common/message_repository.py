@@ -38,6 +38,7 @@ async def find_messages(
     limit_mode: str = "latest",
     filter_bot=False,
     filter_command=False,
+    filter_meaningless=False,
 ) -> list[dict[str, Any]]:
     """
     根据提供的过滤器、排序和限制条件查找消息。
@@ -47,6 +48,7 @@ async def find_messages(
         sort: 排序条件列表，例如 [('time', 1)] (1 for asc, -1 for desc)。仅在 limit 为 0 时生效。
         limit: 返回的最大文档数，0表示不限制。
         limit_mode: 当 limit > 0 时生效。 'earliest' 表示获取最早的记录， 'latest' 表示获取最新的记录（结果仍按时间正序排列）。默认为 'latest'。
+        filter_meaningless: 是否过滤无意义消息（表情包、通知、纯回复等）。用于表达学习等场景。
 
     Returns:
         消息字典列表，如果出错则返回空列表。
@@ -93,6 +95,14 @@ async def find_messages(
                 query = query.where(Messages.user_id != str(global_config.bot.qq_account))
 
             if filter_command:
+                query = query.where(not_(Messages.is_command))
+
+            # 🔥 过滤无意义消息（用于表达学习等场景）
+            if filter_meaningless:
+                # 排除：纯表情包、通知消息、公告消息、命令消息
+                query = query.where(not_(Messages.is_emoji))
+                query = query.where(not_(Messages.is_notify))
+                query = query.where(not_(Messages.is_public_notice))
                 query = query.where(not_(Messages.is_command))
 
             if limit > 0:
