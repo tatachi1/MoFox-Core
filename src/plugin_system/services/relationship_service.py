@@ -14,11 +14,19 @@ logger = get_logger("relationship_service")
 
 
 class RelationshipService:
-    """用户关系分服务 - 独立于插件的数据库直接访问层"""
+    """用户关系分服务 - 独立于插件的数据库直接访问层
+    
+    内存优化：添加缓存大小限制和自动过期清理
+    """
+
+    # 🔧 缓存配置
+    CACHE_MAX_SIZE = 1000  # 最大缓存用户数
 
     def __init__(self):
         self._cache: dict[str, dict] = {}  # user_id -> {score, text, last_updated}
         self._cache_ttl = 300  # 缓存5分钟
+        self._last_cleanup = time.time()  # 上次清理时间
+        self._cleanup_interval = 60  # 每60秒清理一次过期条目
 
     async def get_user_relationship_score(self, user_id: str) -> float:
         """
@@ -162,6 +170,9 @@ class RelationshipService:
 
     def _get_from_cache(self, user_id: str) -> dict | None:
         """从缓存获取数据"""
+        # 🔧 触发定期清理
+        self._maybe_cleanup_expired()
+
         if user_id in self._cache:
             cached_data = self._cache[user_id]
             if time.time() - cached_data["last_updated"] < self._cache_ttl:
@@ -173,11 +184,45 @@ class RelationshipService:
 
     def _update_cache(self, user_id: str, score: float, text: str):
         """更新缓存"""
+        # 🔧 内存优化：检查缓存大小限制
+        if len(self._cache) >= self.CACHE_MAX_SIZE and user_id not in self._cache:
+            # 淘汰最旧的 10% 条目
+            self._evict_oldest_entries()
+
         self._cache[user_id] = {
             "score": score,
             "text": text,
             "last_updated": time.time()
         }
+
+    def _maybe_cleanup_expired(self):
+        """🔧 内存优化：定期清理过期条目"""
+        now = time.time()
+        if now - self._last_cleanup < self._cleanup_interval:
+            return
+
+        self._last_cleanup = now
+        expired_keys = []
+        for user_id, data in self._cache.items():
+            if now - data["last_updated"] >= self._cache_ttl:
+                expired_keys.append(user_id)
+
+        for key in expired_keys:
+            del self._cache[key]
+
+        if expired_keys:
+            logger.debug(f"🔧 relationship_service 清理了 {len(expired_keys)} 个过期缓存条目")
+
+    def _evict_oldest_entries(self):
+        """🔧 内存优化：淘汰最旧的条目"""
+        evict_count = max(1, len(self._cache) // 10)
+        sorted_entries = sorted(
+            self._cache.items(),
+            key=lambda x: x[1]["last_updated"]
+        )
+        for user_id, _ in sorted_entries[:evict_count]:
+            del self._cache[user_id]
+        logger.debug(f"🔧 relationship_service LRU淘汰了 {evict_count} 个缓存条目")
 
     async def _fetch_from_database(self, user_id: str) -> UserRelationships | None:
         """从数据库获取关系数据"""

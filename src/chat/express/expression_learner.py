@@ -1,3 +1,4 @@
+import hashlib
 import os
 import time
 from datetime import datetime
@@ -125,6 +126,55 @@ class ExpressionLearner:
         self.min_messages_for_learning = 25  # 触发学习所需的最少消息数
         self.min_learning_interval = 300  # 最短学习时间间隔（秒）
         self._chat_name_initialized = False
+
+    @staticmethod
+    def _parse_stream_config_to_chat_id(stream_config_str: str) -> str | None:
+        """解析'platform:id:type'为chat_id（与get_stream_id一致）"""
+        try:
+            parts = stream_config_str.split(":")
+            if len(parts) != 3:
+                return None
+            platform = parts[0]
+            id_str = parts[1]
+            stream_type = parts[2]
+            is_group = stream_type == "group"
+            if is_group:
+                components = [platform, str(id_str)]
+            else:
+                components = [platform, str(id_str), "private"]
+            key = "_".join(components)
+            return hashlib.md5(key.encode()).hexdigest()
+        except Exception:
+            return None
+
+    def get_related_chat_ids(self) -> list[str]:
+        """根据expression.rules配置，获取与当前chat_id相关的所有chat_id（包括自身）
+        
+        用于共享组功能：同一共享组内的聊天流可以共享学习到的表达方式
+        """
+        if global_config is None:
+            return [self.chat_id]
+        rules = global_config.expression.rules
+        current_group = None
+
+        # 找到当前chat_id所在的组
+        for rule in rules:
+            if rule.chat_stream_id and self._parse_stream_config_to_chat_id(rule.chat_stream_id) == self.chat_id:
+                current_group = rule.group
+                break
+
+        # 始终包含当前 chat_id（确保至少能查到自己的数据）
+        related_chat_ids = [self.chat_id]
+
+        if current_group:
+            # 找出同一组的所有chat_id
+            for rule in rules:
+                if rule.group == current_group and rule.chat_stream_id:
+                    if chat_id_candidate := self._parse_stream_config_to_chat_id(rule.chat_stream_id):
+                        if chat_id_candidate not in related_chat_ids:
+                            related_chat_ids.append(chat_id_candidate)
+
+        return related_chat_ids
 
     async def _initialize_chat_name(self):
         """异步初始化chat_name"""
@@ -540,46 +590,62 @@ class ExpressionLearner:
                 # 提交后清除相关缓存
                 await session.commit()
 
-            # 清除该chat_id的表达方式缓存
+            # 🔥 清除共享组内所有 chat_id 的表达方式缓存
             from src.common.database.optimization.cache_manager import get_cache
             from src.common.database.utils.decorators import generate_cache_key
             cache = await get_cache()
-            await cache.delete(generate_cache_key("chat_expressions", chat_id))
+            
+            # 获取共享组内所有 chat_id 并清除其缓存
+            related_chat_ids = self.get_related_chat_ids()
+            for related_id in related_chat_ids:
+                await cache.delete(generate_cache_key("chat_expressions", related_id))
+            if len(related_chat_ids) > 1:
+                logger.debug(f"已清除共享组内 {len(related_chat_ids)} 个 chat_id 的表达方式缓存")
 
-            # 🔥 训练 StyleLearner
+            # 🔥 训练 StyleLearner（支持共享组）
             # 只对 style 类型的表达方式进行训练（grammar 不需要训练到模型）
             if type == "style":
                 try:
-                    # 获取 StyleLearner 实例
-                    learner = style_learner_manager.get_learner(chat_id)
+                    logger.debug(f"开始训练 StyleLearner: 源chat_id={chat_id}, 共享组包含 {len(related_chat_ids)} 个chat_id, 样本数={len(expr_list)}")
 
-                    logger.debug(f"开始训练 StyleLearner: chat_id={chat_id}, 样本数={len(expr_list)}")
+                    # 为每个共享组内的 chat_id 训练其 StyleLearner
+                    for target_chat_id in related_chat_ids:
+                        learner = style_learner_manager.get_learner(target_chat_id)
+                        
+                        # 为每个学习到的表达方式训练模型
+                        # 使用 situation 作为输入，style 作为目标
+                        # 这是最符合语义的方式：场景 -> 表达方式
+                        success_count = 0
+                        for expr in expr_list:
+                            situation = expr["situation"]
+                            style = expr["style"]
 
-                    # 为每个学习到的表达方式训练模型
-                    # 使用 situation 作为输入，style 作为目标
-                    # 这是最符合语义的方式：场景 -> 表达方式
-                    success_count = 0
-                    for expr in expr_list:
-                        situation = expr["situation"]
-                        style = expr["style"]
+                            # 训练映射关系: situation -> style
+                            if learner.learn_mapping(situation, style):
+                                success_count += 1
+                            else:
+                                logger.warning(f"训练失败 (target={target_chat_id}): {situation} -> {style}")
 
-                        # 训练映射关系: situation -> style
-                        if learner.learn_mapping(situation, style):
-                            success_count += 1
+                        # 保存模型
+                        if learner.save(style_learner_manager.model_save_path):
+                            logger.debug(f"StyleLearner 模型保存成功: {target_chat_id}")
                         else:
-                            logger.warning(f"训练失败: {situation} -> {style}")
+                            logger.error(f"StyleLearner 模型保存失败: {target_chat_id}")
 
-                    logger.info(
-                        f"StyleLearner 训练完成: {success_count}/{len(expr_list)} 成功, "
-                        f"当前风格总数={len(learner.get_all_styles())}, "
-                        f"总样本数={learner.learning_stats['total_samples']}"
-                    )
+                        if target_chat_id == chat_id:
+                            # 只为源 chat_id 记录详细日志
+                            logger.info(
+                                f"StyleLearner 训练完成 (源): {success_count}/{len(expr_list)} 成功, "
+                                f"当前风格总数={len(learner.get_all_styles())}, "
+                                f"总样本数={learner.learning_stats['total_samples']}"
+                            )
+                        else:
+                            logger.debug(
+                                f"StyleLearner 训练完成 (共享组成员 {target_chat_id}): {success_count}/{len(expr_list)} 成功"
+                            )
 
-                    # 保存模型
-                    if learner.save(style_learner_manager.model_save_path):
-                        logger.debug(f"StyleLearner 模型保存成功: {chat_id}")
-                    else:
-                        logger.error(f"StyleLearner 模型保存失败: {chat_id}")
+                    if len(related_chat_ids) > 1:
+                        logger.info(f"共享组内共 {len(related_chat_ids)} 个 StyleLearner 已同步训练")
 
                 except Exception as e:
                     logger.error(f"训练 StyleLearner 失败: {e}")
@@ -604,13 +670,14 @@ class ExpressionLearner:
 
         current_time = time.time()
 
-        # 获取上次学习时间，过滤掉机器人自己的消息
+        # 获取上次学习时间，过滤掉机器人自己的消息和无意义消息
         random_msg: list[dict[str, Any]] | None = await get_raw_msg_by_timestamp_with_chat_inclusive(
             chat_id=self.chat_id,
             timestamp_start=self.last_learning_time,
             timestamp_end=current_time,
             limit=num,
             filter_bot=True,  # 过滤掉机器人自己的消息，防止学习自己的表达方式
+            filter_meaningless=True,  # 🔥 过滤掉表情包、通知等无意义消息
         )
 
         # print(random_msg)
@@ -619,8 +686,14 @@ class ExpressionLearner:
         # 转化成str
         chat_id: str = random_msg[0]["chat_id"]
         # random_msg_str: str = build_readable_messages(random_msg, timestamp_mode="normal")
-        random_msg_str: str = await build_anonymous_messages(random_msg)
+        # 🔥 启用表达学习场景的过滤，过滤掉纯回复、纯@、纯图片等无意义内容
+        random_msg_str: str = await build_anonymous_messages(random_msg, filter_for_learning=True)
         # print(f"random_msg_str:{random_msg_str}")
+        
+        # 🔥 检查过滤后是否还有足够的内容
+        if not random_msg_str or len(random_msg_str.strip()) < 20:
+            logger.debug(f"过滤后消息内容不足，跳过本次{type_str}学习")
+            return None
 
         prompt: str = await global_prompt_manager.format_prompt(
             prompt,

@@ -387,8 +387,36 @@ class StreamToolHistoryManager:
             return result
 
 
-# 全局管理器字典，按chat_id索引
+# 内存优化：全局管理器字典，按chat_id索引，添加 LRU 淘汰
 _stream_managers: dict[str, StreamToolHistoryManager] = {}
+_stream_managers_last_used: dict[str, float] = {}  # 记录最后使用时间
+_STREAM_MANAGERS_MAX_SIZE = 100  # 最大保留数量
+
+
+def _evict_old_stream_managers() -> None:
+    """内存优化：淘汰最久未使用的 stream manager"""
+    import time
+
+    if len(_stream_managers) < _STREAM_MANAGERS_MAX_SIZE:
+        return
+
+    # 按最后使用时间排序，淘汰最旧的 20%
+    evict_count = max(1, len(_stream_managers) // 5)
+    sorted_by_time = sorted(
+        _stream_managers_last_used.items(),
+        key=lambda x: x[1]
+    )
+
+    evicted = []
+    for chat_id, _ in sorted_by_time[:evict_count]:
+        if chat_id in _stream_managers:
+            del _stream_managers[chat_id]
+        if chat_id in _stream_managers_last_used:
+            del _stream_managers_last_used[chat_id]
+        evicted.append(chat_id)
+
+    if evicted:
+        logger.info(f"🔧 StreamToolHistoryManager LRU淘汰: 释放了 {len(evicted)} 个不活跃的管理器")
 
 
 def get_stream_tool_history_manager(chat_id: str) -> StreamToolHistoryManager:
@@ -400,7 +428,14 @@ def get_stream_tool_history_manager(chat_id: str) -> StreamToolHistoryManager:
     Returns:
         工具历史记录管理器实例
     """
+    import time
+
+    # 🔧 更新最后使用时间
+    _stream_managers_last_used[chat_id] = time.time()
+
     if chat_id not in _stream_managers:
+        # 🔧 检查是否需要淘汰
+        _evict_old_stream_managers()
         _stream_managers[chat_id] = StreamToolHistoryManager(chat_id)
     return _stream_managers[chat_id]
 
@@ -413,4 +448,6 @@ def cleanup_stream_manager(chat_id: str) -> None:
     """
     if chat_id in _stream_managers:
         del _stream_managers[chat_id]
-        logger.info(f"已清理聊天 {chat_id} 的工具历史记录管理器")
+    if chat_id in _stream_managers_last_used:
+        del _stream_managers_last_used[chat_id]
+    logger.info(f"已清理聊天 {chat_id} 的工具历史记录管理器")

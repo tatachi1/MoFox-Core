@@ -168,15 +168,22 @@ class ImageManager:
             image_bytes = base64.b64decode(image_base64)
             image_hash = hashlib.md5(image_bytes).hexdigest()
 
+            # 如果缓存命中，可以提前释放 image_bytes
+            # 但如果需要保存表情包，则需要保留 image_bytes
+
             # 2. 优先查询已注册表情的缓存（Emoji表）
             if full_description := await emoji_manager.get_emoji_description_by_hash(image_hash):
                 logger.info("[缓存命中] 使用已注册表情包(Emoji表)的完整描述")
+                del image_bytes  # 缓存命中，不再需要
+                del image_base64
                 refined_part = full_description.split(" Keywords:")[0]
                 return f"[表情包：{refined_part}]"
 
             # 3. 查询通用图片描述缓存（ImageDescriptions表）
             if cached_description := await self._get_description_from_db(image_hash, "emoji"):
                 logger.info("[缓存命中] 使用通用图片缓存(ImageDescriptions表)中的描述")
+                del image_bytes  # 缓存命中，不再需要
+                del image_base64
                 refined_part = cached_description.split(" Keywords:")[0]
                 return f"[表情包：{refined_part}]"
 
@@ -209,7 +216,11 @@ class ImageManager:
             await self._save_description_to_db(image_hash, full_description, "emoji")
             logger.info(f"新生成的表情包描述已存入通用缓存 (Hash: {image_hash[:8]}...)")
 
-            # 6. 返回新生成的描述中用于显示的“精炼描述”部分
+            # 内存优化：处理完成后主动释放大型二进制数据
+            del image_bytes
+            del image_base64
+
+            # 6. 返回新生成的描述中用于显示的"精炼描述"部分
             refined_part = full_description.split(" Keywords:")[0]
             return f"[表情包：{refined_part}]"
 
@@ -248,11 +259,17 @@ class ImageManager:
                 existing_image = result.scalar()
                 if existing_image and existing_image.description:
                     logger.debug(f"[缓存命中] 使用Images表中的图片描述: {existing_image.description[:50]}...")
+                    # 缓存命中，释放 base64 和 image_bytes
+                    del image_bytes
+                    del image_base64
                     return f"[图片：{existing_image.description}]"
 
             # 3. 其次查询 ImageDescriptions 表缓存
             if cached_description := await self._get_description_from_db(image_hash, "image"):
                 logger.debug(f"[缓存命中] 使用ImageDescriptions表中的描述: {cached_description[:50]}...")
+                # 缓存命中，释放 base64 和 image_bytes
+                del image_bytes
+                del image_base64
                 return f"[图片：{cached_description}]"
 
             # 4. 如果都未命中，则同步调用VLM生成新描述
@@ -300,6 +317,10 @@ class ImageManager:
                 await session.commit()
 
             logger.info(f"新生成的图片描述已存入缓存 (Hash: {image_hash[:8]}...)")
+
+            # 内存优化：处理完成后主动释放大型二进制数据
+            del image_bytes
+            del image_base64
 
             return f"[图片：{description}]"
 

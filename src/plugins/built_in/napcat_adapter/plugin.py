@@ -176,6 +176,7 @@ class NapcatAdapter(BaseAdapter):
             # 消息事件
             if post_type == "message":
                 return await self.message_handler.handle_raw_message(raw)  # type: ignore[return-value]
+            
             # 通知事件
             elif post_type == "notice":
                 return await self.notice_handler.handle_notice(raw)  # type: ignore[return-value]

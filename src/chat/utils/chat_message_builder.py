@@ -224,10 +224,12 @@ async def get_raw_msg_by_timestamp_with_chat_inclusive(
     limit: int = 0,
     limit_mode: str = "latest",
     filter_bot=False,
+    filter_meaningless=False,
 ) -> list[dict[str, Any]]:
     """获取在特定聊天从指定时间戳到指定时间戳的消息（包含边界），按时间升序排序，返回消息列表
     limit: 限制返回的消息数量，0为不限制
     limit_mode: 当 limit > 0 时生效。 'earliest' 表示获取最早的记录， 'latest' 表示获取最新的记录。默认为 'latest'。
+    filter_meaningless: 是否过滤无意义消息（表情包、通知等）。用于表达学习等场景。
     """
     filter_query = {"chat_id": chat_id, "time": {"$gte": timestamp_start, "$lte": timestamp_end}}
     # 只有当 limit 为 0 时才应用外部 sort
@@ -235,7 +237,12 @@ async def get_raw_msg_by_timestamp_with_chat_inclusive(
     # 直接将 limit_mode 传递给 find_messages
 
     return await find_messages(
-        message_filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode, filter_bot=filter_bot
+        message_filter=filter_query,
+        sort=sort_order,
+        limit=limit,
+        limit_mode=limit_mode,
+        filter_bot=filter_bot,
+        filter_meaningless=filter_meaningless,
     )
 
 
@@ -1114,10 +1121,14 @@ async def build_readable_messages(
         return "".join(result_parts)
 
 
-async def build_anonymous_messages(messages: list[dict[str, Any]]) -> str:
+async def build_anonymous_messages(messages: list[dict[str, Any]], filter_for_learning: bool = False) -> str:
     """
     构建匿名可读消息，将不同人的名称转为唯一占位符（A、B、C...），bot自己用SELF。
     处理 回复<aaa:bbb> 和 @<aaa:bbb> 字段，将bbb映射为匿名占位符。
+    
+    Args:
+        messages: 消息列表
+        filter_for_learning: 是否为表达学习场景进行额外过滤（过滤掉纯回复、纯@、纯图片等无意义内容）
     """
     assert global_config is not None
     if not messages:
@@ -1151,6 +1162,52 @@ async def build_anonymous_messages(messages: list[dict[str, Any]]) -> str:
             person_map[person_id] = chr(current_char)
             current_char += 1
         return person_map[person_id]
+    
+    def is_meaningless_content(content: str, msg: dict) -> bool:
+        """
+        判断消息内容是否无意义（用于表达学习过滤）
+        """
+        if not content or not content.strip():
+            return True
+        
+        stripped = content.strip()
+        
+        # 检查消息标记字段
+        if msg.get("is_emoji", False):
+            return True
+        if msg.get("is_notify", False):
+            return True
+        if msg.get("is_public_notice", False):
+            return True
+        if msg.get("is_command", False):
+            return True
+        
+        # 🔥 检查纯回复消息（只有[回复<xxx>]没有其他内容）
+        reply_pattern = r"^\s*\[回复[^\]]*\]\s*$"
+        if re.match(reply_pattern, stripped):
+            return True
+        
+        # 🔥 检查纯@消息（只有@xxx没有其他内容）
+        at_pattern = r"^\s*(@[^\s]+\s*)+$"
+        if re.match(at_pattern, stripped):
+            return True
+        
+        # 🔥 检查纯图片消息
+        image_pattern = r"^\s*(\[图片\]|\[动画表情\]|\[表情\]|\[picid:[^\]]+\])\s*$"
+        if re.match(image_pattern, stripped):
+            return True
+        
+        # 🔥 移除回复标记、@标记、图片标记后检查是否还有实质内容
+        clean_content = re.sub(r"\[回复[^\]]*\]", "", stripped)
+        clean_content = re.sub(r"@[^\s]+", "", clean_content)
+        clean_content = re.sub(r"\[图片\]|\[动画表情\]|\[表情\]|\[picid:[^\]]+\]", "", clean_content)
+        clean_content = clean_content.strip()
+        
+        # 如果移除后内容太短（少于2个字符），认为无意义
+        if len(clean_content) < 2:
+            return True
+        
+        return False
 
     for msg in messages:
         try:
@@ -1170,6 +1227,10 @@ async def build_anonymous_messages(messages: list[dict[str, Any]]) -> str:
 
             # For anonymous messages, we just replace with a placeholder.
             content = re.sub(r"\[picid:([^\]]+)\]", "[图片]", content)
+            
+            # 🔥 表达学习场景：过滤无意义消息
+            if filter_for_learning and is_meaningless_content(content, msg):
+                continue
 
             # if not all([platform, user_id, timestamp is not None]):
             # continue

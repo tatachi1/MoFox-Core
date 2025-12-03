@@ -325,6 +325,10 @@ class KokoroFlowChatter(BaseChatter):
         """
         if session.status == SessionStatus.WAITING:
             # 之前在等待
+            # 如果 max_wait_seconds <= 0，说明不是有效的等待状态，视为新消息
+            if session.waiting_config.max_wait_seconds <= 0:
+                return "new_message"
+            
             if session.waiting_config.is_timeout():
                 # 超时了才收到回复
                 return "reply_late"

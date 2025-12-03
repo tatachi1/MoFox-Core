@@ -244,6 +244,14 @@ class SetEmojiLikeAction(BaseAction):
 
     async def execute(self) -> tuple[bool, str]:
         """执行设置表情回应的动作"""
+        # 检查是否在群聊中，该动作仅在群聊中有效
+        if not self.is_group:
+            logger.warning("set_emoji_like 动作仅在群聊中有效，当前为私聊场景")
+            await self.store_action_info(
+                action_prompt_display="贴表情失败: 该功能仅在群聊中可用", action_done=False
+            )
+            return False, "该功能仅在群聊中可用"
+
         message_id = None
         set_like = self.action_data.get("set", True)
 

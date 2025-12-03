@@ -69,6 +69,9 @@ class PromptBuilder:
         # 1. 构建人设块
         persona_block = self._build_persona_block()
         
+        # 1.5. 构建安全互动准则块
+        safety_guidelines_block = self._build_safety_guidelines_block()
+        
         # 2. 使用 context_builder 获取关系、记忆、工具、表达习惯等
         context_data = await self._build_context_data(user_name, chat_stream, user_id)
         relation_block = context_data.get("relation_info", f"你与 {user_name} 还不太熟悉，这是早期的交流阶段。")
@@ -98,6 +101,7 @@ class PromptBuilder:
             PROMPT_NAMES["main"],
             user_name=user_name,
             persona_block=persona_block,
+            safety_guidelines_block=safety_guidelines_block,
             relation_block=relation_block,
             memory_block=memory_block or "（暂无相关记忆）",
             tool_info=tool_info or "（暂无工具信息）",
@@ -142,7 +146,10 @@ class PromptBuilder:
         # 1. 构建人设块
         persona_block = self._build_persona_block()
         
-        # 2. 使用 context_builder 获取关系、记忆、工具、表达习惯等
+        # 1.5. 构建安全互动准则块
+        safety_guidelines_block = self._build_safety_guidelines_block()
+        
+        # 2. 使用 context_builder 获取关系、记忆、表达习惯等
         context_data = await self._build_context_data(user_name, chat_stream, user_id)
         relation_block = context_data.get("relation_info", f"你与 {user_name} 还不太熟悉，这是早期的交流阶段。")
         memory_block = context_data.get("memory_block", "")
@@ -170,6 +177,7 @@ class PromptBuilder:
             PROMPT_NAMES["replyer"],
             user_name=user_name,
             persona_block=persona_block,
+            safety_guidelines_block=safety_guidelines_block,
             relation_block=relation_block,
             memory_block=memory_block or "（暂无相关记忆）",
             tool_info=tool_info or "（暂无工具信息）",
@@ -201,6 +209,24 @@ class PromptBuilder:
             parts.append(personality.identity)
         
         return "\n\n".join(parts) if parts else "你是一个温暖、真诚的人。"
+    
+    def _build_safety_guidelines_block(self) -> str:
+        """
+        构建安全互动准则块
+        
+        从配置中读取 safety_guidelines，构建成提示词格式
+        """
+        if global_config is None:
+            return ""
+        
+        safety_guidelines = global_config.personality.safety_guidelines
+        if not safety_guidelines:
+            return ""
+        
+        guidelines_text = "\n".join(f"{i + 1}. {line}" for i, line in enumerate(safety_guidelines))
+        return f"""在任何情况下，你都必须遵守以下由你的设定者为你定义的原则：
+{guidelines_text}
+如果遇到违反上述原则的请求，请在保持你核心人设的同时，以合适的方式进行回应。"""
     
     def _build_combined_expression_block(self, learned_habits: str) -> str:
         """
@@ -237,11 +263,13 @@ class PromptBuilder:
         user_name: str,
         chat_stream: Optional["ChatStream"],
         user_id: Optional[str] = None,
+        session: Optional[KokoroSession] = None,
+        situation_type: str = "new_message",
     ) -> dict[str, str]:
         """
         使用 KFCContextBuilder 构建完整的上下文数据
         
-        包括：关系信息、记忆、工具、表达习惯等
+        包括：关系信息、记忆、表达习惯等
         """
         if not chat_stream:
             return {
@@ -259,12 +287,13 @@ class PromptBuilder:
             
             builder = self._context_builder(chat_stream)
             
-            # 获取最近的消息作为 target_message（用于记忆检索）
-            target_message = ""
-            if chat_stream.context:
-                unread = chat_stream.context.get_unread_messages()
-                if unread:
-                    target_message = unread[-1].processed_plain_text or unread[-1].display_message or ""
+            # 获取用于记忆检索的查询文本
+            target_message = await self._get_memory_search_query(
+                chat_stream=chat_stream,
+                session=session,
+                situation_type=situation_type,
+                user_name=user_name,
+            )
             
             context_data = await builder.build_all_context(
                 sender_name=user_name,
@@ -283,6 +312,113 @@ class PromptBuilder:
                 "tool_info": "",
                 "expression_habits": "",
             }
+    
+    async def _get_memory_search_query(
+        self,
+        chat_stream: Optional["ChatStream"],
+        session: Optional[KokoroSession],
+        situation_type: str,
+        user_name: str,
+    ) -> str:
+        """
+        根据场景类型获取合适的记忆搜索查询文本
+        
+        策略：
+        1. 优先使用未读消息（new_message/reply_in_time/reply_late）
+        2. 如果没有未读消息（timeout/proactive），使用最近的历史消息
+        3. 如果历史消息也为空，从 session 的 mental_log 中提取
+        4. 最后回退到用户名作为查询
+        
+        Args:
+            chat_stream: 聊天流对象
+            session: KokoroSession 会话对象
+            situation_type: 情况类型
+            user_name: 用户名称
+            
+        Returns:
+            用于记忆搜索的查询文本
+        """
+        target_message = ""
+        
+        # 策略1: 优先从未读消息获取（适用于 new_message/reply_in_time/reply_late）
+        if chat_stream and chat_stream.context:
+            unread = chat_stream.context.get_unread_messages()
+            if unread:
+                target_message = unread[-1].processed_plain_text or unread[-1].display_message or ""
+                if target_message:
+                    logger.debug(f"[记忆搜索] 使用未读消息作为查询: {target_message[:50]}...")
+                    return target_message
+        
+        # 策略2: 从最近的历史消息获取（适用于 timeout/proactive）
+        if chat_stream and chat_stream.context:
+            history_messages = chat_stream.context.history_messages
+            if history_messages:
+                # 获取最近的几条非通知消息，组合成查询
+                recent_texts = []
+                for msg in reversed(history_messages[-5:]):
+                    content = getattr(msg, "processed_plain_text", "") or getattr(msg, "display_message", "")
+                    if content and not getattr(msg, "is_notify", False):
+                        recent_texts.append(content)
+                        if len(recent_texts) >= 3:
+                            break
+                
+                if recent_texts:
+                    target_message = " ".join(reversed(recent_texts))
+                    logger.debug(f"[记忆搜索] 使用历史消息作为查询 (situation={situation_type}): {target_message[:80]}...")
+                    return target_message
+        
+        # 策略3: 从 session 的 mental_log 中提取（超时/主动思考场景的最后手段）
+        if session and situation_type in ("timeout", "proactive"):
+            entries = session.get_recent_entries(limit=10)
+            recent_texts = []
+            
+            for entry in reversed(entries):
+                # 从用户消息中提取
+                if entry.event_type == EventType.USER_MESSAGE and entry.content:
+                    recent_texts.append(entry.content)
+                # 从 bot 的预期反应中提取（可能包含相关话题）
+                elif entry.event_type == EventType.BOT_PLANNING and entry.expected_reaction:
+                    recent_texts.append(entry.expected_reaction)
+                
+                if len(recent_texts) >= 3:
+                    break
+            
+            if recent_texts:
+                target_message = " ".join(reversed(recent_texts))
+                logger.debug(f"[记忆搜索] 使用 mental_log 作为查询 (situation={situation_type}): {target_message[:80]}...")
+                return target_message
+        
+        # 策略4: 最后回退 - 使用用户名 + 场景描述
+        if situation_type == "timeout":
+            target_message = f"与 {user_name} 的对话 等待回复"
+        elif situation_type == "proactive":
+            target_message = f"与 {user_name} 的对话 主动发起聊天"
+        else:
+            target_message = f"与 {user_name} 的对话"
+        
+        logger.debug(f"[记忆搜索] 使用回退查询 (situation={situation_type}): {target_message}")
+        return target_message
+    
+    def _get_latest_user_message(self, session: Optional[KokoroSession]) -> str:
+        """
+        获取最新的用户消息内容
+        
+        Args:
+            session: KokoroSession 会话对象
+            
+        Returns:
+            最新用户消息的内容，如果没有则返回提示文本
+        """
+        if not session:
+            return "（未知消息）"
+        
+        # 从 mental_log 中获取最新的用户消息
+        entries = session.get_recent_entries(limit=10)
+        for entry in reversed(entries):
+            if entry.event_type == EventType.USER_MESSAGE and entry.content:
+                return entry.content
+        
+        return "（消息内容不可用）"
     
     async def _build_chat_history_block(
         self,
@@ -505,32 +641,39 @@ class PromptBuilder:
                 situation_type = "new_message"
         
         if situation_type == "new_message":
+            # 获取最新消息内容
+            latest_message = self._get_latest_user_message(session)
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_new_message"],
                 current_time=current_time,
                 user_name=user_name,
+                latest_message=latest_message,
             )
         
         elif situation_type == "reply_in_time":
             elapsed = session.waiting_config.get_elapsed_seconds()
             max_wait = session.waiting_config.max_wait_seconds
+            latest_message = self._get_latest_user_message(session)
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_reply_in_time"],
                 current_time=current_time,
                 user_name=user_name,
                 elapsed_minutes=elapsed / 60,
                 max_wait_minutes=max_wait / 60,
+                latest_message=latest_message,
             )
         
         elif situation_type == "reply_late":
             elapsed = session.waiting_config.get_elapsed_seconds()
             max_wait = session.waiting_config.max_wait_seconds
+            latest_message = self._get_latest_user_message(session)
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_reply_late"],
                 current_time=current_time,
                 user_name=user_name,
                 elapsed_minutes=elapsed / 60,
                 max_wait_minutes=max_wait / 60,
+                latest_message=latest_message,
             )
         
         elif situation_type == "timeout":
@@ -887,7 +1030,10 @@ class PromptBuilder:
         # 1. 构建人设块
         persona_block = self._build_persona_block()
         
-        # 2. 使用 context_builder 获取关系、记忆、工具、表达习惯等
+        # 1.5. 构建安全互动准则块
+        safety_guidelines_block = self._build_safety_guidelines_block()
+        
+        # 2. 使用 context_builder 获取关系、记忆、表达习惯等
         context_data = await self._build_context_data(user_name, chat_stream, user_id)
         relation_block = context_data.get("relation_info", f"你与 {user_name} 还不太熟悉，这是早期的交流阶段。")
         memory_block = context_data.get("memory_block", "")
@@ -916,6 +1062,7 @@ class PromptBuilder:
             PROMPT_NAMES["main"],
             user_name=user_name,
             persona_block=persona_block,
+            safety_guidelines_block=safety_guidelines_block,
             relation_block=relation_block,
             memory_block=memory_block or "（暂无相关记忆）",
             tool_info=tool_info or "（暂无工具信息）",

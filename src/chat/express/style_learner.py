@@ -437,7 +437,13 @@ class StyleLearner:
 
 
 class StyleLearnerManager:
-    """多聊天室表达风格学习管理器"""
+    """多聊天室表达风格学习管理器
+    
+    添加 LRU 淘汰机制，限制最大活跃 learner 数量
+    """
+
+    # 🔧 最大活跃 learner 数量
+    MAX_ACTIVE_LEARNERS = 50
 
     def __init__(self, model_save_path: str = "data/expression/style_models"):
         """
@@ -445,12 +451,37 @@ class StyleLearnerManager:
             model_save_path: 模型保存路径
         """
         self.learners: dict[str, StyleLearner] = {}
+        self.learner_last_used: dict[str, float] = {}  # 🔧 记录最后使用时间
         self.model_save_path = model_save_path
 
         # 确保保存目录存在
         os.makedirs(model_save_path, exist_ok=True)
 
         logger.debug(f"StyleLearnerManager初始化成功, 模型保存路径: {model_save_path}")
+
+    def _evict_if_needed(self) -> None:
+        """🔧 内存优化：如果超过最大数量，淘汰最久未使用的 learner"""
+        if len(self.learners) < self.MAX_ACTIVE_LEARNERS:
+            return
+
+        # 按最后使用时间排序，淘汰最旧的 20%
+        evict_count = max(1, len(self.learners) // 5)
+        sorted_by_time = sorted(
+            self.learner_last_used.items(),
+            key=lambda x: x[1]
+        )
+        
+        evicted = []
+        for chat_id, last_used in sorted_by_time[:evict_count]:
+            if chat_id in self.learners:
+                # 先保存再淘汰
+                self.learners[chat_id].save(self.model_save_path)
+                del self.learners[chat_id]
+                del self.learner_last_used[chat_id]
+                evicted.append(chat_id)
+
+        if evicted:
+            logger.info(f"StyleLearner LRU淘汰: 释放了 {len(evicted)} 个不活跃的学习器")
 
     def get_learner(self, chat_id: str, model_config: dict | None = None) -> StyleLearner:
         """
@@ -463,7 +494,13 @@ class StyleLearnerManager:
         Returns:
             StyleLearner实例
         """
+        # 🔧 更新最后使用时间
+        self.learner_last_used[chat_id] = time.time()
+
         if chat_id not in self.learners:
+            # 🔧 检查是否需要淘汰
+            self._evict_if_needed()
+
             # 创建新的学习器
             learner = StyleLearner(chat_id, model_config)
 
