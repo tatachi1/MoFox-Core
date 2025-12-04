@@ -3,11 +3,15 @@
 
 注意：ChromaDB 是同步库，所有操作都必须使用 asyncio.to_thread() 包装
 以避免阻塞 asyncio 事件循环导致死锁。
+
+重要：ChromaDB 的 Rust 后端在 Windows 上多线程并发访问时可能导致 access violation，
+因此所有操作都需要通过全局锁保护以确保串行执行。
 """
 
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +21,10 @@ from src.common.logger import get_logger
 from src.memory_graph.models import MemoryNode, NodeType
 
 logger = get_logger(__name__)
+
+# 全局锁，用于保护 ChromaDB 的所有操作
+# ChromaDB 的 Rust 后端在 Windows 上多线程并发访问时可能导致 access violation
+_chromadb_lock = threading.Lock()
 
 
 class VectorStore:
@@ -57,29 +65,35 @@ class VectorStore:
             import chromadb
             from chromadb.config import Settings
 
-            # 创建持久化客户端 - 同步操作需要在线程中执行
+            # 创建持久化客户端 - 同步操作需要在线程中执行，并使用锁保护
             def _create_client():
-                return chromadb.PersistentClient(
-                    path=str(self.data_dir / "chroma"),
-                    settings=Settings(
-                        anonymized_telemetry=False,
-                        allow_reset=True,
-                    ),
-                )
+                with _chromadb_lock:
+                    return chromadb.PersistentClient(
+                        path=str(self.data_dir / "chroma"),
+                        settings=Settings(
+                            anonymized_telemetry=False,
+                            allow_reset=True,
+                        ),
+                    )
             
             self.client = await asyncio.to_thread(_create_client)
 
-            # 获取或创建集合 - 同步操作需要在线程中执行
+            # 获取或创建集合 - 同步操作需要在线程中执行，并使用锁保护
             def _get_or_create_collection():
-                return self.client.get_or_create_collection(
-                    name=self.collection_name,
-                    metadata={"description": "Memory graph node embeddings"},
-                )
+                with _chromadb_lock:
+                    return self.client.get_or_create_collection(
+                        name=self.collection_name,
+                        metadata={"description": "Memory graph node embeddings"},
+                    )
             
             self.collection = await asyncio.to_thread(_get_or_create_collection)
 
-            # count() 也是同步操作
-            count = await asyncio.to_thread(self.collection.count)
+            # count() 也是同步操作，使用锁保护
+            def _count():
+                with _chromadb_lock:
+                    return self.collection.count()
+            
+            count = await asyncio.to_thread(_count)
             logger.debug(f"ChromaDB 初始化完成，集合包含 {count} 个节点")
 
         except Exception as e:
@@ -118,14 +132,15 @@ class VectorStore:
                 else:
                     metadata[key] = str(value)
 
-            # ChromaDB add() 是同步阻塞操作，必须在线程中执行
+            # ChromaDB add() 是同步阻塞操作，必须在线程中执行，使用锁保护
             def _add_node():
-                self.collection.add(
-                    ids=[node.id],
-                    embeddings=[node.embedding.tolist()],
-                    metadatas=[metadata],
-                    documents=[node.content],
-                )
+                with _chromadb_lock:
+                    self.collection.add(
+                        ids=[node.id],
+                        embeddings=[node.embedding.tolist()],
+                        metadatas=[metadata],
+                        documents=[node.content],
+                    )
             
             await asyncio.to_thread(_add_node)
 
@@ -171,14 +186,15 @@ class VectorStore:
                         metadata[key] = str(value)
                 metadatas.append(metadata)
 
-            # ChromaDB add() 是同步阻塞操作，必须在线程中执行
+            # ChromaDB add() 是同步阻塞操作，必须在线程中执行，使用锁保护
             def _add_batch():
-                self.collection.add(
-                    ids=[n.id for n in valid_nodes],
-                    embeddings=[n.embedding.tolist() for n in valid_nodes],  # type: ignore
-                    metadatas=metadatas,
-                    documents=[n.content for n in valid_nodes],
-                )
+                with _chromadb_lock:
+                    self.collection.add(
+                        ids=[n.id for n in valid_nodes],
+                        embeddings=[n.embedding.tolist() for n in valid_nodes],  # type: ignore
+                        metadatas=metadatas,
+                        documents=[n.content for n in valid_nodes],
+                    )
             
             await asyncio.to_thread(_add_batch)
 
@@ -214,13 +230,14 @@ class VectorStore:
             if node_types:
                 where_filter = {"node_type": {"$in": [nt.value for nt in node_types]}}
 
-            # ChromaDB query() 是同步阻塞操作，必须在线程中执行
+            # ChromaDB query() 是同步阻塞操作，必须在线程中执行，使用锁保护
             def _query():
-                return self.collection.query(
-                    query_embeddings=[query_embedding.tolist()],
-                    n_results=limit,
-                    where=where_filter,
-                )
+                with _chromadb_lock:
+                    return self.collection.query(
+                        query_embeddings=[query_embedding.tolist()],
+                        n_results=limit,
+                        where=where_filter,
+                    )
             
             results = await asyncio.to_thread(_query)
 
@@ -383,9 +400,10 @@ class VectorStore:
             raise RuntimeError("向量存储未初始化")
 
         try:
-            # ChromaDB get() 是同步阻塞操作，必须在线程中执行
+            # ChromaDB get() 是同步阻塞操作，必须在线程中执行，使用锁保护
             def _get():
-                return self.collection.get(ids=[node_id], include=["metadatas", "embeddings"])
+                with _chromadb_lock:
+                    return self.collection.get(ids=[node_id], include=["metadatas", "embeddings"])
             
             result = await asyncio.to_thread(_get)
 
@@ -420,9 +438,10 @@ class VectorStore:
             raise RuntimeError("向量存储未初始化")
 
         try:
-            # ChromaDB delete() 是同步阻塞操作，必须在线程中执行
+            # ChromaDB delete() 是同步阻塞操作，必须在线程中执行，使用锁保护
             def _delete():
-                self.collection.delete(ids=[node_id])
+                with _chromadb_lock:
+                    self.collection.delete(ids=[node_id])
             
             await asyncio.to_thread(_delete)
             logger.debug(f"删除节点: {node_id}")
@@ -443,9 +462,10 @@ class VectorStore:
             raise RuntimeError("向量存储未初始化")
 
         try:
-            # ChromaDB update() 是同步阻塞操作，必须在线程中执行
+            # ChromaDB update() 是同步阻塞操作，必须在线程中执行，使用锁保护
             def _update():
-                self.collection.update(ids=[node_id], embeddings=[embedding.tolist()])
+                with _chromadb_lock:
+                    self.collection.update(ids=[node_id], embeddings=[embedding.tolist()])
             
             await asyncio.to_thread(_update)
             logger.debug(f"更新节点 embedding: {node_id}")
@@ -458,13 +478,17 @@ class VectorStore:
         """获取向量存储中的节点总数（同步方法，谨慎在 async 上下文中使用）"""
         if not self.collection:
             return 0
-        return self.collection.count()
+        with _chromadb_lock:
+            return self.collection.count()
     
     async def get_total_count_async(self) -> int:
         """异步获取向量存储中的节点总数"""
         if not self.collection:
             return 0
-        return await asyncio.to_thread(self.collection.count)
+        def _count():
+            with _chromadb_lock:
+                return self.collection.count()
+        return await asyncio.to_thread(_count)
 
     async def clear(self) -> None:
         """清空向量存储（危险操作，仅用于测试）"""
@@ -472,13 +496,14 @@ class VectorStore:
             return
 
         try:
-            # ChromaDB delete_collection 和 get_or_create_collection 都是同步阻塞操作
+            # ChromaDB delete_collection 和 get_or_create_collection 都是同步阻塞操作，使用锁保护
             def _clear():
-                self.client.delete_collection(self.collection_name)
-                return self.client.get_or_create_collection(
-                    name=self.collection_name,
-                    metadata={"description": "Memory graph node embeddings"},
-                )
+                with _chromadb_lock:
+                    self.client.delete_collection(self.collection_name)
+                    return self.client.get_or_create_collection(
+                        name=self.collection_name,
+                        metadata={"description": "Memory graph node embeddings"},
+                    )
             
             self.collection = await asyncio.to_thread(_clear)
             logger.warning(f"向量存储已清空: {self.collection_name}")

@@ -10,11 +10,17 @@ from .base import VectorDBBase
 
 logger = get_logger("chromadb_impl")
 
+# 全局操作锁，用于保护 ChromaDB 的所有操作
+# ChromaDB 的 Rust 后端在 Windows 上多线程并发访问时可能导致 access violation
+_operation_lock = threading.Lock()
+
 
 class ChromaDBImpl(VectorDBBase):
     """
     ChromaDB 的具体实现，遵循 VectorDBBase 接口。
     采用单例模式，确保全局只有一个 ChromaDB 客户端实例。
+    
+    注意：所有操作都使用 _operation_lock 保护，以避免 Windows 上的并发访问崩溃。
     """
 
     _instance = None
@@ -36,9 +42,10 @@ class ChromaDBImpl(VectorDBBase):
             with self._lock:
                 if not hasattr(self, "_initialized"):
                     try:
-                        self.client = chromadb.PersistentClient(
-                            path=path, settings=Settings(anonymized_telemetry=False)
-                        )
+                        with _operation_lock:
+                            self.client = chromadb.PersistentClient(
+                                path=path, settings=Settings(anonymized_telemetry=False)
+                            )
                         self._collections: dict[str, Any] = {}
                         self._initialized = True
                         logger.info(f"ChromaDB 客户端已初始化，数据库路径: {path}")
@@ -56,7 +63,8 @@ class ChromaDBImpl(VectorDBBase):
             return self._collections[name]
 
         try:
-            collection = self.client.get_or_create_collection(name=name, **kwargs)
+            with _operation_lock:
+                collection = self.client.get_or_create_collection(name=name, **kwargs)
             self._collections[name] = collection
             logger.info(f"成功获取或创建集合: '{name}'")
             return collection
@@ -75,12 +83,13 @@ class ChromaDBImpl(VectorDBBase):
         collection = self.get_or_create_collection(collection_name)
         if collection:
             try:
-                collection.add(
-                    embeddings=embeddings,
-                    documents=documents,
-                    metadatas=metadatas,
-                    ids=ids,
-                )
+                with _operation_lock:
+                    collection.add(
+                        embeddings=embeddings,
+                        documents=documents,
+                        metadatas=metadatas,
+                        ids=ids,
+                    )
             except Exception as e:
                 logger.error(f"向集合 '{collection_name}' 添加数据失败: {e}")
 
@@ -107,7 +116,8 @@ class ChromaDBImpl(VectorDBBase):
                     if processed_where:
                         query_params["where"] = processed_where
 
-                return collection.query(**query_params)
+                with _operation_lock:
+                    return collection.query(**query_params)
             except Exception as e:
                 logger.error(f"查询集合 '{collection_name}' 失败: {e}")
                 # 如果查询失败，尝试不使用where条件重新查询
@@ -117,7 +127,8 @@ class ChromaDBImpl(VectorDBBase):
                         "n_results": n_results,
                     }
                     logger.warning("使用回退查询模式（无where条件）")
-                    return collection.query(**fallback_params)
+                    with _operation_lock:
+                        return collection.query(**fallback_params)
                 except Exception as fallback_e:
                     logger.error(f"回退查询也失败: {fallback_e}")
         return {}
@@ -192,26 +203,28 @@ class ChromaDBImpl(VectorDBBase):
                 if where:
                     processed_where = self._process_where_condition(where)
 
-                return collection.get(
-                    ids=ids,
-                    where=processed_where,
-                    limit=limit,
-                    offset=offset,
-                    where_document=where_document,
-                    include=include or ["documents", "metadatas", "embeddings"],
-                )
-            except Exception as e:
-                logger.error(f"从集合 '{collection_name}' 获取数据失败: {e}")
-                # 如果获取失败，尝试不使用where条件重新获取
-                try:
-                    logger.warning("使用回退获取模式（无where条件）")
+                with _operation_lock:
                     return collection.get(
                         ids=ids,
+                        where=processed_where,
                         limit=limit,
                         offset=offset,
                         where_document=where_document,
                         include=include or ["documents", "metadatas", "embeddings"],
                     )
+            except Exception as e:
+                logger.error(f"从集合 '{collection_name}' 获取数据失败: {e}")
+                # 如果获取失败，尝试不使用where条件重新获取
+                try:
+                    logger.warning("使用回退获取模式（无where条件）")
+                    with _operation_lock:
+                        return collection.get(
+                            ids=ids,
+                            limit=limit,
+                            offset=offset,
+                            where_document=where_document,
+                            include=include or ["documents", "metadatas", "embeddings"],
+                        )
                 except Exception as fallback_e:
                     logger.error(f"回退获取也失败: {fallback_e}")
         return {}
@@ -225,7 +238,8 @@ class ChromaDBImpl(VectorDBBase):
         collection = self.get_or_create_collection(collection_name)
         if collection:
             try:
-                collection.delete(ids=ids, where=where)
+                with _operation_lock:
+                    collection.delete(ids=ids, where=where)
             except Exception as e:
                 logger.error(f"从集合 '{collection_name}' 删除数据失败: {e}")
 
@@ -233,7 +247,8 @@ class ChromaDBImpl(VectorDBBase):
         collection = self.get_or_create_collection(collection_name)
         if collection:
             try:
-                return collection.count()
+                with _operation_lock:
+                    return collection.count()
             except Exception as e:
                 logger.error(f"获取集合 '{collection_name}' 计数失败: {e}")
         return 0
@@ -243,7 +258,8 @@ class ChromaDBImpl(VectorDBBase):
             raise ConnectionError("ChromaDB 客户端未初始化")
 
         try:
-            self.client.delete_collection(name=name)
+            with _operation_lock:
+                self.client.delete_collection(name=name)
             if name in self._collections:
                 del self._collections[name]
             logger.info(f"集合 '{name}' 已被删除")
