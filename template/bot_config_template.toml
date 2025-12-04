@@ -131,7 +131,7 @@ safety_guidelines = [
 ]
 
 compress_personality = false # 是否压缩人格，压缩后会精简人格信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果人设不长，可以关闭
-compress_identity = true # 是否压缩身份，压缩后会精简身份信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果不长，可以关闭
+compress_identity = false # 是否压缩身份，压缩后会精简身份信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果不长，可以关闭
 
 [expression]
 # 表达学习配置
@@ -283,7 +283,7 @@ path_expansion_path_score_weight = 0.50 # 路径分数在最终评分中的权�
 path_expansion_importance_weight = 0.30 # 重要性在最终评分中的权重
 path_expansion_recency_weight = 0.20 # 时效性在最终评分中的权重
 
-# 🆕 路径扩展 - 记忆去重配置
+# 路径扩展 - 记忆去重配置
 enable_memory_deduplication = true # 启用检索结果去重（合并相似记忆）
 memory_deduplication_threshold = 0.85 # 记忆相似度阈值（0.85表示85%相似即合并）
 
