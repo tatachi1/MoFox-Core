@@ -12,21 +12,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
 from src.plugin_system.base.component_types import (
-    ActionInfo,
     ComponentInfo,
     ComponentType,
 )
 
 if TYPE_CHECKING:
-    from src.plugin_system.base.base_chatter import BaseChatter
-    from src.plugin_system.base.base_events_handler import BaseEventHandler
-    from src.plugin_system.base.base_interest_calculator import BaseInterestCalculator
-    from src.plugin_system.base.base_prompt import BasePrompt
-    from src.plugin_system.base.base_tool import BaseTool
     from src.plugin_system.core.component_registry import ComponentRegistry
 
 logger = get_logger("component_state_manager")
@@ -103,27 +97,25 @@ class ComponentStateManager:
         # 更新特定类型的启用列表
         match component_type:
             case ComponentType.ACTION:
-                self._registry._default_actions[component_name] = cast(ActionInfo, target_info)
+                self._registry._default_actions[component_name] = target_info  # type: ignore
             case ComponentType.TOOL:
-                self._registry._llm_available_tools[component_name] = cast(type[BaseTool], target_class)
+                self._registry._llm_available_tools[component_name] = target_class  # type: ignore
             case ComponentType.EVENT_HANDLER:
-                self._registry._enabled_event_handlers[component_name] = cast(type[BaseEventHandler], target_class)
+                self._registry._enabled_event_handlers[component_name] = target_class  # type: ignore
                 # 重新注册事件处理器
                 from .event_manager import event_manager
                 event_manager.register_event_handler(
-                    cast(type[BaseEventHandler], target_class),
+                    target_class,  # type: ignore
                     self._registry.get_plugin_config(target_info.plugin_name) or {}
                 )
             case ComponentType.CHATTER:
-                self._registry._enabled_chatter_registry[component_name] = cast(type[BaseChatter], target_class)
+                self._registry._enabled_chatter_registry[component_name] = target_class  # type: ignore
             case ComponentType.INTEREST_CALCULATOR:
-                self._registry._enabled_interest_calculator_registry[component_name] = cast(
-                    type[BaseInterestCalculator], target_class
-                )
+                self._registry._enabled_interest_calculator_registry[component_name] = target_class  # type: ignore
             case ComponentType.PROMPT:
-                self._registry._enabled_prompt_registry[component_name] = cast(type[BasePrompt], target_class)
+                self._registry._enabled_prompt_registry[component_name] = target_class  # type: ignore
             case ComponentType.ADAPTER:
-                self._registry._enabled_adapter_registry[component_name] = cast(Any, target_class)
+                self._registry._enabled_adapter_registry[component_name] = target_class  # type: ignore
 
         logger.info(f"组件 {component_name} ({component_type.value}) 已全局启用")
         return True
@@ -261,8 +253,9 @@ class ComponentStateManager:
 
         检查顺序:
             1. 组件是否存在
-            2. (如果提供了 stream_id 且组件类型支持局部状态) 是否有局部状态覆盖
-            3. 全局启用状态
+            2. 组件所属插件是否已启用
+            3. (如果提供了 stream_id 且组件类型支持局部状态) 是否有局部状态覆盖
+            4. 全局启用状态
 
         Args:
             component_name: 组件名称
@@ -278,17 +271,29 @@ class ComponentStateManager:
         if not component_info:
             return False
 
-        # 2. 不支持局部状态的类型，直接返回全局状态
+        # 2. 检查组件所属插件是否已启用
+        from src.plugin_system.core.plugin_manager import plugin_manager
+        plugin_instance = plugin_manager.get_plugin_instance(component_info.plugin_name)
+        if not plugin_instance:
+            return False
+        if not plugin_instance.enable_plugin:
+            logger.debug(
+                f"组件 {component_name} ({component_type.value}) 不可用: "
+                f"所属插件 {component_info.plugin_name} 已被禁用"
+            )
+            return False
+
+        # 3. 不支持局部状态的类型，直接返回全局状态
         if component_type in self._no_local_state_types:
             return component_info.enabled
 
-        # 3. 如果提供了 stream_id，检查是否存在局部状态覆盖
+        # 4. 如果提供了 stream_id，检查是否存在局部状态覆盖
         if stream_id:
             local_state = self.get_local_state(stream_id, component_name, component_type)
             if local_state is not None:
                 return local_state  # 局部状态存在，直接返回
 
-        # 4. 如果没有局部状态覆盖，返回全局状态
+        # 5. 如果没有局部状态覆盖，返回全局状态
         return component_info.enabled
 
     def get_enabled_components_by_type(
