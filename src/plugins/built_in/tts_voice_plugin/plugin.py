@@ -28,7 +28,7 @@ class TTSVoicePlugin(BasePlugin):
     plugin_description = "基于GPT-SoVITS的文本转语音插件（重构版）"
     plugin_version = "3.1.2"
     plugin_author = "Kilo Code & 靚仔"
-    enable_plugin = True
+    # enable_plugin 应该由配置文件控制，不在此处硬编码
     config_file_name = "config.toml"
     dependencies: ClassVar[list[str]] = []
 
@@ -61,7 +61,7 @@ class TTSVoicePlugin(BasePlugin):
 
         default_config_content = """# 插件基础配置
 [plugin]
-enable = true
+enable = false
 keywords = [
     "发语音", "语音", "说句话", "用语音说", "听你", "听声音", "想听你", "想听声音",
     "讲个话", "说段话", "念一下", "读一下", "用嘴说", "说", "能发语音吗","亲口"

@@ -16,46 +16,6 @@ from ..services.manager import get_service
 logger = get_logger("tts_voice_plugin.action")
 
 
-def _get_available_styles() -> list[str]:
-    """动态读取配置文件，获取所有可用的TTS风格名称"""
-    try:
-        # 这个路径构建逻辑是为了确保无论从哪里启动，都能准确定位到配置文件
-        plugin_file = Path(__file__).resolve()
-        # Bot/src/plugins/built_in/tts_voice_plugin/actions -> Bot
-        bot_root = plugin_file.parent.parent.parent.parent.parent.parent
-        config_file = bot_root / "config" / "plugins" / "tts_voice_plugin" / "config.toml"
-
-        if not config_file.is_file():
-            logger.warning("在 tts_action 中未找到 tts_voice_plugin 的配置文件，无法动态加载风格列表。")
-            return ["default"]
-
-        config = toml.loads(config_file.read_text(encoding="utf-8"))
-
-        styles_config = config.get("tts_styles", [])
-        if not isinstance(styles_config, list):
-
-            return ["default"]
-
-        # 使用显式循环和类型检查来提取 style_name，以确保 Pylance 类型检查通过
-        style_names: list[str] = []
-        for style in styles_config:
-            if isinstance(style, dict):
-                name = style.get("style_name")
-                # 确保 name 是一个非空字符串
-                if isinstance(name, str) and name:
-                    style_names.append(name)
-
-        return style_names if style_names else ["default"]
-    except Exception as e:
-        logger.error(f"动态加载TTS风格列表时出错: {e}")
-        return ["default"]  # 出现任何错误都回退
-
-
-# 在类定义之前执行函数，获取风格列表
-AVAILABLE_STYLES = _get_available_styles()
-STYLE_OPTIONS_DESC = ", ".join(f"'{s}'" for s in AVAILABLE_STYLES)
-
-
 class TTSVoiceAction(BaseAction):
     """
     通过关键词或规划器自动触发 TTS 语音合成
@@ -75,7 +35,7 @@ class TTSVoiceAction(BaseAction):
         },
         "voice_style": {
             "type": "string",
-            "description": f"语音的风格。可用选项: [{STYLE_OPTIONS_DESC}]。请根据对话的情感和上下文选择一个最合适的风格。如果未提供，将使用默认风格。",
+            "description": "语音的风格。请根据对话的情感和上下文选择一个最合适的风格。如果未提供，将使用默认风格。",
             "required": False
         },
         "text_language": {
@@ -115,6 +75,109 @@ class TTSVoiceAction(BaseAction):
         super().__init__(*args, **kwargs)
         # 关键配置项现在由 TTSService 管理
         self.tts_service = get_service("tts")
+        
+        # 动态更新 voice_style 参数描述（包含可用风格）
+        self._update_voice_style_parameter()
+
+    def _update_voice_style_parameter(self):
+        """动态更新 voice_style 参数描述，包含实际可用的风格选项"""
+        try:
+            available_styles = self._get_available_styles_safe()
+            if available_styles:
+                styles_list = "、".join(available_styles)
+                updated_description = (
+                    f"语音的风格。请根据对话的情感和上下文选择一个最合适的风格。"
+                    f"当前可用风格：{styles_list}。如果未提供，将使用默认风格。"
+                )
+                # 更新实例的参数描述
+                self.action_parameters["voice_style"]["description"] = updated_description
+                logger.debug(f"{self.log_prefix} 已更新语音风格参数描述，包含 {len(available_styles)} 个可用风格")
+            else:
+                logger.warning(f"{self.log_prefix} 无法获取可用语音风格，使用默认参数描述")
+        except Exception as e:
+            logger.error(f"{self.log_prefix} 更新语音风格参数时出错: {e}")
+
+    def _get_available_styles_safe(self) -> list[str]:
+        """安全地获取可用语音风格列表"""
+        try:
+            # 首先尝试从TTS服务获取
+            if hasattr(self.tts_service, 'get_available_styles'):
+                styles = self.tts_service.get_available_styles()
+                if styles:
+                    return styles
+            
+            # 回退到直接读取配置文件
+            plugin_file = Path(__file__).resolve()
+            bot_root = plugin_file.parent.parent.parent.parent.parent.parent
+            config_file = bot_root / "config" / "plugins" / "tts_voice_plugin" / "config.toml"
+            
+            if config_file.exists():
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = toml.load(f)
+                    styles_config = config.get('tts_styles', [])
+                    
+                    if isinstance(styles_config, list):
+                        style_names = []
+                        for style in styles_config:
+                            if isinstance(style, dict):
+                                name = style.get('style_name')
+                                if isinstance(name, str) and name:
+                                    style_names.append(name)
+                        return style_names if style_names else ['default']
+        except Exception as e:
+            logger.debug(f"{self.log_prefix} 获取可用语音风格时出错: {e}")
+        
+        return ['default']  # 安全回退
+
+    @classmethod
+    def get_action_info(cls) -> "ActionInfo":
+        """重写获取Action信息的方法，动态更新参数描述"""
+        # 先调用父类方法获取基础信息
+        info = super().get_action_info()
+        
+        # 尝试动态更新 voice_style 参数描述
+        try:
+            # 尝试获取可用风格（不创建完整实例）
+            available_styles = cls._get_available_styles_for_info()
+            if available_styles:
+                styles_list = "、".join(available_styles)
+                updated_description = (
+                    f"语音的风格。请根据对话的情感和上下文选择一个最合适的风格。"
+                    f"当前可用风格：{styles_list}。如果未提供，将使用默认风格。"
+                )
+                # 更新参数描述
+                info.action_parameters["voice_style"]["description"] = updated_description
+        except Exception as e:
+            logger.debug(f"[TTSVoiceAction] 在获取Action信息时更新参数描述失败: {e}")
+        
+        return info
+
+    @classmethod 
+    def _get_available_styles_for_info(cls) -> list[str]:
+        """为 get_action_info 方法获取可用风格（类方法版本）"""
+        try:
+            # 构建配置文件路径
+            plugin_file = Path(__file__).resolve()
+            bot_root = plugin_file.parent.parent.parent.parent.parent.parent
+            config_file = bot_root / "config" / "plugins" / "tts_voice_plugin" / "config.toml"
+            
+            if config_file.exists():
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = toml.load(f)
+                    styles_config = config.get('tts_styles', [])
+                    
+                    if isinstance(styles_config, list):
+                        style_names = []
+                        for style in styles_config:
+                            if isinstance(style, dict):
+                                name = style.get('style_name')
+                                if isinstance(name, str) and name:
+                                    style_names.append(name)
+                        return style_names if style_names else ['default']
+        except Exception:
+            pass
+        
+        return ['default']  # 安全回退
 
     async def go_activate(self, llm_judge_model=None) -> bool:
         """
