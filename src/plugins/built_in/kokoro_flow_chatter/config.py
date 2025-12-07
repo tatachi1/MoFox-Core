@@ -48,6 +48,9 @@ class WaitingDefaults:
     # 最大等待时间
     max_wait_seconds: int = 1800
 
+    # 等待时长倍率（>1 放大等待时间，<1 缩短）
+    wait_duration_multiplier: float = 1.0
+
 
 @dataclass
 class ProactiveConfig:
@@ -202,6 +205,7 @@ def load_config() -> KokoroFlowChatterConfig:
                     default_max_wait_seconds=getattr(wait_cfg, 'default_max_wait_seconds', 300),
                     min_wait_seconds=getattr(wait_cfg, 'min_wait_seconds', 30),
                     max_wait_seconds=getattr(wait_cfg, 'max_wait_seconds', 1800),
+                    wait_duration_multiplier=getattr(wait_cfg, 'wait_duration_multiplier', 1.0),
                 )
             
             # 主动思考配置 - 支持 proactive 和 proactive_thinking 两种写法
@@ -262,3 +266,29 @@ def reload_config() -> KokoroFlowChatterConfig:
     global _config
     _config = load_config()
     return _config
+
+
+def apply_wait_duration_rules(raw_wait_seconds: int) -> int:
+    """根据配置计算最终的等待时间"""
+    if raw_wait_seconds <= 0:
+        return 0
+
+    waiting_cfg = get_config().waiting
+    multiplier = max(waiting_cfg.wait_duration_multiplier, 0.0)
+    if multiplier == 0:
+        return 0
+
+    adjusted = int(round(raw_wait_seconds * multiplier))
+
+    min_wait = max(0, waiting_cfg.min_wait_seconds)
+    max_wait = max(waiting_cfg.max_wait_seconds, 0)
+
+    if max_wait > 0 and min_wait > 0 and max_wait < min_wait:
+        max_wait = min_wait
+
+    if max_wait > 0:
+        adjusted = min(adjusted, max_wait)
+    if min_wait > 0:
+        adjusted = max(adjusted, min_wait)
+
+    return max(adjusted, 0)

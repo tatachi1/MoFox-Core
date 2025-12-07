@@ -24,7 +24,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 from src.plugin_system.apis.unified_scheduler import TriggerType, unified_scheduler
 
-from .config import KFCMode, get_config
+from .config import KFCMode, apply_wait_duration_rules, get_config
 from .models import EventType, SessionStatus
 from .session import KokoroSession, get_session_manager
 
@@ -460,6 +460,15 @@ class ProactiveThinker:
                         action.params["thought"] = plan_response.thought
                         action.params["situation_type"] = "timeout"
                     action.params["extra_context"] = extra_context
+
+            adjusted_wait = apply_wait_duration_rules(plan_response.max_wait_seconds)
+            if adjusted_wait != plan_response.max_wait_seconds:
+                logger.debug(
+                    "[ProactiveThinker] 调整超时等待: raw=%ss adjusted=%ss",
+                    plan_response.max_wait_seconds,
+                    adjusted_wait,
+                )
+            plan_response.max_wait_seconds = adjusted_wait
             
             # ★ 在执行动作前最后一次检查状态，防止与 Chatter 并发
             if session.status != SessionStatus.WAITING:
@@ -683,6 +692,15 @@ class ProactiveThinker:
                         action.params["thought"] = plan_response.thought
                         action.params["situation_type"] = "proactive"
                         action.params["extra_context"] = extra_context
+
+            adjusted_wait = apply_wait_duration_rules(plan_response.max_wait_seconds)
+            if adjusted_wait != plan_response.max_wait_seconds:
+                logger.debug(
+                    "[ProactiveThinker] 调整主动等待: raw=%ss adjusted=%ss",
+                    plan_response.max_wait_seconds,
+                    adjusted_wait,
+                )
+            plan_response.max_wait_seconds = adjusted_wait
             
             # 执行动作（回复生成在 Action.execute() 中完成）
             for action in plan_response.actions:

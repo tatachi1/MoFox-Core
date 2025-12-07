@@ -923,6 +923,35 @@ class KokoroFlowChatterProactiveConfig(ValidatedConfigBase):
     )
 
 
+class KokoroFlowChatterWaitingConfig(ValidatedConfigBase):
+    """Kokoro Flow Chatter 等待策略配置"""
+
+    default_max_wait_seconds: int = Field(
+        default=300,
+        ge=0,
+        le=3600,
+        description="默认最大等待秒数（当LLM未给出等待时间时使用）",
+    )
+    min_wait_seconds: int = Field(
+        default=30,
+        ge=0,
+        le=1800,
+        description="允许的最小等待秒数，防止等待时间过短导致频繁打扰",
+    )
+    max_wait_seconds: int = Field(
+        default=1800,
+        ge=60,
+        le=7200,
+        description="允许的最大等待秒数，避免等待时间过长",
+    )
+    wait_duration_multiplier: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=10.0,
+        description="等待时长倍率，用于整体放大或缩短LLM给出的等待时间",
+    )
+
+
 class KokoroFlowChatterConfig(ValidatedConfigBase):
     """
     Kokoro Flow Chatter 配置类 - 私聊专用心流对话系统
@@ -945,6 +974,11 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
     enable_continuous_thinking: bool = Field(
         default=True, 
         description="是否在等待期间启用心理活动更新"
+    )
+
+    waiting: KokoroFlowChatterWaitingConfig = Field(
+        default_factory=KokoroFlowChatterWaitingConfig,
+        description="等待策略配置（默认等待时间、倍率等）",
     )
 
     # --- 私聊专属主动思考配置 ---

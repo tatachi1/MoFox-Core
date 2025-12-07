@@ -405,6 +405,12 @@ def recover_quoted_content(sentences: list[str], placeholder_map: dict[str, str]
 
 def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese_typo: bool = True) -> list[str]:
     assert global_config is not None
+
+    normalized_text = text.strip() if isinstance(text, str) else ""
+    if normalized_text.upper() == "PASS":
+        logger.info("[回复内容过滤器] 检测到PASS信号，跳过发送。")
+        return []
+
     if not global_config.response_post_process.enable_response_post_process:
         return [text]
 

@@ -26,7 +26,7 @@ from src.common.logger import get_logger
 from src.plugin_system.base.base_chatter import BaseChatter
 from src.plugin_system.base.component_types import ChatType
 
-from .config import KFCMode, get_config
+from .config import KFCMode, apply_wait_duration_rules, get_config
 from .models import SessionStatus
 from .session import get_session_manager
 
@@ -179,6 +179,15 @@ class KokoroFlowChatter(BaseChatter):
                     )
                 
                 # 10. 执行动作
+                adjusted_wait = apply_wait_duration_rules(plan_response.max_wait_seconds)
+                if adjusted_wait != plan_response.max_wait_seconds:
+                    logger.debug(
+                        "[KFC] 调整等待时长: raw=%ss adjusted=%ss",
+                        plan_response.max_wait_seconds,
+                        adjusted_wait,
+                    )
+                plan_response.max_wait_seconds = adjusted_wait
+
                 exec_results = []
                 has_reply = False
                 
