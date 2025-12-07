@@ -304,13 +304,11 @@ class MultiLevelCache:
         # 1. 尝试从L1获取
         value = await self.l1_cache.get(key)
         if value is not None:
-            logger.debug(f"L1缓存命中: {key}")
             return value
 
         # 2. 尝试从L2获取
         value = await self.l2_cache.get(key)
         if value is not None:
-            logger.debug(f"L2缓存命中: {key}")
             # 提升到L1
             await self.l1_cache.set(key, value)
             return value

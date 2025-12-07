@@ -129,16 +129,6 @@ class ChatStream:
         # 直接使用传入的 DatabaseMessages，设置到上下文中
         self.context.set_current_message(message)
 
-        # 调试日志
-        logger.debug(
-            f"消息上下文已设置 - message_id: {message.message_id}, "
-            f"chat_id: {message.chat_id}, "
-            f"is_mentioned: {message.is_mentioned}, "
-            f"is_emoji: {message.is_emoji}, "
-            f"is_picid: {message.is_picid}, "
-            f"interest_value: {message.interest_value}"
-        )
-
     def _safe_get_actions(self, message: DatabaseMessages) -> list | None:
         """安全获取消息的actions字段"""
         import json

@@ -87,7 +87,7 @@ async def _apply_session_settings(session: AsyncSession, db_type: str) -> None:
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """获取数据库会话上下文管理器
 
-    这是数据库操作的主要入口点，通过连接池管理器提供透明的连接复用。
+    这是数据库操作的主要入口点，直接从会话工厂获取独立会话。
 
     支持的数据库：
     - SQLite: 自动设置 busy_timeout 和外键约束
@@ -101,20 +101,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: SQLAlchemy异步会话对象
     """
-    # 延迟导入避免循环依赖
-    from ..optimization.connection_pool import get_connection_pool_manager
-
-    session_factory = await get_session_factory()
-    pool_manager = get_connection_pool_manager()
-
-    # 使用连接池管理器（透明复用连接）
-    async with pool_manager.get_session(session_factory) as session:
-        # 获取数据库类型并应用特定设置
-        from src.config.config import global_config
-
-        assert global_config is not None
-        await _apply_session_settings(session, global_config.database.database_type)
-
+    async with get_db_session_direct() as session:
         yield session
 
 

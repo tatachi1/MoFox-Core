@@ -1,7 +1,6 @@
 """数据库优化层
 
 职责：
-- 连接池管理
 - 批量调度
 - 多级缓存
 - 数据预加载
@@ -23,12 +22,6 @@ from .cache_manager import (
     close_cache,
     get_cache,
 )
-from .connection_pool import (
-    ConnectionPoolManager,
-    get_connection_pool_manager,
-    start_connection_pool,
-    stop_connection_pool,
-)
 from .preloader import (
     AccessPattern,
     CommonDataPreloader,
@@ -46,8 +39,6 @@ __all__ = [
     "CacheEntry",
     "CacheStats",
     "CommonDataPreloader",
-    # Connection Pool
-    "ConnectionPoolManager",
     # Preloader
     "DataPreloader",
     "LRUCache",
@@ -59,8 +50,5 @@ __all__ = [
     "close_preloader",
     "get_batch_scheduler",
     "get_cache",
-    "get_connection_pool_manager",
     "get_preloader",
-    "start_connection_pool",
-    "stop_connection_pool",
 ]
