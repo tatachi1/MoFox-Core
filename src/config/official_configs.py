@@ -44,6 +44,12 @@ class DatabaseConfig(ValidatedConfigBase):
 
     # 数据库缓存配置
     enable_database_cache: bool = Field(default=True, description="是否启用数据库查询缓存系统")
+    cache_backend: str = Field(
+        default="memory",
+        description="缓存后端类型: memory(内存缓存) 或 redis(Redis缓存)",
+    )
+
+    # 内存缓存配置 (cache_backend = "memory" 时生效)
     cache_l1_max_size: int = Field(default=1000, ge=100, le=50000, description="L1缓存最大条目数（热数据，内存占用约1-5MB）")
     cache_l1_ttl: int = Field(default=300, ge=10, le=3600, description="L1缓存生存时间（秒）")
     cache_l2_max_size: int = Field(default=10000, ge=1000, le=100000, description="L2缓存最大条目数（温数据，内存占用约10-50MB）")
@@ -51,6 +57,17 @@ class DatabaseConfig(ValidatedConfigBase):
     cache_cleanup_interval: int = Field(default=60, ge=30, le=600, description="缓存清理任务执行间隔（秒）")
     cache_max_memory_mb: int = Field(default=100, ge=10, le=1000, description="缓存最大内存占用（MB），超过此值将触发强制清理")
     cache_max_item_size_mb: int = Field(default=1, ge=1, le=100, description="单个缓存条目最大大小（MB），超过此值将不缓存")
+
+    # Redis缓存配置 (cache_backend = "redis" 时生效)
+    redis_host: str = Field(default="localhost", description="Redis服务器地址")
+    redis_port: int = Field(default=6379, ge=1, le=65535, description="Redis服务器端口")
+    redis_password: str = Field(default="", description="Redis密码（可选）")
+    redis_db: int = Field(default=0, ge=0, le=15, description="Redis数据库编号")
+    redis_key_prefix: str = Field(default="mofox:", description="Redis缓存键前缀")
+    redis_default_ttl: int = Field(default=600, ge=60, le=86400, description="Redis默认缓存过期时间（秒）")
+    redis_connection_pool_size: int = Field(default=10, ge=1, le=100, description="Redis连接池大小")
+    redis_socket_timeout: float = Field(default=5.0, ge=1.0, le=30.0, description="Redis socket超时时间（秒）")
+    redis_ssl: bool = Field(default=False, description="是否启用Redis SSL连接")
 
 
 class BotConfig(ValidatedConfigBase):
