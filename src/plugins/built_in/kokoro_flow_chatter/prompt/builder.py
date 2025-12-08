@@ -208,6 +208,10 @@ class PromptBuilder:
         if personality.identity:
             parts.append(personality.identity)
 
+        background_story = getattr(personality, "background_story", "")
+        if background_story:
+            parts.append(f"## 背景故事（请理解并作为行动依据，但不要在对话中直接复述）\n{background_story}")
+
         return "\n\n".join(parts) if parts else "你是一个温暖、真诚的人。"
 
     def _build_safety_guidelines_block(self) -> str:
@@ -245,6 +249,7 @@ class PromptBuilder:
         # 2. 添加学习到的表达习惯
         if learned_habits and learned_habits.strip():
             # 如果 learned_habits 已经有标题，直接追加；否则添加标题
+            parts.append("你可以参考以下的语言习惯，当情景合适就使用，但不要生硬使用，以合理的方式结合到你的回复中：")
             if learned_habits.startswith("### "):
                 # 移除原有标题，统一格式
                 lines = learned_habits.split("\n")
@@ -499,7 +504,7 @@ class PromptBuilder:
 
             # 跳过没有实际文本内容的消息
             content = getattr(msg, "processed_plain_text", "") or getattr(msg, "display_message", "")
-            if not content or not content.strip():
+            if not content or not content.strip() or content == "":
                 continue
 
             filtered.append(msg)
@@ -849,7 +854,7 @@ class PromptBuilder:
     "thought": "你的想法",
     "actions": [{"type": "kfc_reply", "content": "你的回复"}],
     "expected_reaction": "期待的反应",
-    "max_wait_seconds": 300
+    "max_wait_seconds": 0
 }"""
 
     async def _get_planner_output_format(self) -> str:
@@ -866,7 +871,7 @@ class PromptBuilder:
     "thought": "你的想法",
     "actions": [{"type": "kfc_reply"}],
     "expected_reaction": "期待的反应",
-    "max_wait_seconds": 300
+    "max_wait_seconds": 0
 }
 
 注意：kfc_reply 动作不需要填写 content 字段，回复内容会单独生成。"""

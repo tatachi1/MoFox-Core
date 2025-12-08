@@ -149,7 +149,7 @@ class TTSPlugin(BasePlugin):
         "plugin": {
             "name": ConfigField(type=str, default="tts_plugin", description="插件名称", required=True),
             "version": ConfigField(type=str, default="0.1.0", description="插件版本号"),
-            "enabled": ConfigField(type=bool, default=True, description="是否启用插件"),
+            "enabled": ConfigField(type=bool, default=False, description="是否启用插件"),
             "description": ConfigField(type=str, default="文字转语音插件", description="插件描述", required=True),
         },
         "components": {"enable_tts": ConfigField(type=bool, default=True, description="是否启用TTS Action")},
