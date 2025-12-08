@@ -208,7 +208,7 @@ async def _enable_sqlite_optimizations(engine: AsyncEngine):
             # 启用外键约束
             await conn.execute(text("PRAGMA foreign_keys = ON"))
             # 设置busy_timeout，避免锁定错误
-            await conn.execute(text("PRAGMA busy_timeout = 60000"))
+            await conn.execute(text("PRAGMA busy_timeout = 10000"))
             # 设置缓存大小（10MB）
             await conn.execute(text("PRAGMA cache_size = -10000"))
             # 临时存储使用内存
