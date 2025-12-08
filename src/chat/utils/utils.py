@@ -9,13 +9,15 @@ from typing import Any
 import numpy as np
 import rjieba
 
+from src.common.data_models.database_data_model import DatabaseUserInfo
+
 # MessageRecv 已被移除，现在使用 DatabaseMessages
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.person_info.person_info import PersonInfoManager, get_person_info_manager
-from src.common.data_models.database_data_model import DatabaseUserInfo
+
 from .typo_generator import get_typo_generator
 
 logger = get_logger("chat_utils")

@@ -36,7 +36,7 @@ class ToolCallRecord:
             no_truncate_tools = {"web_search", "web_surfing", "knowledge_search"}
             should_truncate = self.tool_name not in no_truncate_tools
             max_length = 500 if should_truncate else 10000  # 联网搜索给更大的限制
-            
+
             if isinstance(content, str):
                 if len(content) > max_length:
                     self.result_preview = content[:max_length] + "..."
@@ -415,7 +415,6 @@ _STREAM_MANAGERS_MAX_SIZE = 100  # 最大保留数量
 
 def _evict_old_stream_managers() -> None:
     """内存优化：淘汰最久未使用的 stream manager"""
-    import time
 
     if len(_stream_managers) < _STREAM_MANAGERS_MAX_SIZE:
         return
@@ -429,10 +428,8 @@ def _evict_old_stream_managers() -> None:
 
     evicted = []
     for chat_id, _ in sorted_by_time[:evict_count]:
-        if chat_id in _stream_managers:
-            del _stream_managers[chat_id]
-        if chat_id in _stream_managers_last_used:
-            del _stream_managers_last_used[chat_id]
+        _stream_managers.pop(chat_id, None)
+        _stream_managers_last_used.pop(chat_id, None)
         evicted.append(chat_id)
 
     if evicted:
@@ -466,8 +463,6 @@ def cleanup_stream_manager(chat_id: str) -> None:
     Args:
         chat_id: 聊天ID
     """
-    if chat_id in _stream_managers:
-        del _stream_managers[chat_id]
-    if chat_id in _stream_managers_last_used:
-        del _stream_managers_last_used[chat_id]
+    _stream_managers.pop(chat_id, None)
+    _stream_managers_last_used.pop(chat_id, None)
     logger.info(f"已清理聊天 {chat_id} 的工具历史记录管理器")

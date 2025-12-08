@@ -61,10 +61,10 @@ class MessageBuilder:
         """将GIF的Base64编码分解为多个PNG帧的Base64编码列表"""
         gif_bytes = base64.b64decode(gif_base64)
         gif_image = Image.open(io.BytesIO(gif_bytes))
-        
+
         frames = []
         total_frames = getattr(gif_image, "n_frames", 1)
-        
+
         # 如果总帧数小于等于最大帧数，则全部提取
         if total_frames <= max_frames:
             indices = range(total_frames)
@@ -76,7 +76,7 @@ class MessageBuilder:
             try:
                 gif_image.seek(i)
                 frame = gif_image.convert("RGBA")
-                
+
                 output_buffer = io.BytesIO()
                 frame.save(output_buffer, format="PNG")
                 png_bytes = output_buffer.getvalue()

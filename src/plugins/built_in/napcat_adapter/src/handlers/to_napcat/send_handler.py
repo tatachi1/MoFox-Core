@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import random
-import time
-import uuid
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from mofox_wire import MessageEnvelope, SegPayload, GroupInfoPayload, UserInfoPayload, MessageInfoPayload
+from mofox_wire import GroupInfoPayload, MessageEnvelope, MessageInfoPayload, SegPayload, UserInfoPayload
+
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api
+
 from ...event_models import CommandType
 from ..utils import convert_image_to_gif, get_image_format
 
@@ -24,9 +24,9 @@ class SendHandler:
 
     def __init__(self, adapter: "NapcatAdapter"):
         self.adapter = adapter
-        self.plugin_config: Optional[Dict[str, Any]] = None
+        self.plugin_config: dict[str, Any] | None = None
 
-    def set_plugin_config(self, config: Dict[str, Any]) -> None:
+    def set_plugin_config(self, config: dict[str, Any]) -> None:
         """设置插件配置"""
         self.plugin_config = config
 
@@ -74,11 +74,11 @@ class SendHandler:
         else:
             seg_data = message_segment
 
-        group_info: Optional[GroupInfoPayload] = message_info.get("group_info")
-        user_info: Optional[UserInfoPayload] = message_info.get("user_info")
-        target_id: Optional[int] = None
-        action: Optional[str] = None
-        id_name: Optional[str] = None
+        group_info: GroupInfoPayload | None = message_info.get("group_info")
+        user_info: UserInfoPayload | None = message_info.get("user_info")
+        target_id: int | None = None
+        action: str | None = None
+        id_name: str | None = None
         processed_message: list = []
         try:
             processed_message = await self.handle_seg_recursive(seg_data, user_info or {})
@@ -121,18 +121,18 @@ class SendHandler:
         if response.get("status") == "ok":
             logger.info("消息发送成功")
         else:
-            logger.warning(f"消息发送失败，napcat返回：{str(response)}")
+            logger.warning(f"消息发送失败，napcat返回：{response!s}")
 
     async def send_command(self, envelope: MessageEnvelope) -> None:
         """
         处理命令类
         """
         logger.debug("处理命令中")
-        message_info: Dict[str, Any] = envelope.get("message_info", {})
-        group_info: Optional[Dict[str, Any]] = message_info.get("group_info")
+        message_info: dict[str, Any] = envelope.get("message_info", {})
+        group_info: dict[str, Any] | None = message_info.get("group_info")
         segment: SegPayload = envelope.get("message_segment", {})  # type: ignore[assignment]
-        seg_data: Dict[str, Any] = segment.get("data", {}) if isinstance(segment, dict) else {}
-        command_name: Optional[str] = seg_data.get("name")
+        seg_data: dict[str, Any] = segment.get("data", {}) if isinstance(segment, dict) else {}
+        command_name: str | None = seg_data.get("name")
         try:
             args = seg_data.get("args", {})
             if not isinstance(args, dict):
@@ -174,7 +174,7 @@ class SendHandler:
         if response.get("status") == "ok":
             logger.info(f"命令 {command_name} 执行成功")
         else:
-            logger.warning(f"命令 {command_name} 执行失败，napcat返回：{str(response)}")
+            logger.warning(f"命令 {command_name} 执行失败，napcat返回：{response!s}")
 
     async def handle_adapter_command(self, envelope: MessageEnvelope) -> None:
         """
@@ -182,7 +182,7 @@ class SendHandler:
         """
         logger.info("处理适配器命令中")
         segment: SegPayload = envelope.get("message_segment", {})  # type: ignore[assignment]
-        seg_data: Dict[str, Any] = segment.get("data", {}) if isinstance(segment, dict) else {}
+        seg_data: dict[str, Any] = segment.get("data", {}) if isinstance(segment, dict) else {}
 
         try:
             action = seg_data.get("action")
@@ -212,7 +212,7 @@ class SendHandler:
             if response.get("status") == "ok":
                 logger.info(f"适配器命令 {action} 执行成功")
             else:
-                logger.warning(f"适配器命令 {action} 执行失败，napcat返回：{str(response)}")
+                logger.warning(f"适配器命令 {action} 执行失败，napcat返回：{response!s}")
             logger.debug(f"适配器命令 {action} 的完整响应: {response}")
 
         except Exception as e:
@@ -411,11 +411,11 @@ class SendHandler:
             "data": {"file": f"file://{file_path}"},
         }
 
-    def delete_msg_command(self, args: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+    def delete_msg_command(self, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         """处理删除消息命令"""
         return "delete_msg", {"message_id": args["message_id"]}
 
-    def handle_ban_command(self, args: Dict[str, Any], group_info: Optional[Dict[str, Any]]) -> tuple[str, Dict[str, Any]]:
+    def handle_ban_command(self, args: dict[str, Any], group_info: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         """处理封禁命令"""
         duration: int = int(args["duration"])
         user_id: int = int(args["qq_id"])
@@ -435,7 +435,7 @@ class SendHandler:
             },
         )
 
-    def handle_whole_ban_command(self, args: Dict[str, Any], group_info: Optional[Dict[str, Any]]) -> tuple[str, Dict[str, Any]]:
+    def handle_whole_ban_command(self, args: dict[str, Any], group_info: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         """处理全体禁言命令"""
         enable = args["enable"]
         assert isinstance(enable, bool), "enable参数必须是布尔值"
@@ -450,7 +450,7 @@ class SendHandler:
             },
         )
 
-    def handle_kick_command(self, args: Dict[str, Any], group_info: Optional[Dict[str, Any]]) -> tuple[str, Dict[str, Any]]:
+    def handle_kick_command(self, args: dict[str, Any], group_info: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         """处理群成员踢出命令"""
         user_id: int = int(args["qq_id"])
         group_id: int = int(group_info["group_id"]) if group_info and group_info.get("group_id") else 0
@@ -467,10 +467,10 @@ class SendHandler:
             },
         )
 
-    def handle_poke_command(self, args: Dict[str, Any], group_info: Optional[Dict[str, Any]]) -> tuple[str, Dict[str, Any]]:
+    def handle_poke_command(self, args: dict[str, Any], group_info: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         """处理戳一戳命令"""
         user_id: int = int(args["qq_id"])
-        group_id: Optional[int] = None
+        group_id: int | None = None
         if group_info and group_info.get("group_id"):
             group_id = int(group_info["group_id"])
             if group_id <= 0:
@@ -485,7 +485,7 @@ class SendHandler:
             },
         )
 
-    def handle_set_emoji_like_command(self, args: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+    def handle_set_emoji_like_command(self, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         """处理设置表情回应命令"""
         logger.info(f"开始处理表情回应命令, 接收到参数: {args}")
         try:
@@ -501,7 +501,7 @@ class SendHandler:
             {"message_id": message_id, "emoji_id": emoji_id, "set": set_like},
         )
 
-    def handle_send_like_command(self, args: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+    def handle_send_like_command(self, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         """处理发送点赞命令的逻辑。"""
         try:
             user_id: int = int(args["qq_id"])
@@ -514,7 +514,7 @@ class SendHandler:
             {"user_id": user_id, "times": times},
         )
 
-    def handle_at_message_command(self, args: Dict[str, Any], group_info: Optional[Dict[str, Any]]) -> tuple[str, Dict[str, Any]]:
+    def handle_at_message_command(self, args: dict[str, Any], group_info: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         """处理艾特并发送消息命令"""
         at_user_id = args.get("qq_id")
         text = args.get("text")
@@ -538,7 +538,7 @@ class SendHandler:
             },
         )
 
-    def handle_ai_voice_send_command(self, args: Dict[str, Any], group_info: Optional[Dict[str, Any]]) -> tuple[str, Dict[str, Any]]:
+    def handle_ai_voice_send_command(self, args: dict[str, Any], group_info: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         """
         处理AI语音发送命令的逻辑。
         并返回 NapCat 兼容的 (action, params) 元组。

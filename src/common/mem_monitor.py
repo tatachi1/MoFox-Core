@@ -13,9 +13,7 @@
 """
 
 import logging
-import os
 import threading
-import time
 import tracemalloc
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
@@ -50,14 +48,14 @@ def _setup_mem_logger() -> logging.Logger:
     logger = logging.getLogger("mem_monitor")
     logger.setLevel(logging.DEBUG)
     logger.propagate = False  # 不传播到父日志器，避免污染主日志
-    
+
     # 清除已有的处理器
     logger.handlers.clear()
-    
+
     # 创建日志目录
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
-    
+
     # 文件处理器 - 带日期的日志文件，支持轮转
     log_file = log_dir / f"mem_monitor_{datetime.now().strftime('%Y%m%d')}.log"
     file_handler = RotatingFileHandler(
@@ -67,22 +65,22 @@ def _setup_mem_logger() -> logging.Logger:
         encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
-    
+
     # 格式化器
     formatter = logging.Formatter(
         "%(asctime)s | %(levelname)-7s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     file_handler.setFormatter(formatter)
-    
+
     # 控制台处理器 - 只输出重要信息
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
-    
+
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
-    
+
     return logger
 
 
@@ -177,22 +175,22 @@ def log_object_growth(limit: int = 20) -> None:
     if not OBJGRAPH_AVAILABLE or objgraph is None:
         logger.warning("objgraph not available, skipping object growth analysis")
         return
-    
+
     logger.info("==== Objgraph growth (top %s) ====", limit)
     try:
         # objgraph.show_growth 默认输出到 stdout，需要捕获输出
         import io
         import sys
-        
+
         # 捕获 stdout
         old_stdout = sys.stdout
         sys.stdout = buffer = io.StringIO()
-        
+
         try:
             objgraph.show_growth(limit=limit)
         finally:
             sys.stdout = old_stdout
-        
+
         output = buffer.getvalue()
         if output.strip():
             for line in output.strip().split("\n"):
@@ -206,21 +204,21 @@ def log_object_growth(limit: int = 20) -> None:
 def log_type_memory_diff() -> None:
     """使用 Pympler 查看各类型对象占用的内存变化"""
     global _last_type_summary
-    
+
     if not PYMPLER_AVAILABLE or muppy is None or summary is None:
         logger.warning("pympler not available, skipping type memory analysis")
         return
-    
+
     import io
     import sys
-    
+
     all_objects = muppy.get_objects()
     curr = summary.summarize(all_objects)
 
     # 捕获 Pympler 的输出（summary.print_ 也是输出到 stdout）
     old_stdout = sys.stdout
     sys.stdout = buffer = io.StringIO()
-    
+
     try:
         if _last_type_summary is None:
             logger.info("==== Pympler initial type summary ====")
@@ -370,7 +368,7 @@ def debug_leak_for_type(type_name: str, max_depth: int = 5, filename: str | None
     if not OBJGRAPH_AVAILABLE or objgraph is None:
         logger.warning("objgraph not available, cannot generate backrefs graph")
         return False
-    
+
     if filename is None:
         filename = f"{type_name}_backrefs.png"
 

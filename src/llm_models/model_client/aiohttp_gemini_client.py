@@ -601,7 +601,7 @@ class AiohttpGeminiClient(BaseClient):
         # 处理思考配置 - 优先使用新版 thinking_level，否则使用旧版 thinking_budget
         thinking_level = None
         thinking_budget = None
-        
+
         if extra_params:
             # 优先检查新版 thinking_level
             if "thinking_level" in extra_params:

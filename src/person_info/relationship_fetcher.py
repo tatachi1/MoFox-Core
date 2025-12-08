@@ -102,7 +102,7 @@ class RelationshipFetcher:
 
     async def build_relation_info(self, person_id, points_num=5):
         """构建详细的人物关系信息
-        
+
         注意：现在只从 user_relationships 表读取印象和关系数据，
         person_info 表只用于获取基础信息（用户名、平台等）
         """
@@ -113,10 +113,10 @@ class RelationshipFetcher:
         self._cleanup_expired_cache()
 
         person_info_manager = get_person_info_manager()
-        
+
         # 仅从 person_info 获取基础信息（不获取印象相关字段）
         person_name = await person_info_manager.get_value(person_id, "person_name")
-        platform = await person_info_manager.get_value(person_id, "platform")
+        await person_info_manager.get_value(person_id, "platform")
 
         # 构建详细的关系描述
         relation_parts = []

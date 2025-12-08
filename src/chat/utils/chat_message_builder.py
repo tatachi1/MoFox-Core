@@ -1125,7 +1125,7 @@ async def build_anonymous_messages(messages: list[dict[str, Any]], filter_for_le
     """
     构建匿名可读消息，将不同人的名称转为唯一占位符（A、B、C...），bot自己用SELF。
     处理 回复<aaa:bbb> 和 @<aaa:bbb> 字段，将bbb映射为匿名占位符。
-    
+
     Args:
         messages: 消息列表
         filter_for_learning: 是否为表达学习场景进行额外过滤（过滤掉纯回复、纯@、纯图片等无意义内容）
@@ -1162,16 +1162,16 @@ async def build_anonymous_messages(messages: list[dict[str, Any]], filter_for_le
             person_map[person_id] = chr(current_char)
             current_char += 1
         return person_map[person_id]
-    
+
     def is_meaningless_content(content: str, msg: dict) -> bool:
         """
         判断消息内容是否无意义（用于表达学习过滤）
         """
         if not content or not content.strip():
             return True
-        
+
         stripped = content.strip()
-        
+
         # 检查消息标记字段
         if msg.get("is_emoji", False):
             return True
@@ -1181,32 +1181,32 @@ async def build_anonymous_messages(messages: list[dict[str, Any]], filter_for_le
             return True
         if msg.get("is_command", False):
             return True
-        
+
         # 🔥 检查纯回复消息（只有[回复<xxx>]没有其他内容）
         reply_pattern = r"^\s*\[回复[^\]]*\]\s*$"
         if re.match(reply_pattern, stripped):
             return True
-        
+
         # 🔥 检查纯@消息（只有@xxx没有其他内容）
         at_pattern = r"^\s*(@[^\s]+\s*)+$"
         if re.match(at_pattern, stripped):
             return True
-        
+
         # 🔥 检查纯图片消息
         image_pattern = r"^\s*(\[图片\]|\[动画表情\]|\[表情\]|\[picid:[^\]]+\])\s*$"
         if re.match(image_pattern, stripped):
             return True
-        
+
         # 🔥 移除回复标记、@标记、图片标记后检查是否还有实质内容
         clean_content = re.sub(r"\[回复[^\]]*\]", "", stripped)
         clean_content = re.sub(r"@[^\s]+", "", clean_content)
         clean_content = re.sub(r"\[图片\]|\[动画表情\]|\[表情\]|\[picid:[^\]]+\]", "", clean_content)
         clean_content = clean_content.strip()
-        
+
         # 如果移除后内容太短（少于2个字符），认为无意义
         if len(clean_content) < 2:
             return True
-        
+
         return False
 
     for msg in messages:
@@ -1227,7 +1227,7 @@ async def build_anonymous_messages(messages: list[dict[str, Any]], filter_for_le
 
             # For anonymous messages, we just replace with a placeholder.
             content = re.sub(r"\[picid:([^\]]+)\]", "[图片]", content)
-            
+
             # 🔥 表达学习场景：过滤无意义消息
             if filter_for_learning and is_meaningless_content(content, msg):
                 continue

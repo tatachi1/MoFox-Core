@@ -15,25 +15,9 @@ Kokoro Flow Chatter (KFC) - 私聊特化的心流聊天器
 5. 大模板 + 小模板：线性叙事风格的提示词架构
 """
 
-from .models import (
-    EventType,
-    SessionStatus,
-    MentalLogEntry,
-    WaitingConfig,
-    ActionModel,
-    LLMResponse,
-)
-from .session import KokoroSession, SessionManager, get_session_manager
+from src.plugin_system.base.plugin_metadata import PluginMetadata
+
 from .chatter import KokoroFlowChatter
-from .planner import generate_plan
-from .replyer import generate_reply_text
-from .unified import generate_unified_response
-from .proactive_thinker import (
-    ProactiveThinker,
-    get_proactive_thinker,
-    start_proactive_thinker,
-    stop_proactive_thinker,
-)
 from .config import (
     KFCMode,
     KokoroFlowChatterConfig,
@@ -41,8 +25,25 @@ from .config import (
     load_config,
     reload_config,
 )
+from .models import (
+    ActionModel,
+    EventType,
+    LLMResponse,
+    MentalLogEntry,
+    SessionStatus,
+    WaitingConfig,
+)
+from .planner import generate_plan
 from .plugin import KokoroFlowChatterPlugin
-from src.plugin_system.base.plugin_metadata import PluginMetadata
+from .proactive_thinker import (
+    ProactiveThinker,
+    get_proactive_thinker,
+    start_proactive_thinker,
+    stop_proactive_thinker,
+)
+from .replyer import generate_reply_text
+from .session import KokoroSession, SessionManager, get_session_manager
+from .unified import generate_unified_response
 
 __plugin_meta__ = PluginMetadata(
     name="Kokoro Flow Chatter",
@@ -56,34 +57,34 @@ __plugin_meta__ = PluginMetadata(
 )
 
 __all__ = [
+    "ActionModel",
     # Models
     "EventType",
-    "SessionStatus",
-    "MentalLogEntry",
-    "WaitingConfig",
-    "ActionModel",
-    "LLMResponse",
-    # Session
-    "KokoroSession",
-    "SessionManager",
-    "get_session_manager",
+    # Config
+    "KFCMode",
     # Core Components
     "KokoroFlowChatter",
+    "KokoroFlowChatterConfig",
+    # Plugin
+    "KokoroFlowChatterPlugin",
+    # Session
+    "KokoroSession",
+    "LLMResponse",
+    "MentalLogEntry",
+    # Proactive Thinker
+    "ProactiveThinker",
+    "SessionManager",
+    "SessionStatus",
+    "WaitingConfig",
+    "__plugin_meta__",
     "generate_plan",
     "generate_reply_text",
     "generate_unified_response",
-    # Proactive Thinker
-    "ProactiveThinker",
-    "get_proactive_thinker",
-    "start_proactive_thinker",
-    "stop_proactive_thinker",
-    # Config
-    "KFCMode",
-    "KokoroFlowChatterConfig",
     "get_config",
+    "get_proactive_thinker",
+    "get_session_manager",
     "load_config",
     "reload_config",
-    # Plugin
-    "KokoroFlowChatterPlugin",
-    "__plugin_meta__",
+    "start_proactive_thinker",
+    "stop_proactive_thinker",
 ]

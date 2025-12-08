@@ -38,14 +38,14 @@ class PermissionManager(IPermissionManager):
         try:
             master_users_config = global_config.permission.master_users
             if not isinstance(master_users_config, list):
-                logger.warning(f"配置文件中的 permission.master_users 不是一个列表，已跳过加载。")
+                logger.warning("配置文件中的 permission.master_users 不是一个列表，已跳过加载。")
                 self._master_users = set()
                 return
 
             self._master_users = set()
             for i, user_info in enumerate(master_users_config):
                 if not isinstance(user_info, list) or len(user_info) != 2:
-                    logger.warning(f"Master用户配置项格式错误 (索引: {i}): {user_info}，应为 [\"platform\", \"user_id\"]")
+                    logger.warning(f'Master用户配置项格式错误 (索引: {i}): {user_info}，应为 ["platform", "user_id"]')
                     continue
 
                 platform, user_id = user_info

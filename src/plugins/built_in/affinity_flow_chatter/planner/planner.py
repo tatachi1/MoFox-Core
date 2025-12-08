@@ -20,9 +20,9 @@ from src.plugins.built_in.affinity_flow_chatter.planner.plan_generator import Ch
 
 if TYPE_CHECKING:
     from src.chat.planner_actions.action_manager import ChatterActionManager
+    from src.common.data_models.database_data_model import DatabaseMessages
     from src.common.data_models.info_data_model import Plan
     from src.common.data_models.message_manager_data_model import StreamContext
-    from src.common.data_models.database_data_model import DatabaseMessages
 
 # 导入提示词模块以确保其被初始化
 
@@ -138,7 +138,7 @@ class ChatterActionPlanner:
 
         try:
             interest_manager = get_interest_manager()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(f"获取兴趣管理器失败: {exc}")
             return
 
@@ -153,7 +153,7 @@ class ChatterActionPlanner:
 
         try:
             embeddings = await bot_interest_manager.generate_embeddings_for_texts(text_map)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error(f"批量获取消息embedding失败: {exc}")
             embeddings = {}
 
@@ -167,7 +167,7 @@ class ChatterActionPlanner:
 
             try:
                 result = await interest_manager.calculate_interest(message)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.error(f"批量计算消息兴趣失败: {exc}")
                 continue
 
@@ -184,7 +184,7 @@ class ChatterActionPlanner:
         if interest_updates:
             try:
                 await MessageStorage.bulk_update_interest_values(interest_updates, reply_updates)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.error(f"批量更新消息兴趣值失败: {exc}")
 
     async def _focus_mode_flow(self, context: "StreamContext | None") -> tuple[list[dict[str, Any]], Any | None]:

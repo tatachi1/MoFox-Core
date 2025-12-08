@@ -179,7 +179,7 @@ class PersistenceManager:
         """
         # 使用全局文件锁防止多个系统同时写入同一文件
         file_lock = await _get_file_lock(str(self.graph_file.absolute()))
-        
+
         async with file_lock:
             try:
                 # 转换为字典
@@ -225,7 +225,7 @@ class PersistenceManager:
 
         # 使用全局文件锁防止多个系统同时读写同一文件
         file_lock = await _get_file_lock(str(self.graph_file.absolute()))
-        
+
         async with file_lock:
             try:
                 # 读取文件，添加重试机制处理可能的文件锁定

@@ -623,7 +623,7 @@ class UnifiedScheduler:
 
     async def _execute_task(self, task: ScheduleTask) -> None:
         """执行单个任务（完全隔离）"""
-        execution = task.start_execution()
+        task.start_execution()
         self._deadlock_detector.register_task(task.schedule_id, task.task_name)
 
         try:
@@ -763,7 +763,7 @@ class UnifiedScheduler:
 
     async def _execute_event_task(self, task: ScheduleTask, event_params: dict[str, Any]) -> None:
         """执行事件触发的任务"""
-        execution = task.start_execution()
+        task.start_execution()
         self._deadlock_detector.register_task(task.schedule_id, task.task_name)
 
         try:
@@ -867,7 +867,7 @@ class UnifiedScheduler:
         for i, timeout in enumerate(timeouts):
             try:
                 # 使用 asyncio.wait 代替 wait_for，避免重新抛出异常
-                done, pending = await asyncio.wait({task._asyncio_task}, timeout=timeout)
+                done, _pending = await asyncio.wait({task._asyncio_task}, timeout=timeout)
 
                 if done:
                     # 任务已完成（可能是正常完成或被取消）

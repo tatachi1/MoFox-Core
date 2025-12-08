@@ -3,7 +3,7 @@ import re
 import time
 import traceback
 from collections import deque
-from typing import Optional, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 import orjson
 from sqlalchemy import desc, select, update
@@ -16,7 +16,7 @@ from src.common.logger import get_logger
 
 if TYPE_CHECKING:
     from src.chat.message_receive.chat_stream import ChatStream
-    
+
 logger = get_logger("message_storage")
 
 
@@ -191,7 +191,7 @@ class MessageStorageBatcher:
             additional_config = message.additional_config
             key_words = MessageStorage._serialize_keywords(message.key_words)
             key_words_lite = MessageStorage._serialize_keywords(message.key_words_lite)
-            memorized_times = getattr(message, 'memorized_times', 0)
+            memorized_times = getattr(message, "memorized_times", 0)
 
             user_platform = message.user_info.platform if message.user_info else ""
             user_id = message.user_info.user_id if message.user_info else ""

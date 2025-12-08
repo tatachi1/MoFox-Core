@@ -21,7 +21,7 @@ import numpy as np
 from src.common.logger import get_logger
 from src.memory_graph.models import MemoryBlock, PerceptualMemory
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity_async, batch_cosine_similarity_async
+from src.memory_graph.utils.similarity import batch_cosine_similarity_async
 
 logger = get_logger(__name__)
 
@@ -191,14 +191,14 @@ class PerceptualMemoryManager:
             self._cleanup_pending_messages()
             # 只取出指定 stream_id 的 block_size 条消息
             stream_messages = [msg for msg in self.perceptual_memory.pending_messages if msg.get("stream_id") == stream_id]
-            
+
             if len(stream_messages) < self.block_size:
                 logger.warning(f"stream {stream_id} 的消息不足 {self.block_size} 条，无法创建块")
                 return None
-            
+
             # 取前 block_size 条消息
             messages = stream_messages[:self.block_size]
-            
+
             # 从 pending_messages 中移除这些消息
             for msg in messages:
                 self.perceptual_memory.pending_messages.remove(msg)
@@ -470,10 +470,10 @@ class PerceptualMemoryManager:
 
             # 检查是否有块达到激活阈值（需要转移到短期记忆）
             activated_blocks = [
-                block for block in recalled_blocks 
+                block for block in recalled_blocks
                 if block.recall_count >= self.activation_threshold
             ]
-            
+
             if activated_blocks:
                 # 设置标记供 unified_manager 处理
                 for block in activated_blocks:

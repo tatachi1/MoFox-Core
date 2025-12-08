@@ -8,9 +8,8 @@ import random
 import re
 import time
 import traceback
-import uuid
 from datetime import datetime, timedelta
-from typing import Any, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 from src.chat.express.expression_selector import expression_selector
 from src.chat.message_receive.uni_message_sender import HeartFCSender
@@ -25,7 +24,7 @@ from src.chat.utils.prompt import Prompt, global_prompt_manager
 from src.chat.utils.prompt_params import PromptParameters
 from src.chat.utils.timer_calculator import Timer
 from src.chat.utils.utils import get_chat_type_and_target_info
-from src.common.data_models.database_data_model import DatabaseMessages, DatabaseUserInfo
+from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.logger import get_logger
 from src.config.config import global_config, model_config
 from src.individuality.individuality import get_individuality
@@ -494,14 +493,12 @@ class DefaultReplyer:
                 )
 
             content = None
-            reasoning_content = None
-            model_name = "unknown_model"
             if not prompt:
                 logger.error("Prompt 构建失败，无法生成回复。")
                 return False, None, None
 
             try:
-                content, reasoning_content, model_name, _ = await self.llm_generate_content(prompt)
+                content, _reasoning_content, _model_name, _ = await self.llm_generate_content(prompt)
                 logger.info(f"想要表达：{raw_reply}||理由：{reason}||生成回复: {content}\n")
 
             except Exception as llm_e:
@@ -1252,7 +1249,7 @@ class DefaultReplyer:
             if action_items:
                 if len(action_items) == 1:
                     # 单个动作
-                    action_name, action_info = list(action_items.items())[0]
+                    action_name, action_info = next(iter(action_items.items()))
                     action_desc = action_info.description
 
                     # 构建基础决策信息

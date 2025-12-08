@@ -11,7 +11,6 @@ from src.llm_models.payload_content import ToolCall
 from src.llm_models.utils_model import LLMRequest
 from src.plugin_system.apis.tool_api import get_llm_available_tool_definitions, get_tool_instance
 from src.plugin_system.base.base_tool import BaseTool
-from src.plugin_system.core.global_announcement_manager import global_announcement_manager
 from src.plugin_system.core.stream_tool_history import ToolCallRecord, get_stream_tool_history_manager
 
 logger = get_logger("tool_use")
@@ -203,7 +202,7 @@ class ToolExecutor:
         logger.debug(f"{self.log_prefix}开始LLM工具调用分析")
 
         # 调用LLM进行工具决策
-        response, llm_extra_info = await self.llm_model.generate_response_async(
+        _response, llm_extra_info = await self.llm_model.generate_response_async(
             prompt=prompt, tools=tools, raise_when_empty=False
         )
 
@@ -412,7 +411,7 @@ class ToolExecutor:
                 for i, tool_call in enumerate(tool_calls)
             ]
 
-  
+
     async def _execute_single_tool_with_timeout(self, tool_call: ToolCall, index: int) -> ToolExecutionResult:
         """执行单个工具调用，支持超时控制
 

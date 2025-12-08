@@ -106,7 +106,7 @@ class URLParserTool(BaseTool):
                 logger.error("未配置LLM模型")
                 return {"error": "未配置LLM模型"}
 
-            success, summary, reasoning, model_name = await llm_api.generate_with_model(
+            success, summary, _reasoning, _model_name = await llm_api.generate_with_model(
                 prompt=summary_prompt,
                 model_config=model_config,
                 request_type="story.generate",

@@ -1,4 +1,4 @@
-import os   
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -27,8 +27,8 @@ from src.config.official_configs import (
     ExpressionConfig,
     KokoroFlowChatterConfig,
     LPMMKnowledgeConfig,
-    MessageBusConfig,
     MemoryConfig,
+    MessageBusConfig,
     MessageReceiveConfig,
     MoodConfig,
     NoticeConfig,

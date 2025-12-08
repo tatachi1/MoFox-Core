@@ -1,13 +1,13 @@
 from typing import ClassVar
 
 from src.common.logger import get_logger
+from src.config.config import global_config
+from src.plugin_system.apis.generator_api import generate_reply
 from src.plugin_system.apis.plugin_register_api import register_plugin
 from src.plugin_system.base.base_action import ActionActivationType, BaseAction, ChatMode
 from src.plugin_system.base.base_plugin import BasePlugin
 from src.plugin_system.base.component_types import ComponentInfo
 from src.plugin_system.base.config_types import ConfigField
-from src.plugin_system.apis.generator_api import generate_reply
-from src.config.config import global_config
 
 logger = get_logger("tts")
 
@@ -52,7 +52,7 @@ class TTSAction(BaseAction):
         logger.info(f"{self.log_prefix} 执行TTS动作: {self.reasoning}")
 
 
-        success, response_set, _ = await generate_reply(
+        _success, response_set, _ = await generate_reply(
             chat_stream=self.chat_stream,
             reply_message=self.chat_stream.context.get_last_message(),
             enable_tool=global_config.tool.enable_tool,
@@ -78,7 +78,7 @@ class TTSAction(BaseAction):
 
         # 处理文本以优化TTS效果
         processed_text = self._process_text_for_tts(reply_text)
-        
+
         try:
             # 发送TTS消息
             await self.send_custom(message_type="tts_text", content=processed_text)

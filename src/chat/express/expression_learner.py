@@ -149,7 +149,7 @@ class ExpressionLearner:
 
     def get_related_chat_ids(self) -> list[str]:
         """根据expression.rules配置，获取与当前chat_id相关的所有chat_id（包括自身）
-        
+
         用于共享组功能：同一共享组内的聊天流可以共享学习到的表达方式
         """
         if global_config is None:
@@ -249,7 +249,7 @@ class ExpressionLearner:
         try:
             if global_config is None:
                 return False
-            use_expression, enable_learning, _ = global_config.expression.get_expression_config_for_chat(self.chat_id)
+            _use_expression, enable_learning, _ = global_config.expression.get_expression_config_for_chat(self.chat_id)
             return enable_learning
         except Exception as e:
             logger.error(f"检查学习权限失败: {e}")
@@ -271,7 +271,7 @@ class ExpressionLearner:
         try:
             if global_config is None:
                 return False
-            use_expression, enable_learning, learning_intensity = (
+            _use_expression, enable_learning, learning_intensity = (
                 global_config.expression.get_expression_config_for_chat(self.chat_id)
             )
         except Exception as e:
@@ -594,7 +594,7 @@ class ExpressionLearner:
             from src.common.database.optimization.cache_manager import get_cache
             from src.common.database.utils.decorators import generate_cache_key
             cache = await get_cache()
-            
+
             # 获取共享组内所有 chat_id 并清除其缓存
             related_chat_ids = self.get_related_chat_ids()
             for related_id in related_chat_ids:
@@ -611,7 +611,7 @@ class ExpressionLearner:
                     # 为每个共享组内的 chat_id 训练其 StyleLearner
                     for target_chat_id in related_chat_ids:
                         learner = style_learner_manager.get_learner(target_chat_id)
-                        
+
                         # 为每个学习到的表达方式训练模型
                         # 使用 situation 作为输入，style 作为目标
                         # 这是最符合语义的方式：场景 -> 表达方式
@@ -689,7 +689,7 @@ class ExpressionLearner:
         # 🔥 启用表达学习场景的过滤，过滤掉纯回复、纯@、纯图片等无意义内容
         random_msg_str: str = await build_anonymous_messages(random_msg, filter_for_learning=True)
         # print(f"random_msg_str:{random_msg_str}")
-        
+
         # 🔥 检查过滤后是否还有足够的内容
         if not random_msg_str or len(random_msg_str.strip()) < 20:
             logger.debug(f"过滤后消息内容不足，跳过本次{type_str}学习")

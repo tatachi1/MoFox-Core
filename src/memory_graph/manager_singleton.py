@@ -151,7 +151,7 @@ async def initialize_unified_memory_manager():
         # 注意：我们将 data_dir 指向 three_tier 子目录，以隔离感知/短期记忆数据
         # 同时传入全局 _memory_manager 以共享长期记忆图存储
         base_data_dir = Path(getattr(config, "data_dir", "data/memory_graph"))
-        
+
         _unified_memory_manager = UnifiedMemoryManager(
             data_dir=base_data_dir,
             memory_manager=_memory_manager,

@@ -10,8 +10,7 @@
 
 import asyncio
 import logging
-import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -19,16 +18,15 @@ from src.config.config import global_config
 from src.config.official_configs import MemoryConfig
 from src.memory_graph.core.builder import MemoryBuilder
 from src.memory_graph.core.extractor import MemoryExtractor
-from src.memory_graph.models import EdgeType, Memory, MemoryEdge, NodeType
+from src.memory_graph.models import Memory
 from src.memory_graph.storage.graph_store import GraphStore
 from src.memory_graph.storage.persistence import PersistenceManager
 from src.memory_graph.storage.vector_store import VectorStore
 from src.memory_graph.tools.memory_tools import MemoryTools
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity
 
 if TYPE_CHECKING:
-    import numpy as np
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -142,13 +140,13 @@ class MemoryManager:
             expand_depth = getattr(self.config, "path_expansion_max_hops", 2)
             expand_semantic_threshold = getattr(self.config, "search_similarity_threshold", 0.5)
             search_top_k = getattr(self.config, "search_top_k", 10)
-            
+
             # 读取权重配置
             search_vector_weight = getattr(self.config, "vector_weight", 0.65)
             # context_weight 近似映射为 importance_weight
             search_importance_weight = getattr(self.config, "context_weight", 0.25)
             search_recency_weight = getattr(self.config, "recency_weight", 0.10)
-            
+
             # 读取阈值过滤配置
             search_min_importance = getattr(self.config, "search_min_importance", 0.3)
             search_similarity_threshold = getattr(self.config, "search_similarity_threshold", 0.5)
@@ -932,7 +930,7 @@ class MemoryManager:
 
         应用时间衰减公式计算当前激活度，低于阈值则遗忘。
         衰减公式：activation = base_activation * (decay_rate ^ days_passed)
-        
+
         优化：批量删除记忆后统一清理孤立节点，减少重复检查
 
         Args:
@@ -1132,11 +1130,11 @@ class MemoryManager:
     ) -> dict[str, Any]:
         """
         简化的记忆整理：仅检查需要遗忘的记忆并清理孤立节点和边
-        
+
         功能：
         1. 检查需要遗忘的记忆（低激活度）
         2. 清理孤立节点和边
-        
+
         注意：记忆的创建、合并、关联等操作已由三级记忆系统自动处理
 
         Args:
@@ -1181,7 +1179,7 @@ class MemoryManager:
     ) -> None:
         """
         后台整理任务（已简化为调用consolidate_memories）
-        
+
         保留此方法用于向后兼容
         """
         await self.consolidate_memories(

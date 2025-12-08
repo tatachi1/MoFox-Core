@@ -136,7 +136,7 @@ class HTMLReportGenerator:
                 for chat_id, count in sorted(stat_data[MSG_CNT_BY_CHAT].items())
             ]
         )
-        
+
         # 先计算基础数据
         total_tokens = sum(stat_data.get(TOTAL_TOK_BY_MODEL, {}).values())
         total_requests = stat_data.get(TOTAL_REQ_CNT, 0)
@@ -144,21 +144,21 @@ class HTMLReportGenerator:
         total_messages = stat_data.get(TOTAL_MSG_CNT, 0)
         online_seconds = stat_data.get(ONLINE_TIME, 0)
         online_hours = online_seconds / 3600 if online_seconds > 0 else 0
-        
+
         # 大模型相关效率指标
-        avg_cost_per_req = (total_cost / total_requests) if total_requests > 0 else 0
+        (total_cost / total_requests) if total_requests > 0 else 0
         avg_cost_per_msg = (total_cost / total_messages) if total_messages > 0 else 0
         avg_tokens_per_msg = (total_tokens / total_messages) if total_messages > 0 else 0
         avg_tokens_per_req = (total_tokens / total_requests) if total_requests > 0 else 0
         msg_to_req_ratio = (total_messages / total_requests) if total_requests > 0 else 0
         cost_per_hour = (total_cost / online_hours) if online_hours > 0 else 0
         req_per_hour = (total_requests / online_hours) if online_hours > 0 else 0
-        
+
         # Token效率 (输出/输入比率)
         total_in_tokens = sum(stat_data.get(IN_TOK_BY_MODEL, {}).values())
         total_out_tokens = sum(stat_data.get(OUT_TOK_BY_MODEL, {}).values())
         token_efficiency = (total_out_tokens / total_in_tokens) if total_in_tokens > 0 else 0
-        
+
         # 生成效率指标表格数据
         efficiency_data = [
             ("💸 平均每条消息成本", f"{avg_cost_per_msg:.6f} ¥", "处理每条用户消息的平均AI成本"),
@@ -172,14 +172,14 @@ class HTMLReportGenerator:
             ("📈 Token/在线小时", f"{(total_tokens / online_hours) if online_hours > 0 else 0:.0f}", "每在线小时处理的Token数"),
             ("💬 消息/在线小时", f"{(total_messages / online_hours) if online_hours > 0 else 0:.1f}", "每在线小时处理的消息数"),
         ]
-        
+
         efficiency_rows = "\n".join(
             [
                 f"<tr><td style='font-weight: 500;'>{metric}</td><td style='color: #1976D2; font-weight: 600; font-size: 1.1em;'>{value}</td><td style='color: #546E7A;'>{desc}</td></tr>"
                 for metric, value, desc in efficiency_data
             ]
         )
-        
+
         # 计算活跃聊天数和最活跃聊天
         msg_by_chat = stat_data.get(MSG_CNT_BY_CHAT, {})
         active_chats = len(msg_by_chat)
@@ -189,9 +189,9 @@ class HTMLReportGenerator:
             most_active_chat = self.name_mapping.get(most_active_id, (most_active_id, 0))[0]
             most_active_count = msg_by_chat[most_active_id]
             most_active_chat = f"{most_active_chat} ({most_active_count}条)"
-        
+
         avg_msg_per_chat = (total_messages / active_chats) if active_chats > 0 else 0
-        
+
         summary_cards = f"""
             <div class="summary-cards">
                 <div class="card">
@@ -350,8 +350,8 @@ class HTMLReportGenerator:
             generation_time=now.strftime("%Y-%m-%d %H:%M:%S"),
             tab_list="\n".join(tab_list_html),
             tab_content="\n".join(tab_content_html_list),
-            all_chart_data=json.dumps(chart_data, separators=(',', ':'), ensure_ascii=False),
-            static_chart_data=json.dumps(static_chart_data, separators=(',', ':'), ensure_ascii=False),
+            all_chart_data=json.dumps(chart_data, separators=(",", ":"), ensure_ascii=False),
+            static_chart_data=json.dumps(static_chart_data, separators=(",", ":"), ensure_ascii=False),
             report_css=report_css,
             report_js=report_js,
         )

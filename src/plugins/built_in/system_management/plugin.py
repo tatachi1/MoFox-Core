@@ -31,7 +31,6 @@ from src.plugin_system.base.component_types import (
 from src.plugin_system.base.config_types import ConfigField
 from src.plugin_system.base.plus_command import PlusCommand
 from src.plugin_system.utils.permission_decorators import require_permission
-from src.plugin_system.apis.permission_api import permission_api
 
 logger = get_logger("SystemManagement")
 
@@ -481,19 +480,19 @@ class SystemCommand(PlusCommand):
             f"  • 加载状态: {details['status']}",
         ]
 
-        if details.get('description'):
+        if details.get("description"):
             response_parts.append(f"  • 描述: {details['description']}")
 
-        if details.get('license'):
+        if details.get("license"):
             response_parts.append(f"  • 许可证: {details['license']}")
 
         # 组件信息
-        if details['components']:
+        if details["components"]:
             response_parts.append(f"\n🧩 **组件列表** (共 {len(details['components'])} 个):")
-            for comp in details['components']:
-                status = "✅" if comp['enabled'] else "❌"
+            for comp in details["components"]:
+                status = "✅" if comp["enabled"] else "❌"
                 response_parts.append(f"  {status} `{comp['name']}` ({comp['component_type']})")
-                if comp.get('description'):
+                if comp.get("description"):
                     response_parts.append(f"      {comp['description'][:50]}...")
 
         await self._send_long_message("\n".join(response_parts))
@@ -526,11 +525,11 @@ class SystemCommand(PlusCommand):
             response_parts = ["🧩 **组件类型概览**", ""]
             for t in ComponentType:
                 comps = plugin_info_api.list_components(t, enabled_only=False)
-                enabled = sum(1 for c in comps if c['enabled'])
+                enabled = sum(1 for c in comps if c["enabled"])
                 if comps:
                     response_parts.append(f"• **{t.value}**: {enabled}/{len(comps)} 启用")
 
-            response_parts.append(f"\n💡 使用 `/system plugin list <类型>` 查看详情")
+            response_parts.append("\n💡 使用 `/system plugin list <类型>` 查看详情")
             response_parts.append(f"可用类型: {', '.join([f'`{t}`' for t in available_types])}")
             await self.send_text("\n".join(response_parts))
             return
@@ -541,7 +540,7 @@ class SystemCommand(PlusCommand):
 
         response_parts = [title, ""]
         for comp in components:
-            status = "✅" if comp['enabled'] else "❌"
+            status = "✅" if comp["enabled"] else "❌"
             response_parts.append(f"{status} `{comp['name']}` (来自: `{comp['plugin_name']}`)")
 
         await self._send_long_message("\n".join(response_parts))
@@ -558,7 +557,7 @@ class SystemCommand(PlusCommand):
         response_parts = [f"🔍 **搜索结果** (关键词: `{keyword}`, 共 {len(results)} 个)", ""]
 
         for comp in results:
-            status = "✅" if comp['enabled'] else "❌"
+            status = "✅" if comp["enabled"] else "❌"
             response_parts.append(
                 f"{status} `{comp['name']}` ({comp['component_type']})\n"
                 f"   来自: `{comp['plugin_name']}`"
@@ -644,7 +643,7 @@ class SystemCommand(PlusCommand):
     async def _show_system_report(self):
         """显示系统插件报告"""
         report = plugin_info_api.get_system_report()
-        
+
         response_parts = [
             "📊 **系统插件报告**",
             f"  - 已加载插件: {report['system_info']['loaded_plugins_count']}",
@@ -655,12 +654,12 @@ class SystemCommand(PlusCommand):
             response_parts.append("\n✅ **已加载插件:**")
             for name, info in report["plugins"].items():
                 response_parts.append(f"  • **{info['display_name']} (`{name}`)** v{info['version']} by {info['author']}")
-        
+
         if report["failed_plugins"]:
             response_parts.append("\n❌ **加载失败的插件:**")
             for name, error in report["failed_plugins"].items():
                 response_parts.append(f"  • **`{name}`**: {error}")
-        
+
         await self._send_long_message("\n".join(response_parts))
 
 
@@ -723,7 +722,7 @@ class SystemCommand(PlusCommand):
         if not found_components:
             await self.send_text(f"❌ 未找到名为 '{comp_name}' 的组件。")
             return
-        
+
         if len(found_components) > 1:
             suggestions = "\n".join([f"- `{c['name']}` (类型: {c['component_type']})" for c in found_components])
             await self.send_text(f"❌ 发现多个名为 '{comp_name}' 的组件，操作已取消。\n找到的组件:\n{suggestions}")
@@ -749,7 +748,7 @@ class SystemCommand(PlusCommand):
         if len(context_args) >= 2:
             context_type = context_args[0].lower()
             context_id = context_args[1]
-            
+
             target_stream = None
             if context_type == "group":
                 target_stream = chat_api.get_stream_by_group_id(
@@ -768,7 +767,7 @@ class SystemCommand(PlusCommand):
             if not target_stream:
                 await self.send_text(f"❌ 在当前平台找不到指定的 {context_type}: `{context_id}`。")
                 return
-            
+
             stream_id = target_stream.stream_id
 
         # 4. 执行操作
@@ -783,7 +782,7 @@ class SystemCommand(PlusCommand):
         if success:
             await self.send_text(f"✅ 在会话 `{stream_id}` 中，已成功将组件 `{comp_name}` ({comp_type_str}) 设置为 {action_text} 状态。")
         else:
-            await self.send_text(f"❌ 操作失败。可能无法禁用最后一个启用的 Chatter，或组件不存在。请检查日志。")
+            await self.send_text("❌ 操作失败。可能无法禁用最后一个启用的 Chatter，或组件不存在。请检查日志。")
 
 
     # =================================================================

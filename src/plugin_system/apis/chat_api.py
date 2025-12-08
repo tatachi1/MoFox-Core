@@ -13,7 +13,7 @@
 """
 
 from enum import Enum
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.common.logger import get_logger
 

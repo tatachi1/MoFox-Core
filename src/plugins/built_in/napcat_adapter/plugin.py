@@ -12,21 +12,20 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar
 
 import orjson
-import websockets
-
 from mofox_wire import CoreSink, MessageEnvelope, WebSocketAdapterOptions
+
 from src.common.logger import get_logger
 from src.plugin_system import ConfigField, register_plugin
-from src.plugin_system.base import BaseAdapter, BasePlugin
 from src.plugin_system.apis import config_api
+from src.plugin_system.base import BaseAdapter, BasePlugin
 
 from .src.handlers import utils as handler_utils
 from .src.handlers.to_core.message_handler import MessageHandler
-from .src.handlers.to_core.notice_handler import NoticeHandler
 from .src.handlers.to_core.meta_event_handler import MetaEventHandler
+from .src.handlers.to_core.notice_handler import NoticeHandler
 from .src.handlers.to_napcat.send_handler import SendHandler
 
 logger = get_logger("napcat_adapter")
@@ -43,7 +42,7 @@ class NapcatAdapter(BaseAdapter):
 
     run_in_subprocess = False
 
-    def __init__(self, core_sink: CoreSink, plugin: Optional[BasePlugin] = None, **kwargs):
+    def __init__(self, core_sink: CoreSink, plugin: BasePlugin | None = None, **kwargs):
         """初始化 Napcat 适配器"""
         # 从插件配置读取 WebSocket URL
         if plugin:
@@ -78,7 +77,7 @@ class NapcatAdapter(BaseAdapter):
         self.send_handler = SendHandler(self)
 
         # 响应池：用于存储等待的 API 响应
-        self._response_pool: Dict[str, asyncio.Future] = {}
+        self._response_pool: dict[str, asyncio.Future] = {}
         self._response_timeout = 30.0
 
         # WebSocket 连接（用于发送 API 请求）
@@ -88,10 +87,10 @@ class NapcatAdapter(BaseAdapter):
         # 注册 utils 内部使用的适配器实例，便于工具方法自动获取 WS
         handler_utils.register_adapter(self)
 
-    def _should_process_event(self, raw: Dict[str, Any]) -> bool:
+    def _should_process_event(self, raw: dict[str, Any]) -> bool:
         """
         检查事件是否应该被处理（黑白名单过滤）
-        
+
         此方法在 from_platform_message 顶层调用，对所有类型的事件（消息、通知、元事件）进行过滤。
 
         Args:
@@ -102,7 +101,7 @@ class NapcatAdapter(BaseAdapter):
         """
         if not self.plugin:
             return True
-        
+
         plugin_config = self.plugin.config
         if not plugin_config:
             return True  # 如果没有配置，默认处理所有事件
@@ -138,7 +137,7 @@ class NapcatAdapter(BaseAdapter):
         # 获取消息类型（消息事件使用 message_type，通知事件根据 group_id 判断）
         message_type = raw.get("message_type")
         group_id = raw.get("group_id")
-        
+
         # 如果是通知事件，根据是否有 group_id 判断是群通知还是私聊通知
         if post_type == "notice":
             message_type = "group" if group_id else "private"
@@ -178,7 +177,7 @@ class NapcatAdapter(BaseAdapter):
     async def on_adapter_loaded(self) -> None:
         """适配器加载时的初始化"""
         logger.info("Napcat 适配器正在启动...")
-        
+
         # 设置处理器配置
         if self.plugin:
             self.message_handler.set_plugin_config(self.plugin.config)
@@ -194,6 +193,7 @@ class NapcatAdapter(BaseAdapter):
     async def _register_notice_events(self) -> None:
         """注册 notice 相关事件到 event manager"""
         from src.plugin_system.core.event_manager import event_manager
+
         from .src.event_types import NapcatEvent
 
         # 定义所有 notice 事件类型
@@ -230,7 +230,7 @@ class NapcatAdapter(BaseAdapter):
     async def on_adapter_unloaded(self) -> None:
         """适配器卸载时的清理"""
         logger.info("Napcat 适配器正在关闭...")
-        
+
         # 清理响应池
         for future in self._response_pool.values():
             if not future.done():
@@ -239,16 +239,16 @@ class NapcatAdapter(BaseAdapter):
 
         logger.info("Napcat 适配器已关闭")
 
-    async def from_platform_message(self, raw: Dict[str, Any]) -> MessageEnvelope | None:  # type: ignore[override]
+    async def from_platform_message(self, raw: dict[str, Any]) -> MessageEnvelope | None:  # type: ignore[override]
         """
         将 Napcat/OneBot 原始消息转换为 MessageEnvelope
-        
+
         这是核心转换方法，处理：
         - message 事件 → 消息
         - notice 事件 → 通知（戳一戳、表情回复等）
         - meta_event 事件 → 元事件（心跳、生命周期）
         - API 响应 → 存入响应池
-        
+
         注意：黑白名单等过滤机制在此方法最开始执行，确保所有类型的事件都能被过滤。
         """
         post_type = raw.get("post_type")
@@ -270,7 +270,7 @@ class NapcatAdapter(BaseAdapter):
             # 消息事件
             if post_type == "message":
                 return await self.message_handler.handle_raw_message(raw)  # type: ignore[return-value]
-            
+
             # 通知事件
             elif post_type == "notice":
                 return await self.notice_handler.handle_notice(raw)  # type: ignore[return-value]
@@ -288,11 +288,11 @@ class NapcatAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"处理 Napcat 事件失败: {e}, 原始数据: {raw}")
             return None
-    
+
     async def _send_platform_message(self, envelope: MessageEnvelope) -> None:  # type: ignore[override]
         """
         将 MessageEnvelope 转换并发送到 Napcat
-        
+
         这里不直接通过 WebSocket 发送 envelope，
         而是调用 Napcat API（send_group_msg, send_private_msg 等）
         """
@@ -301,15 +301,15 @@ class NapcatAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"发送 Napcat 消息失败: {e}")
 
-    async def send_napcat_api(self, action: str, params: Dict[str, Any], timeout: float = 30.0) -> Dict[str, Any]:
+    async def send_napcat_api(self, action: str, params: dict[str, Any], timeout: float = 30.0) -> dict[str, Any]:
         """
         发送 Napcat API 请求并等待响应
-        
+
         Args:
             action: API 动作名称（如 send_group_msg）
             params: API 参数
             timeout: 超时时间（秒）
-        
+
         Returns:
             API 响应数据
         """

@@ -15,7 +15,7 @@ logger = get_logger("relationship_service")
 
 class RelationshipService:
     """用户关系分服务 - 独立于插件的数据库直接访问层
-    
+
     内存优化：添加缓存大小限制和自动过期清理
     """
 

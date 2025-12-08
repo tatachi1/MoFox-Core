@@ -100,7 +100,7 @@ class BotInterestManager:
 
         if loaded_interests:
             self.current_interests = loaded_interests
-            active_count = len(loaded_interests.get_active_tags())        
+            active_count = len(loaded_interests.get_active_tags())
             tags_info = [f"  - '{tag.tag_name}' (权重: {tag.weight:.2f})" for tag in loaded_interests.get_active_tags()]
             tags_str = "\n".join(tags_info)
 
@@ -247,7 +247,7 @@ class BotInterestManager:
 
     async def _call_llm_for_interest_generation(self, prompt: str) -> str | None:
         """调用LLM生成兴趣标签
-        
+
         注意：此方法会临时增加 API 超时时间，以确保初始化阶段的人设标签生成
         不会因用户配置的较短超时而失败。
         """
@@ -275,7 +275,7 @@ class BotInterestManager:
             # 人设标签生成需要较长时间（15-25个标签的JSON），使用更长的超时
             INIT_TIMEOUT = 180  # 初始化阶段使用 180 秒超时
             original_timeouts: dict[str, int] = {}
-            
+
             try:
                 # 保存并修改所有相关模型的 API provider 超时设置
                 for model_name in replyer_config.model_list:
@@ -288,9 +288,9 @@ class BotInterestManager:
                             provider.timeout = INIT_TIMEOUT
                     except Exception as e:
                         logger.warning(f"⚠️ 无法修改模型 '{model_name}' 的超时设置: {e}")
-                
+
                 # 调用LLM API
-                success, response, reasoning_content, model_name = await llm_api.generate_with_model(
+                success, response, _reasoning_content, model_name = await llm_api.generate_with_model(
                     prompt=full_prompt,
                     model_config=replyer_config,
                     request_type="interest_generation",
@@ -383,13 +383,13 @@ class BotInterestManager:
         # 使用LLMRequest获取embedding
         if not self.embedding_request:
             raise RuntimeError("❌ Embedding客户端未初始化")
-        embedding, model_name = await self.embedding_request.get_embedding(text)
+        embedding, _model_name = await self.embedding_request.get_embedding(text)
 
         if embedding and len(embedding) > 0:
             if isinstance(embedding[0], list):
                 # If it's a list of lists, take the first one (though get_embedding(str) should return list[float])
                 embedding = embedding[0]
-            
+
             # Now we can safely cast to list[float] as we've handled the nested list case
             embedding_float = cast(list[float], embedding)
             self.embedding_cache[text] = embedding_float
@@ -447,7 +447,7 @@ class BotInterestManager:
 
             try:
                 chunk_embeddings, _ = await self.embedding_request.get_embedding(chunk_texts)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.error(f"批量获取embedding失败 (chunk {start // batch_size + 1}): {exc}")
                 continue
 
@@ -1063,7 +1063,7 @@ class BotInterestManager:
             # 验证缓存版本和embedding模型
             cache_version = cache_data.get("version", 1)
             cache_embedding_model = cache_data.get("embedding_model", "")
-            
+
             current_embedding_model = ""
             if self.embedding_config and hasattr(self.embedding_config, "model_list") and self.embedding_config.model_list:
                  current_embedding_model = self.embedding_config.model_list[0]

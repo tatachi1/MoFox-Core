@@ -5,9 +5,10 @@
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, TypedDict, cast
+from typing import Any, TypedDict, cast
 
 from src.common.database.api.crud import CRUDBase
 from src.common.logger import get_logger

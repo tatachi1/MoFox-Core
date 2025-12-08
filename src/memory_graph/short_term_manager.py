@@ -11,7 +11,6 @@ import asyncio
 import json
 import re
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,7 @@ from src.memory_graph.models import (
     ShortTermOperation,
 )
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity_async, batch_cosine_similarity_async
+from src.memory_graph.utils.similarity import cosine_similarity_async
 
 logger = get_logger(__name__)
 
@@ -327,7 +326,7 @@ class ShortTermMemoryManager:
             # 创建决策对象
             # 将 LLM 返回的大写操作名转换为小写（适配枚举定义）
             operation_str = data.get("operation", "CREATE_NEW").lower()
-            
+
             decision = ShortTermDecision(
                 operation=ShortTermOperation(operation_str),
                 target_memory_id=data.get("target_memory_id"),
@@ -597,35 +596,35 @@ class ShortTermMemoryManager:
         # 1. 正常筛选：重要性达标的记忆
         candidates = [mem for mem in self.memories if mem.importance >= self.transfer_importance_threshold]
         candidate_ids = {mem.id for mem in candidates}
-        
+
         # 2. 检查低重要性记忆是否积压
         # 剩余的都是低重要性记忆
         low_importance_memories = [mem for mem in self.memories if mem.id not in candidate_ids]
-        
+
         # 如果低重要性记忆数量超过了上限（说明积压严重）
         # 我们需要清理掉一部分，而不是转移它们
         if len(low_importance_memories) > self.max_memories:
             # 目标保留数量（降至上限的 90%）
             target_keep_count = int(self.max_memories * 0.9)
             num_to_remove = len(low_importance_memories) - target_keep_count
-            
+
             if num_to_remove > 0:
                 # 按创建时间排序，删除最早的
                 low_importance_memories.sort(key=lambda x: x.created_at)
                 to_remove = low_importance_memories[:num_to_remove]
-                
+
                 for mem in to_remove:
                     if mem in self.memories:
                         self.memories.remove(mem)
-                        
+
                 logger.info(
                     f"短期记忆清理: 移除了 {len(to_remove)} 条低重要性记忆 "
                     f"(保留 {len(self.memories)} 条)"
                 )
-                
+
                 # 触发保存
                 asyncio.create_task(self._save_to_disk())
-            
+
         return candidates
 
     async def clear_transferred_memories(self, memory_ids: list[str]) -> None:
