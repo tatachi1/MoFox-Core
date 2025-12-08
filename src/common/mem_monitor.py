@@ -101,7 +101,7 @@ _monitor_thread: threading.Thread | None = None
 _stop_event: threading.Event = threading.Event()
 
 # 环境变量控制是否启用，防止所有环境一起开
-MEM_MONITOR_ENABLED = True
+MEM_MONITOR_ENABLED = False
 
 
 def start_tracemalloc(max_frames: int = 25) -> None:
