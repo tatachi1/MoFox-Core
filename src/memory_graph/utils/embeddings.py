@@ -149,7 +149,7 @@ class EmbeddingGenerator:
                 (idx, text) for idx, text in enumerate(texts) if text and text.strip()
             ]
             if not valid_entries:
-                logger.debug('批量文本为空，返回空列表')
+                logger.debug("批量文本为空，返回空列表")
                 return results
 
             batch_texts = [text for _, text in valid_entries]

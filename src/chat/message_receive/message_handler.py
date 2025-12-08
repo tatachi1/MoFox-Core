@@ -265,7 +265,7 @@ class MessageHandler:
             additional_config = message_info.get("additional_config", {})
             if not isinstance(additional_config, dict):
                 additional_config = {}
-            
+
             notice_type = additional_config.get("notice_type", "unknown")
             is_public_notice = additional_config.get("is_public_notice", False)
 

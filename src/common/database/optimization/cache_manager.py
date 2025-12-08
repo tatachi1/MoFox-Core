@@ -440,8 +440,8 @@ class MultiLevelCache:
 
         # 计算共享键和独占键
         shared_keys = l1_keys & l2_keys
-        l1_only_keys = l1_keys - l2_keys
-        l2_only_keys = l2_keys - l1_keys
+        l1_keys - l2_keys
+        l2_keys - l1_keys
 
         # 🔧 修复：并行计算内存使用，避免锁嵌套
         l1_size_task = asyncio.create_task(self._calculate_memory_usage_safe(self.l1_cache, l1_keys))

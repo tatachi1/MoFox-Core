@@ -242,7 +242,7 @@ class EventManager:
         for event in self._events.values():
             # 创建订阅者列表的副本进行迭代，以安全地修改原始列表
             for subscriber in list(event.subscribers):
-                if getattr(subscriber, 'handler_name', None) == handler_name:
+                if getattr(subscriber, "handler_name", None) == handler_name:
                     event.subscribers.remove(subscriber)
                     logger.debug(f"事件处理器 {handler_name} 已从事件 {event.name} 取消订阅。")
 

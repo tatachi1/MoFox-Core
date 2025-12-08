@@ -75,7 +75,7 @@ class TTSVoiceAction(BaseAction):
         super().__init__(*args, **kwargs)
         # 关键配置项现在由 TTSService 管理
         self.tts_service = get_service("tts")
-        
+
         # 动态更新 voice_style 参数描述（包含可用风格）
         self._update_voice_style_parameter()
 
@@ -101,40 +101,40 @@ class TTSVoiceAction(BaseAction):
         """安全地获取可用语音风格列表"""
         try:
             # 首先尝试从TTS服务获取
-            if hasattr(self.tts_service, 'get_available_styles'):
+            if hasattr(self.tts_service, "get_available_styles"):
                 styles = self.tts_service.get_available_styles()
                 if styles:
                     return styles
-            
+
             # 回退到直接读取配置文件
             plugin_file = Path(__file__).resolve()
             bot_root = plugin_file.parent.parent.parent.parent.parent.parent
             config_file = bot_root / "config" / "plugins" / "tts_voice_plugin" / "config.toml"
-            
+
             if config_file.exists():
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(config_file, encoding="utf-8") as f:
                     config = toml.load(f)
-                    styles_config = config.get('tts_styles', [])
-                    
+                    styles_config = config.get("tts_styles", [])
+
                     if isinstance(styles_config, list):
                         style_names = []
                         for style in styles_config:
                             if isinstance(style, dict):
-                                name = style.get('style_name')
+                                name = style.get("style_name")
                                 if isinstance(name, str) and name:
                                     style_names.append(name)
-                        return style_names if style_names else ['default']
+                        return style_names if style_names else ["default"]
         except Exception as e:
             logger.debug(f"{self.log_prefix} 获取可用语音风格时出错: {e}")
-        
-        return ['default']  # 安全回退
+
+        return ["default"]  # 安全回退
 
     @classmethod
     def get_action_info(cls) -> "ActionInfo":
         """重写获取Action信息的方法，动态更新参数描述"""
         # 先调用父类方法获取基础信息
         info = super().get_action_info()
-        
+
         # 尝试动态更新 voice_style 参数描述
         try:
             # 尝试获取可用风格（不创建完整实例）
@@ -149,10 +149,10 @@ class TTSVoiceAction(BaseAction):
                 info.action_parameters["voice_style"]["description"] = updated_description
         except Exception as e:
             logger.debug(f"[TTSVoiceAction] 在获取Action信息时更新参数描述失败: {e}")
-        
+
         return info
 
-    @classmethod 
+    @classmethod
     def _get_available_styles_for_info(cls) -> list[str]:
         """为 get_action_info 方法获取可用风格（类方法版本）"""
         try:
@@ -160,24 +160,24 @@ class TTSVoiceAction(BaseAction):
             plugin_file = Path(__file__).resolve()
             bot_root = plugin_file.parent.parent.parent.parent.parent.parent
             config_file = bot_root / "config" / "plugins" / "tts_voice_plugin" / "config.toml"
-            
+
             if config_file.exists():
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(config_file, encoding="utf-8") as f:
                     config = toml.load(f)
-                    styles_config = config.get('tts_styles', [])
-                    
+                    styles_config = config.get("tts_styles", [])
+
                     if isinstance(styles_config, list):
                         style_names = []
                         for style in styles_config:
                             if isinstance(style, dict):
-                                name = style.get('style_name')
+                                name = style.get("style_name")
                                 if isinstance(name, str) and name:
                                     style_names.append(name)
-                        return style_names if style_names else ['default']
+                        return style_names if style_names else ["default"]
         except Exception:
             pass
-        
-        return ['default']  # 安全回退
+
+        return ["default"]  # 安全回退
 
     async def go_activate(self, llm_judge_model=None) -> bool:
         """

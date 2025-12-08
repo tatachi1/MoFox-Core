@@ -19,8 +19,7 @@ import json5
 import orjson
 
 from src.common.logger import get_logger
-from src.plugin_system.apis import config_api, person_api
-from src.plugin_system.apis import cross_context_api
+from src.plugin_system.apis import config_api, cross_context_api, person_api
 
 from .content_service import ContentService
 from .cookie_service import CookieService

@@ -15,7 +15,6 @@ from sqlalchemy import and_, asc, desc, func, or_, select
 
 # 导入 CRUD 辅助函数以避免重复定义
 from src.common.database.api.crud import _dict_to_model, _model_to_dict
-from src.common.database.core.models import Base
 from src.common.database.core.session import get_db_session
 from src.common.database.optimization import get_cache, record_preload_access
 from src.common.logger import get_logger

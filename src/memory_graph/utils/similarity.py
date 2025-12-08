@@ -131,8 +131,8 @@ async def batch_cosine_similarity_async(vec1: "np.ndarray", vec_list: list["np.n
 
 
 __all__ = [
-    "cosine_similarity",
-    "cosine_similarity_async",
     "batch_cosine_similarity",
-    "batch_cosine_similarity_async"
+    "batch_cosine_similarity_async",
+    "cosine_similarity",
+    "cosine_similarity_async"
 ]

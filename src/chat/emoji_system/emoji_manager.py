@@ -1121,7 +1121,7 @@ class EmojiManager:
                 if emoji_base64 is None:  # 再次检查读取
                     logger.error(f"[注册失败] 无法读取图片以生成描述: {filename}")
                     return False
-                
+
                 # 等待描述生成完成
                 description, emotions = await self.build_emoji_description(emoji_base64)
 
@@ -1134,7 +1134,7 @@ class EmojiManager:
                     except Exception as e:
                         logger.error(f"[错误] 删除描述生成失败文件时出错: {e!s}")
                     return False
-                
+
                 new_emoji.description = description
                 new_emoji.emotion = emotions
             except Exception as build_desc_error:

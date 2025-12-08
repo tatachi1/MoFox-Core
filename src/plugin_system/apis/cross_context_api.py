@@ -3,13 +3,11 @@
 """
 
 import time
-from typing import Any, TYPE_CHECKING
-from src.common.message_repository import find_messages
+from typing import TYPE_CHECKING, Any
 
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.chat.utils.chat_message_builder import (
     build_readable_messages_with_id,
-    get_raw_msg_before_timestamp_with_chat,
 )
 from src.common.logger import get_logger
 from src.common.message_repository import get_user_messages_from_streams
@@ -31,20 +29,20 @@ async def build_cross_context_s4u(
     """
     # 记录S4U上下文构建开始
     logger.debug("[S4U] Starting S4U context build.")
-    
+
     # 检查全局配置是否存在且包含必要部分
     if not global_config or not global_config.cross_context or not global_config.bot:
         logger.error("全局配置尚未初始化或缺少关键配置，无法构建S4U上下文。")
         return ""
-    
+
     # 获取跨上下文配置
     cross_context_config = global_config.cross_context
-    
+
     # 检查目标用户信息和用户ID是否存在
     if not target_user_info or not (user_id := target_user_info.get("user_id")):
         logger.warning(f"[S4U] Failed: target_user_info ({target_user_info}) or user_id is missing.")
         return ""
-    
+
     # 记录目标用户ID
     logger.debug(f"[S4U] Target user ID: {user_id}")
 
@@ -56,14 +54,14 @@ async def build_cross_context_s4u(
     # --- 1. 优先处理私聊上下文 ---
     # 获取与目标用户的私聊流ID
     private_stream_id = chat_manager.get_stream_id(chat_stream.platform, user_id, is_group=False)
-    
+
     # 如果存在私聊流且不是当前聊天流
     if private_stream_id and private_stream_id != chat_stream.stream_id:
         logger.debug(f"[S4U] Found private chat with target user: {private_stream_id}")
         try:
             # 定义需要获取消息的用户ID列表（目标用户和机器人自己）
             user_ids_to_fetch = [str(user_id), str(global_config.bot.qq_account)]
-            
+
             # 从指定私聊流中获取双方的消息
             messages_by_stream = await get_user_messages_from_streams(
                 user_ids=user_ids_to_fetch,
@@ -71,12 +69,12 @@ async def build_cross_context_s4u(
                 timestamp_after=time.time() - (3 * 24 * 60 * 60),  # 最近3天的消息
                 limit_per_stream=cross_context_config.s4u_limit,
             )
-            
+
             # 如果获取到了私聊消息
             if private_messages := messages_by_stream.get(private_stream_id):
                 chat_name = await chat_manager.get_stream_name(private_stream_id) or "私聊"
                 title = f'[以下是您与"{chat_name}"的近期私聊记录]\n'
-                
+
                 # 格式化消息为可读字符串
                 formatted, _ = await build_readable_messages_with_id(private_messages, timestamp_mode="relative")
                 private_context_block = f"{title}{formatted}"
@@ -86,7 +84,7 @@ async def build_cross_context_s4u(
 
     # --- 2. 处理其他群聊上下文 ---
     streams_to_scan = []
-    
+
     # 根据S4U配置模式（白名单/黑名单）确定要扫描的聊天范围
     if cross_context_config.s4u_mode == "whitelist":
         # 白名单模式：只扫描在白名单中的聊天
@@ -95,7 +93,7 @@ async def build_cross_context_s4u(
                 platform, chat_type, chat_raw_id = chat_str.split(":")
                 is_group = chat_type == "group"
                 stream_id = chat_manager.get_stream_id(platform, chat_raw_id, is_group=is_group)
-                
+
                 # 排除当前聊和私聊
                 if stream_id and stream_id != chat_stream.stream_id and stream_id != private_stream_id:
                     streams_to_scan.append(stream_id)
@@ -113,7 +111,7 @@ async def build_cross_context_s4u(
                     blacklisted_streams.add(stream_id)
             except ValueError:
                 logger.warning(f"无效的S4U黑名单格式: {chat_str}")
-        
+
         # 将不在黑名单中的流添加到扫描列表
         streams_to_scan.extend(
             stream_id for stream_id in chat_manager.streams

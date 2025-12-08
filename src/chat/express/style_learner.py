@@ -438,7 +438,7 @@ class StyleLearner:
 
 class StyleLearnerManager:
     """多聊天室表达风格学习管理器
-    
+
     添加 LRU 淘汰机制，限制最大活跃 learner 数量
     """
 
@@ -470,7 +470,7 @@ class StyleLearnerManager:
             self.learner_last_used.items(),
             key=lambda x: x[1]
         )
-        
+
         evicted = []
         for chat_id, last_used in sorted_by_time[:evict_count]:
             if chat_id in self.learners:

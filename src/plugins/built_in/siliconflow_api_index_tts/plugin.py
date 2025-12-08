@@ -3,24 +3,22 @@ SiliconFlow IndexTTS 语音合成插件
 基于SiliconFlow API的IndexTTS语音合成插件，支持高质量的零样本语音克隆和情感控制
 """
 
-import os
+import asyncio
 import base64
 import hashlib
-import asyncio
-import aiohttp
-import json
-import toml
-from typing import Tuple, Optional, Dict, Any, List, Type
 from pathlib import Path
 
-from src.plugin_system import BasePlugin, BaseAction, BaseCommand, register_plugin, ConfigField
-from src.plugin_system.base.base_action import ActionActivationType, ChatMode
+import aiohttp
+import toml
+
 from src.common.logger import get_logger
+from src.plugin_system import BaseAction, BaseCommand, BasePlugin, ConfigField, register_plugin
+from src.plugin_system.base.base_action import ActionActivationType, ChatMode
 
 logger = get_logger("SiliconFlow-TTS")
 
 
-def get_global_siliconflow_api_key() -> Optional[str]:
+def get_global_siliconflow_api_key() -> str | None:
     """从全局配置文件中获取SiliconFlow API密钥"""
     try:
         # 读取全局model_config.toml配置文件
@@ -28,10 +26,10 @@ def get_global_siliconflow_api_key() -> Optional[str]:
         if not config_path.exists():
             logger.error("全局配置文件 config/model_config.toml 不存在")
             return None
-            
-        with open(config_path, "r", encoding="utf-8") as f:
+
+        with open(config_path, encoding="utf-8") as f:
             model_config = toml.load(f)
-            
+
         # 查找SiliconFlow API提供商配置
         api_providers = model_config.get("api_providers", [])
         for provider in api_providers:
@@ -40,10 +38,10 @@ def get_global_siliconflow_api_key() -> Optional[str]:
                 if api_key:
                     logger.info("成功从全局配置读取SiliconFlow API密钥")
                     return api_key
-                    
+
         logger.warning("在全局配置中未找到SiliconFlow API提供商或API密钥为空")
         return None
-        
+
     except Exception as e:
         logger.error(f"读取全局配置失败: {e}")
         return None
@@ -51,22 +49,22 @@ def get_global_siliconflow_api_key() -> Optional[str]:
 
 class SiliconFlowTTSClient:
     """SiliconFlow TTS API客户端"""
-    
-    def __init__(self, api_key: str, base_url: str = "https://api.siliconflow.cn/v1/audio/speech", 
+
+    def __init__(self, api_key: str, base_url: str = "https://api.siliconflow.cn/v1/audio/speech",
                  timeout: int = 60, max_retries: int = 3):
         self.api_key = api_key
         self.base_url = base_url
         self.timeout = timeout
         self.max_retries = max_retries
-        
+
     async def synthesize_speech(self, text: str, voice_id: str,
-                               model: str = "IndexTeam/IndexTTS-2", 
+                               model: str = "IndexTeam/IndexTTS-2",
                                speed: float = 1.0, volume: float = 1.0,
                                emotion_strength: float = 1.0,
                                output_format: str = "wav") -> bytes:
         """
         调用SiliconFlow API进行语音合成
-        
+
         Args:
             text: 要合成的文本
             voice_id: 预配置的语音ID
@@ -75,7 +73,7 @@ class SiliconFlowTTSClient:
             volume: 音量
             emotion_strength: 情感强度
             output_format: 输出格式
-            
+
         Returns:
             合成的音频数据
         """
@@ -83,7 +81,7 @@ class SiliconFlowTTSClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        
+
         # 构建请求数据
         data = {
             "model": model,
@@ -92,9 +90,9 @@ class SiliconFlowTTSClient:
             "format": output_format,
             "speed": speed
         }
-        
+
         logger.info(f"使用配置的Voice ID: {voice_id}")
-        
+
         # 发送请求
         for attempt in range(self.max_retries):
             try:
@@ -123,7 +121,7 @@ class SiliconFlowTTSClient:
                 if attempt == self.max_retries - 1:
                     raise e
                 await asyncio.sleep(2 ** attempt)  # 指数退避
-        
+
         raise Exception("所有重试都失败了")
 
 
@@ -161,7 +159,7 @@ class SiliconFlowIndexTTSAction(BaseAction):
     # 关联类型 - 支持语音消息
     associated_types = ["voice"]
 
-    async def execute(self) -> Tuple[bool, str]:
+    async def execute(self) -> tuple[bool, str]:
         """执行SiliconFlow IndexTTS语音合成"""
         logger.info(f"{self.log_prefix} 执行SiliconFlow IndexTTS动作: {self.reasoning}")
 
@@ -176,13 +174,13 @@ class SiliconFlowIndexTTSAction(BaseAction):
 
         # 获取文本内容 - 多种来源尝试
         text = ""
-        
+
         # 1. 尝试从action_data获取text参数
         text = self.action_data.get("text", "")
         if not text:
             # 2. 尝试从action_data获取tts_text参数（兼容其他TTS插件）
             text = self.action_data.get("tts_text", "")
-        
+
         if not text:
             # 3. 如果没有提供具体文本，则生成一个基于reasoning的语音回复
             if self.reasoning:
@@ -201,7 +199,7 @@ class SiliconFlowIndexTTSAction(BaseAction):
                 # 如果完全没有内容，使用默认回复
                 text = "喵~使用SiliconFlow IndexTTS测试语音合成功能~"
                 logger.info(f"{self.log_prefix} 使用默认语音内容")
-        
+
         # 获取其他参数
         speed = float(self.action_data.get("speed", self.get_config("synthesis.speed", 1.0)))
 
@@ -232,18 +230,18 @@ class SiliconFlowIndexTTSAction(BaseAction):
             )
 
             # 转换为base64编码（语音消息需要base64格式）
-            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            audio_base64 = base64.b64encode(audio_data).decode("utf-8")
 
             # 发送语音消息（使用voice类型，支持WAV格式的base64）
             await self.send_custom(
-                message_type="voice", 
+                message_type="voice",
                 content=audio_base64
             )
 
             # 记录动作信息
             await self.store_action_info(
-                action_build_into_prompt=True, 
-                action_prompt_display=f"已使用SiliconFlow IndexTTS生成语音: {text[:20]}...", 
+                action_build_into_prompt=True,
+                action_prompt_display=f"已使用SiliconFlow IndexTTS生成语音: {text[:20]}...",
                 action_done=True
             )
 
@@ -252,7 +250,7 @@ class SiliconFlowIndexTTSAction(BaseAction):
 
         except Exception as e:
             logger.error(f"{self.log_prefix} 语音合成失败: {e}")
-            return False, f"语音合成失败: {str(e)}"
+            return False, f"语音合成失败: {e!s}"
 
 
 class SiliconFlowTTSCommand(BaseCommand):
@@ -267,7 +265,7 @@ class SiliconFlowTTSCommand(BaseCommand):
         "speed": {"type": float, "required": False, "description": "语速 (0.1-3.0)"}
     }
 
-    async def execute(self, text: str, speed: float = 1.0) -> Tuple[bool, str]:
+    async def execute(self, text: str, speed: float = 1.0) -> tuple[bool, str]:
         """执行TTS命令"""
         logger.info(f"{self.log_prefix} 执行SiliconFlow TTS命令")
 
@@ -289,7 +287,7 @@ class SiliconFlowTTSCommand(BaseCommand):
             plugin_dir = Path(__file__).parent
             audio_dir = plugin_dir / "audio_reference"
             reference_audio_path = audio_dir / "refer.mp3"
-            
+
             if not reference_audio_path.exists():
                 logger.warning(f"参考音频文件不存在: {reference_audio_path}")
                 reference_audio_path = None
@@ -317,7 +315,7 @@ class SiliconFlowTTSCommand(BaseCommand):
 
             # 发送音频
             await self.send_custom(
-                message_type="audio_file", 
+                message_type="audio_file",
                 content=audio_data,
                 filename=filename
             )
@@ -326,7 +324,7 @@ class SiliconFlowTTSCommand(BaseCommand):
             return True, "命令执行成功"
 
         except Exception as e:
-            error_msg = f"❌ 语音合成失败: {str(e)}"
+            error_msg = f"❌ 语音合成失败: {e!s}"
             await self.send_reply(error_msg)
             logger.error(f"{self.log_prefix} 命令执行失败: {e}")
             return False, str(e)
@@ -352,7 +350,7 @@ class SiliconFlowIndexTTSPlugin(BasePlugin):
     # 配置描述
     config_section_descriptions = {
         "plugin": "插件基本配置",
-        "components": "组件启用配置", 
+        "components": "组件启用配置",
         "api": "SiliconFlow API配置",
         "synthesis": "语音合成配置"
     }
@@ -368,19 +366,19 @@ class SiliconFlowIndexTTSPlugin(BasePlugin):
             "enable_command": ConfigField(type=bool, default=True, description="是否启用Command组件"),
         },
         "api": {
-            "api_key": ConfigField(type=str, default="", 
+            "api_key": ConfigField(type=str, default="",
                                   description="SiliconFlow API密钥（可选，优先使用全局配置）"),
-            "base_url": ConfigField(type=str, default="https://api.siliconflow.cn/v1/audio/speech", 
+            "base_url": ConfigField(type=str, default="https://api.siliconflow.cn/v1/audio/speech",
                                    description="SiliconFlow TTS API地址"),
             "timeout": ConfigField(type=int, default=60, description="API请求超时时间（秒）"),
             "max_retries": ConfigField(type=int, default=3, description="API请求最大重试次数"),
         },
         "synthesis": {
-            "model": ConfigField(type=str, default="IndexTeam/IndexTTS-2", 
+            "model": ConfigField(type=str, default="IndexTeam/IndexTTS-2",
                                 description="TTS模型名称"),
-            "speed": ConfigField(type=float, default=1.0, 
+            "speed": ConfigField(type=float, default=1.0,
                                description="默认语速 (0.1-3.0)"),
-            "output_format": ConfigField(type=str, default="wav", 
+            "output_format": ConfigField(type=str, default="wav",
                                        description="输出音频格式"),
         }
     }
@@ -388,9 +386,9 @@ class SiliconFlowIndexTTSPlugin(BasePlugin):
     def get_plugin_components(self):
         """获取插件组件"""
         from src.plugin_system.base.component_types import ActionInfo, CommandInfo, ComponentType
-        
+
         components = []
-        
+
         # 检查配置是否启用组件
         if self.get_config("components.enable_action", True):
             action_info = ActionInfo(
@@ -416,7 +414,7 @@ class SiliconFlowIndexTTSPlugin(BasePlugin):
     async def on_plugin_load(self):
         """插件加载时的回调"""
         logger.info("SiliconFlow IndexTTS插件已加载")
-        
+
         # 检查audio_reference目录
         audio_dir = Path(self.plugin_path) / "audio_reference"
         if not audio_dir.exists():

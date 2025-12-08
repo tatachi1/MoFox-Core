@@ -674,7 +674,7 @@ class ChatterPlanFilter:
                             logger.info(f"[{action}] 成功使用最新消息: {action_message_obj.message_id}")
                         except Exception as e:
                             logger.error(f"[{action}] 无法转换最新消息: {e}")
-                
+
                 return ActionPlannerInfo(
                     action_type=action,
                     reasoning=reasoning,
@@ -738,7 +738,7 @@ class ChatterPlanFilter:
 动作使用场景:
 {action_require}
 
-你应该像这样使用它: 
+你应该像这样使用它:
     {{
         "action_type": "{action_name}",
         "reasoning": "<执行该动作的详细原因>",

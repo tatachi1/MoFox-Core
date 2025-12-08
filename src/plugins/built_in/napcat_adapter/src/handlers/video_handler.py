@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 视频下载和处理模块
 用于从QQ消息中下载视频并转发给Bot进行分析
@@ -7,7 +6,7 @@
 
 import asyncio
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
 
@@ -52,7 +51,7 @@ class VideoDownloader:
             # 如果解析失败,默认允许尝试下载(稍后验证)
             return True
 
-    def check_file_size(self, content_length: Optional[str]) -> bool:
+    def check_file_size(self, content_length: str | None) -> bool:
         """检查文件大小是否在允许范围内"""
         if content_length is None:
             return True  # 无法获取大小时允许下载
@@ -64,7 +63,7 @@ class VideoDownloader:
         except Exception:
             return True
 
-    async def download_video(self, url: str, filename: Optional[str] = None) -> Dict[str, Any]:
+    async def download_video(self, url: str, filename: str | None = None) -> dict[str, Any]:
         """
         下载视频文件
 

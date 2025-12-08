@@ -6,8 +6,7 @@ from rich.traceback import install
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from src.common.data_models.database_data_model import DatabaseGroupInfo,DatabaseUserInfo
-from src.common.data_models.database_data_model import DatabaseMessages
+from src.common.data_models.database_data_model import DatabaseGroupInfo, DatabaseMessages, DatabaseUserInfo
 from src.common.database.api.crud import CRUDBase
 from src.common.database.compatibility import get_db_session
 from src.common.database.core.models import ChatStreams  # 新增导入
@@ -407,7 +406,7 @@ class ChatManager:
         try:
             from src.person_info.person_info import get_person_info_manager
             person_info_manager = get_person_info_manager()
-            
+
             # 创建一个后台任务来执行同步，不阻塞当前流程
             sync_task = asyncio.create_task(
                 person_info_manager.sync_user_info(platform, user_id, nickname, cardname)

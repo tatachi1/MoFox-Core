@@ -11,13 +11,12 @@
 
 import asyncio
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from src.common.logger import get_logger
-from src.memory_graph.manager import MemoryManager
 from src.memory_graph.long_term_manager import LongTermMemoryManager
+from src.memory_graph.manager import MemoryManager
 from src.memory_graph.models import JudgeDecision, MemoryBlock, ShortTermMemory
 from src.memory_graph.perceptual_manager import PerceptualMemoryManager
 from src.memory_graph.short_term_manager import ShortTermMemoryManager
@@ -235,7 +234,7 @@ class UnifiedMemoryManager:
                 perceptual_blocks_task,
                 short_term_memories_task,
             )
-            
+
             # 步骤1.5: 检查需要转移的感知块，推迟到后台处理
             blocks_to_transfer = [
                 block
@@ -265,7 +264,7 @@ class UnifiedMemoryManager:
                 if not judge_decision.is_sufficient:
                     logger.info("判官判断记忆不足，开始检索长期记忆")
 
-                    queries = [query_text] + judge_decision.additional_queries
+                    queries = [query_text, *judge_decision.additional_queries]
                     long_term_memories = await self._retrieve_long_term_memories(
                         base_query=query_text,
                         queries=queries,
@@ -367,7 +366,6 @@ class UnifiedMemoryManager:
 请输出JSON："""
 
             # 调用记忆裁判模型
-            from src.config.config import model_config
             if not model_config.model_task_config:
                 raise ValueError("模型任务配置未加载")
             llm = LLMRequest(
@@ -525,7 +523,7 @@ class UnifiedMemoryManager:
         memories = await self.memory_manager.search_memories(**search_params)
         unique_memories = self._deduplicate_memories(memories)
 
-        query_count = len(manual_queries) if manual_queries else 1
+        len(manual_queries) if manual_queries else 1
         return unique_memories
 
     def _deduplicate_memories(self, memories: list[Any]) -> list[Any]:
@@ -599,7 +597,7 @@ class UnifiedMemoryManager:
                             f"自动转移缓存: 新增{added}条, 当前缓存{len(transfer_cache)}/{cache_size_threshold}"
                         )
 
-                max_memories = max(1, getattr(self.short_term_manager, 'max_memories', 1))
+                max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
                 occupancy_ratio = len(self.short_term_manager.memories) / max_memories
                 time_since_last_transfer = time.monotonic() - last_transfer_time
 

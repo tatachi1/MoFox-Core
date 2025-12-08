@@ -147,7 +147,7 @@ class EmbeddingStore:
         """
         异步、并发地批量获取嵌入向量。
         使用 chunk_size 进行批量请求，max_workers 控制并发批次数。
-        
+
         优化策略：
         1. 将字符串分成多个 chunk，每个 chunk 包含 chunk_size 个字符串
         2. 使用 asyncio.Semaphore 控制同时处理的 chunk 数量

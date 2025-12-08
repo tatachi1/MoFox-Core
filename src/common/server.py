@@ -4,13 +4,12 @@ import socket
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from rich.traceback import install
-from uvicorn import Config
-from uvicorn import Server as UvicornServer
-
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
+from uvicorn import Config
+from uvicorn import Server as UvicornServer
 
 from src.common.logger import get_logger
 from src.config.config import global_config as bot_config

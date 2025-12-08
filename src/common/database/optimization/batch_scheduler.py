@@ -378,7 +378,7 @@ class AdaptiveBatchScheduler:
                         # 过滤掉 id 为 None 的键，让数据库自动生成主键
                         filtered_data = {k: v for k, v in op.data.items() if not (k == "id" and v is None)}
                         all_data.append(filtered_data)
-                
+
                 if not all_data:
                     return
 

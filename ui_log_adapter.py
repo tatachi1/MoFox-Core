@@ -99,7 +99,6 @@ class UILogHandler(logging.Handler):
             if record.levelname == "DEBUG":
                 return
 
-            emoji_map = {"info": "", "warning": "", "error": "", "debug": ""}
             formatted_msg = msg
 
             self._send_log_with_retry(formatted_msg, ui_level)

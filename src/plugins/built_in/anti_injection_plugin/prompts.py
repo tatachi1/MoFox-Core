@@ -64,7 +64,7 @@ class AntiInjectionPrompt(BasePrompt):
             return ""
 
         # 获取安全管理器
-        security_manager = get_security_manager()
+        get_security_manager()
 
         # 检查当前消息的风险级别
         current_message = self.params.current_user_message

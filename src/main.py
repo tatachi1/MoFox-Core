@@ -16,7 +16,6 @@ from src.chat.message_receive.message_handler import get_message_handler, shutdo
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
 from src.common.core_sink_manager import (
     CoreSinkManager,
-    get_core_sink_manager,
     initialize_core_sink_manager,
     shutdown_core_sink_manager,
 )
@@ -296,11 +295,11 @@ class MainSystem:
                 cleanup_tasks.append(("服务器", self.server.shutdown()))
         except Exception as e:
             logger.error(f"准备停止服务器时出错: {e}")
-        
+
         # 停止所有适配器
         try:
             from src.plugin_system.core.adapter_manager import get_adapter_manager
-            
+
             adapter_manager = get_adapter_manager()
             cleanup_tasks.append(("适配器管理器", adapter_manager.stop_all_adapters()))
         except Exception as e:
@@ -383,11 +382,11 @@ class MainSystem:
         # 初始化 CoreSinkManager（包含 MessageRuntime）
         logger.debug("正在初始化 CoreSinkManager...")
         self.core_sink_manager = await initialize_core_sink_manager()
-        
+
         # 获取 MessageHandler 并向 MessageRuntime 注册处理器
         self.message_handler = get_message_handler()
         self.message_handler.set_core_sink_manager(self.core_sink_manager)
-        
+
         # 向 MessageRuntime 注册消息处理器和钩子
         self.message_handler.register_handlers(self.core_sink_manager.runtime)
         logger.debug("CoreSinkManager 和 MessageHandler 初始化完成（使用 MessageRuntime 路由）")
@@ -460,7 +459,7 @@ class MainSystem:
             plugin_manager.set_core_sink(self.core_sink_manager.get_in_process_sink())
         else:
             logger.error("CoreSinkManager 未初始化，无法设置核心消息接收器")
-        
+
         # 加载所有插件
         plugin_manager.load_all_plugins()
 
@@ -560,11 +559,11 @@ class MainSystem:
             logger.debug(f"初始化完成，神经元放电{init_time}次")
         except Exception as e:
             logger.error(f"启动事件触发失败: {e}")
-        
+
         # 启动所有适配器
         try:
             from src.plugin_system.core.adapter_manager import get_adapter_manager
-            
+
             adapter_manager = get_adapter_manager()
             await adapter_manager.start_all_adapters()
             logger.debug("所有适配器已启动")

@@ -251,8 +251,8 @@ class PathScoreExpansion:
 
                 # 创建新路径
                 new_path = Path(
-                    nodes=path.nodes + [next_node],
-                    edges=path.edges + [edge],
+                    nodes=[*path.nodes, next_node],
+                    edges=[*path.edges, edge],
                     score=new_score,
                     depth=hop + 1,
                     parent=path,
@@ -348,7 +348,7 @@ class PathScoreExpansion:
 
             # 保留top候选
             memory_scores_rough.sort(key=lambda x: x[1], reverse=True)
-            retained_mem_ids = set(mem_id for mem_id, _ in memory_scores_rough[:self.config.max_candidate_memories])
+            retained_mem_ids = {mem_id for mem_id, _ in memory_scores_rough[:self.config.max_candidate_memories]}
 
             # 过滤
             memory_paths = {
@@ -481,7 +481,6 @@ class PathScoreExpansion:
         Returns:
             {node_id: score} 字典
         """
-        import numpy as np
 
         scores = {}
 

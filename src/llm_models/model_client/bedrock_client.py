@@ -2,7 +2,7 @@ import asyncio
 import base64
 import io
 import json
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from typing import Any
 
 import aioboto3
@@ -206,7 +206,7 @@ async def _default_stream_response_handler(
 
         return resp, _usage_record
 
-    except Exception as e:
+    except Exception:
         _insure_buffer_closed()
         raise
 

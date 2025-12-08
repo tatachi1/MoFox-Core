@@ -37,8 +37,8 @@ from src.config.config import model_config
 from .exceptions import NetworkConnectionError, ReqAbortException, RespNotOkException, RespParseException
 from .model_client.base_client import APIResponse, BaseClient, UsageRecord, client_registry
 from .payload_content.message import Message, MessageBuilder, RoleType
-from .payload_content.tool_option import ToolCall, ToolOption, ToolOptionBuilder
 from .payload_content.system_prompt import SYSTEM_PROMPT
+from .payload_content.tool_option import ToolCall, ToolOption, ToolOptionBuilder
 from .utils import compress_messages, llm_usage_recorder
 
 install(extra_lines=3)

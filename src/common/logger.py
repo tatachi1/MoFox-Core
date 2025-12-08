@@ -1,21 +1,22 @@
 # 使用基于时间戳的文件处理器，简单的轮转份数限制
 
 import logging
-from logging.handlers import QueueHandler, QueueListener
 import tarfile
 import threading
 import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
+from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
-
 from queue import SimpleQueue
+
 import orjson
 import structlog
 import tomlkit
 from rich.console import Console
 from rich.text import Text
 from structlog.typing import EventDict, WrappedLogger
+
 
 # 守护线程版本的队列监听器，防止退出时卡住
 class DaemonQueueListener(QueueListener):

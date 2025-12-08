@@ -36,21 +36,21 @@ def get_typo_generator(
 ) -> "ChineseTypoGenerator":
     """
     获取错别字生成器单例（内存优化）
-    
+
     如果参数与缓存的单例不同，会更新参数但复用拼音字典和字频数据。
-    
+
     参数:
         error_rate: 单字替换概率
         min_freq: 最小字频阈值
         tone_error_rate: 声调错误概率
         word_replace_rate: 整词替换概率
         max_freq_diff: 最大允许的频率差异
-        
+
     返回:
         ChineseTypoGenerator 实例
     """
     global _typo_generator_singleton
-    
+
     with _singleton_lock:
         if _typo_generator_singleton is None:
             _typo_generator_singleton = ChineseTypoGenerator(
@@ -70,7 +70,7 @@ def get_typo_generator(
                 word_replace_rate=word_replace_rate,
                 max_freq_diff=max_freq_diff,
             )
-    
+
     return _typo_generator_singleton
 
 
@@ -87,7 +87,7 @@ class ChineseTypoGenerator:
             max_freq_diff: 最大允许的频率差异
         """
         global _shared_pinyin_dict, _shared_char_frequency
-        
+
         self.error_rate = error_rate
         self.min_freq = min_freq
         self.tone_error_rate = tone_error_rate
@@ -99,7 +99,7 @@ class ChineseTypoGenerator:
             _shared_pinyin_dict = self._create_pinyin_dict()
             logger.debug("拼音字典已创建并缓存")
         self.pinyin_dict = _shared_pinyin_dict
-        
+
         if _shared_char_frequency is None:
             _shared_char_frequency = self._load_or_create_char_frequency()
             logger.debug("字频数据已加载并缓存")
@@ -454,10 +454,10 @@ class ChineseTypoGenerator:
         # 50%概率返回纠正建议
         if random.random() < 0.5:
             if word_typos:
-                wrong_word, correct_word = random.choice(word_typos)
+                _wrong_word, correct_word = random.choice(word_typos)
                 correction_suggestion = correct_word
             elif char_typos:
-                wrong_char, correct_char = random.choice(char_typos)
+                _wrong_char, correct_char = random.choice(char_typos)
                 correction_suggestion = correct_char
 
         return "".join(result), correction_suggestion
