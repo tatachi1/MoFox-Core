@@ -582,9 +582,9 @@ MoFox_Bot(第三方修改版)
         # 启动内存监控
         try:
             if MEM_MONITOR_ENABLED:
-                started = start_background_monitor(interval_sec=300)
+                started = start_background_monitor(interval_sec=2400)
                 if started:
-                    logger.info("[DEV] 已启动 (间隔=300s)")
+                    logger.info("[DEV] 内存监控已启动 (间隔=2400s ≈ 40min)")
         except Exception as e:
             logger.error(f"启动内存监控失败: {e}")
 

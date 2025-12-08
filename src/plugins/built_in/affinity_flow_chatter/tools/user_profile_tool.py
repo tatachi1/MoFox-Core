@@ -223,8 +223,6 @@ class UserProfileTool(BaseTool):
             # 更新数据库
             await self._update_user_profile_in_db(target_user_id, final_profile)
 
-            logger.info(f"[后台] 用户画像更新成功: {target_user_id}, 好感度变化: {affection_change:+.2f}")
-
         except Exception as e:
             logger.error(f"[后台] 用户画像更新失败: {e}")
     
@@ -251,15 +249,15 @@ class UserProfileTool(BaseTool):
         if operation == "replace":
             # 全部替换
             result_set = new_set
-            logger.info(f"别名/偏好替换: {existing_set} -> {new_set}")
+            logger.debug(f"别名/偏好替换: {existing_set} -> {new_set}")
         elif operation == "remove":
             # 删除指定项
             result_set = existing_set - new_set
-            logger.info(f"别名/偏好删除: {new_set} 从 {existing_set}")
+            logger.debug(f"别名/偏好删除: {new_set} 从 {existing_set}")
         else:  # add 或默认
             # 新增（合并）
             result_set = existing_set | new_set
-            logger.info(f"别名/偏好新增: {new_set} 到 {existing_set}")
+            logger.debug(f"别名/偏好新增: {new_set} 到 {existing_set}")
         
         return "、".join(sorted(result_set))
 
@@ -321,7 +319,6 @@ class UserProfileTool(BaseTool):
                             old_value = fact.get("value", "")
                             # 🎯 智能判断：如果旧值更具体，不要用模糊值覆盖
                             if len(old_value) > len(info_value) and not any(p in old_value.lower() for p in low_quality_patterns):
-                                logger.info(f"保留更具体的旧值: {info_type}='{old_value}'，跳过新值: '{info_value}'")
                                 return
                             # 更新现有记录
                             facts[i] = {"type": info_type, "value": info_value}
@@ -640,10 +637,8 @@ class UserProfileTool(BaseTool):
                     logger.warning(f"印象生成结果过短，使用原始hint")
                     impression = impression_hint or existing_impression
                 
-                logger.info(f"印象更新: 用户性别判断={detected_gender}, 好感度变化={affection_change:+.3f}")
-                if change_reason:
-                    logger.info(f"好感度变化原因: {change_reason}")
-                
+                logger.debug(f"印象更新: 用户性别判断={detected_gender}, 好感度变化={affection_change:+.3f}")
+               
                 return {
                     "impression": impression,
                     "affection_change": affection_change

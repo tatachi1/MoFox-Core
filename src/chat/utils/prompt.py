@@ -212,7 +212,7 @@ class PromptManager:
 
             # 如果模板被修改了，就创建一个新的临时Prompt实例
             if modified_template != original_prompt.template:
-                logger.info(f"为'{name}'应用了Prompt注入规则")
+                logger.debug(f"为'{name}'应用了Prompt注入规则")
                 # 创建一个新的临时Prompt实例，不进行注册
                 temp_prompt = Prompt(
                     template=modified_template,

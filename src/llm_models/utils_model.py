@@ -36,8 +36,9 @@ from src.config.config import model_config
 
 from .exceptions import NetworkConnectionError, ReqAbortException, RespNotOkException, RespParseException
 from .model_client.base_client import APIResponse, BaseClient, UsageRecord, client_registry
-from .payload_content.message import Message, MessageBuilder
+from .payload_content.message import Message, MessageBuilder, RoleType
 from .payload_content.tool_option import ToolCall, ToolOption, ToolOptionBuilder
+from .payload_content.system_prompt import SYSTEM_PROMPT
 from .utils import compress_messages, llm_usage_recorder
 
 install(extra_lines=3)
@@ -769,6 +770,8 @@ class _RequestStrategy:
         executor: _RequestExecutor,
         model_list: list[str],
         task_name: str,
+        *,
+        system_prompt: str | None = None,
     ):
         """
         初始化请求策略。
@@ -785,6 +788,7 @@ class _RequestStrategy:
         self.executor = executor
         self.model_list = model_list
         self.task_name = task_name
+        self.system_prompt = system_prompt
 
     async def execute_with_failover(
         self,
@@ -818,8 +822,19 @@ class _RequestStrategy:
                     processed_prompt = await self.prompt_processor.prepare_prompt(
                         prompt, model_info, self.task_name
                     )
-                    message = MessageBuilder().add_text_content(processed_prompt).build()
-                    request_kwargs["message_list"] = [message]
+                    message_list = []
+                    if self.system_prompt:
+                        system_message = (
+                            MessageBuilder()
+                            .set_role(RoleType.System)
+                            .add_text_content(self.system_prompt)
+                            .build()
+                        )
+                        message_list.append(system_message)
+
+                    user_message = MessageBuilder().add_text_content(processed_prompt).build()
+                    message_list.append(user_message)
+                    request_kwargs["message_list"] = message_list
 
                 # 合并模型特定的额外参数
                 if model_info.extra_params:
@@ -935,6 +950,7 @@ class LLMRequest:
         """
         self.task_name = request_type
         self.model_for_task = model_set
+        self.system_prompt = self._resolve_system_prompt(model_set)
         self.model_usage: dict[str, ModelUsageStats] = {
             model: ModelUsageStats(total_tokens=0, penalty=0, usage_penalty=0, avg_latency=0.0, request_count=0)
             for model in self.model_for_task.model_list
@@ -951,8 +967,22 @@ class LLMRequest:
         self._prompt_processor = _PromptProcessor()
         self._executor = _RequestExecutor(self._model_selector, self.task_name)
         self._strategy = _RequestStrategy(
-            self._model_selector, self._prompt_processor, self._executor, self.model_for_task.model_list, self.task_name
+            self._model_selector,
+            self._prompt_processor,
+            self._executor,
+            self.model_for_task.model_list,
+            self.task_name,
+            system_prompt=self.system_prompt,
         )
+
+    def _resolve_system_prompt(self, model_set: TaskConfig) -> str | None:
+        """确定是否需要附加统一的system prompt."""
+        try:
+            if model_config and model_set is model_config.model_task_config.replyer:
+                return SYSTEM_PROMPT
+        except AttributeError:
+            logger.debug("模型配置缺少replyer定义，无法注入系统提示词")
+        return None
 
     async def generate_response_for_image(
         self,

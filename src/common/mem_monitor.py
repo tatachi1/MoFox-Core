@@ -101,7 +101,7 @@ _monitor_thread: threading.Thread | None = None
 _stop_event: threading.Event = threading.Event()
 
 # 环境变量控制是否启用，防止所有环境一起开
-MEM_MONITOR_ENABLED = False
+MEM_MONITOR_ENABLED = True
 
 
 def start_tracemalloc(max_frames: int = 25) -> None:
@@ -240,7 +240,7 @@ def log_type_memory_diff() -> None:
     _last_type_summary = curr
 
 
-def periodic_mem_monitor(interval_sec: int = 900, tracemalloc_limit: int = 20, objgraph_limit: int = 20) -> None:
+def periodic_mem_monitor(interval_sec: int = 2400, tracemalloc_limit: int = 20, objgraph_limit: int = 20) -> None:
     """后台循环：定期记录 RSS、tracemalloc diff、对象增长情况
 
     Args:
@@ -275,7 +275,7 @@ def periodic_mem_monitor(interval_sec: int = 900, tracemalloc_limit: int = 20, o
     logger.info("Memory monitor thread stopped")
 
 
-def start_background_monitor(interval_sec: int = 300, tracemalloc_limit: int = 20, objgraph_limit: int = 20) -> bool:
+def start_background_monitor(interval_sec: int = 2400, tracemalloc_limit: int = 20, objgraph_limit: int = 20) -> bool:
     """在项目入口调用，用线程避免阻塞主 event loop
 
     Args:
