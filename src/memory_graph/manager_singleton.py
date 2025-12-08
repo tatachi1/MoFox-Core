@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from src.common.logger import get_logger
@@ -19,6 +20,7 @@ _initialized: bool = False
 
 # 全局 UnifiedMemoryManager 实例（新的三层记忆系统）
 _unified_memory_manager = None
+_unified_memory_init_lock: asyncio.Lock | None = None
 
 
 # ============================================================================
@@ -192,6 +194,27 @@ def get_unified_memory_manager():
     if _unified_memory_manager is None:
         logger.warning("统一记忆管理器尚未初始化，请先调用 initialize_unified_memory_manager()")
     return _unified_memory_manager
+
+
+async def ensure_unified_memory_manager_initialized():
+    """
+    确保统一记忆管理器已初始化。
+
+    在首次访问时自动初始化，避免调用方重复判断。
+    """
+    global _unified_memory_init_lock, _unified_memory_manager
+
+    if _unified_memory_manager is not None:
+        return _unified_memory_manager
+
+    if _unified_memory_init_lock is None:
+        _unified_memory_init_lock = asyncio.Lock()
+
+    async with _unified_memory_init_lock:
+        if _unified_memory_manager is not None:
+            return _unified_memory_manager
+
+        return await initialize_unified_memory_manager()
 
 
 async def shutdown_unified_memory_manager() -> None:

@@ -152,10 +152,12 @@ class StreamContext(BaseDataModel):
                     logger.debug(f"消息直接添加到StreamContext未处理列表: stream={self.stream_id}")
             else:
                 logger.debug(f"消息添加到StreamContext成功: {self.stream_id}")
-            # ͬ�����ݵ�ͳһ�������
+            # 同步消息到统一记忆管理器
             try:
                 if global_config.memory and global_config.memory.enable:
-                    unified_manager: Any = _get_unified_memory_manager()
+                    from src.memory_graph.manager_singleton import ensure_unified_memory_manager_initialized
+
+                    unified_manager: Any = await ensure_unified_memory_manager_initialized()
                     if unified_manager:
                         message_dict = {
                             "message_id": str(message.message_id),
