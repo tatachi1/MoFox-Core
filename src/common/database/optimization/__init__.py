@@ -28,6 +28,7 @@ from .preloader import (
     DataPreloader,
     close_preloader,
     get_preloader,
+    record_preload_access,
 )
 
 __all__ = [
@@ -51,4 +52,5 @@ __all__ = [
     "get_batch_scheduler",
     "get_cache",
     "get_preloader",
+    "record_preload_access",
 ]

@@ -876,7 +876,6 @@ class DefaultReplyer:
                 notice_lines.append("")
 
                 result = "\n".join(notice_lines)
-                logger.info(f"notice块构建成功，chat_id={chat_id}, 长度={len(result)}")
                 return result
             else:
                 logger.debug(f"没有可用的notice文本，chat_id={chat_id}")

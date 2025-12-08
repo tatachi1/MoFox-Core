@@ -66,7 +66,7 @@ async def initialize_memory_manager(
         await _memory_manager.initialize()
 
         _initialized = True
-        logger.info("✅ 全局 MemoryManager 初始化成功")
+        logger.info("全局 MemoryManager 初始化成功")
 
         return _memory_manager
 
@@ -98,7 +98,7 @@ async def shutdown_memory_manager():
     if _memory_manager:
         try:
             await _memory_manager.shutdown()
-            logger.info("✅ 全局 MemoryManager 已关闭")
+            logger.info("全局 MemoryManager 已关闭")
         except Exception as e:
             logger.error(f"关闭 MemoryManager 时出错: {e}")
         finally:
@@ -205,7 +205,7 @@ async def shutdown_unified_memory_manager() -> None:
     try:
         await _unified_memory_manager.shutdown()
         _unified_memory_manager = None
-        logger.info("✅ 统一记忆管理器已关闭")
+        logger.info("统一记忆管理器已关闭")
 
     except Exception as e:
         logger.error(f"关闭统一记忆管理器失败: {e}")

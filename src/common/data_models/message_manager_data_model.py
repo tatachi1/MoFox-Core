@@ -546,8 +546,6 @@ class StreamContext(BaseDataModel):
                     removed_count = len(self.history_messages) - self.max_context_size
                     self.history_messages = self.history_messages[-self.max_context_size :]
                     logger.debug(f"[历史加载] 移除了 {removed_count} 条最早的消息以适配当前容量限制")
-
-                logger.info(f"[历史加载] 成功加载 {loaded_count} 条历史消息到内存: {self.stream_id}")
             else:
                 logger.debug(f"无历史消息需要加载: {self.stream_id}")
 
