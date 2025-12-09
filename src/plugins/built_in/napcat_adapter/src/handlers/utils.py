@@ -3,10 +3,9 @@ import base64
 import io
 import ssl
 import time
-import uuid
 import weakref
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import orjson
 import urllib3
@@ -22,7 +21,7 @@ logger = get_logger("napcat_adapter")
 # 简单的缓存实现，通过 JSON 文件实现磁盘一价存储
 _CACHE_FILE = Path(__file__).resolve().parent / "napcat_cache.json"
 _CACHE_LOCK = asyncio.Lock()
-_CACHE: Dict[str, Dict[str, Dict[str, Any]]] = {
+_CACHE: dict[str, dict[str, dict[str, Any]]] = {
     "group_info": {},
     "group_detail_info": {},
     "member_info": {},
@@ -106,10 +105,10 @@ def _get_adapter(adapter: "NapcatAdapter | None" = None) -> "NapcatAdapter":
 
 async def _call_adapter_api(
     action: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     adapter: "NapcatAdapter | None" = None,
     timeout: float = 30.0,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """统一通过 adapter 发送和接收 API 调用"""
     try:
         target = _get_adapter(adapter)
@@ -141,7 +140,7 @@ class SSLAdapter(urllib3.PoolManager):
 
 async def get_respose(
     action: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     adapter: "NapcatAdapter | None" = None,
     timeout: float = 30.0,
 ):
@@ -250,7 +249,7 @@ async def get_image_base64(url: str) -> str:
         image_bytes = response.data
         return base64.b64encode(image_bytes).decode("utf-8")
     except Exception as e:
-        logger.error(f"图片下载失败: {str(e)}")
+        logger.error(f"图片下载失败: {e!s}")
         raise
 
 
@@ -272,7 +271,7 @@ def convert_image_to_gif(image_base64: str) -> str:
         output_buffer.seek(0)
         return base64.b64encode(output_buffer.read()).decode("utf-8")
     except Exception as e:
-        logger.error(f"图片转换为GIF失败: {str(e)}")
+        logger.error(f"图片转换为GIF失败: {e!s}")
         return image_base64
 
 
@@ -338,7 +337,7 @@ async def get_stranger_info(
 
 
 async def get_message_detail(
-    message_id: Union[str, int],
+    message_id: str | int,
     *,
     adapter: "NapcatAdapter | None" = None,
 ) -> dict | None:
@@ -357,7 +356,7 @@ async def get_message_detail(
 
 async def get_record_detail(
     file: str,
-    file_id: Optional[str] = None,
+    file_id: str | None = None,
     *,
     adapter: "NapcatAdapter | None" = None,
 ) -> dict | None:
@@ -397,14 +396,14 @@ async def get_forward_message(
         logger.error("获取转发消息超时")
         return None
     except Exception as e:
-        logger.error(f"获取转发消息失败: {str(e)}")
+        logger.error(f"获取转发消息失败: {e!s}")
         return None
     logger.debug(
         f"转发消息原始格式：{orjson.dumps(response).decode('utf-8')[:80]}..."
         if len(orjson.dumps(response).decode("utf-8")) > 80
         else orjson.dumps(response).decode("utf-8")
     )
-    response_data: Dict = response.get("data")
+    response_data: dict = response.get("data")
     if not response_data:
         logger.warning("转发消息内容为空或获取失败")
         return None

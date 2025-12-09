@@ -1,5 +1,4 @@
 import random
-import re
 from typing import ClassVar
 
 from src.chat.emoji_system.emoji_history import add_emoji_to_history, get_recent_emojis
@@ -11,7 +10,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 
 # 导入新插件系统
-from src.plugin_system import ActionActivationType, BaseAction, ChatMode
+from src.plugin_system import BaseAction, ChatMode
 
 # 导入API模块 - 标准Python包方式
 from src.plugin_system.apis import llm_api, message_api

@@ -64,10 +64,10 @@ class EmbeddingGenerator:
                 self._api_dimension = embedding_config.embedding_dimension
 
             self._api_available = True
-            logger.info(f"✅ Embedding API 初始化成功 (维度: {self._api_dimension})")
+            logger.info(f"Embedding API 初始化成功 (维度: {self._api_dimension})")
 
         except Exception as e:
-            logger.warning(f"⚠️  Embedding API 初始化失败: {e}")
+            logger.warning(f"Embedding API 初始化失败: {e}")
             self._api_available = False
 
 
@@ -149,7 +149,7 @@ class EmbeddingGenerator:
                 (idx, text) for idx, text in enumerate(texts) if text and text.strip()
             ]
             if not valid_entries:
-                logger.debug('批量文本为空，返回空列表')
+                logger.debug("批量文本为空，返回空列表")
                 return results
 
             batch_texts = [text for _, text in valid_entries]

@@ -7,9 +7,8 @@ Kokoro Flow Chatter - 插件注册
 from typing import Any, ClassVar
 
 from src.common.logger import get_logger
-from src.plugin_system.base.base_plugin import BasePlugin
-from src.plugin_system.base.component_types import ChatterInfo
 from src.plugin_system import register_plugin
+from src.plugin_system.base.base_plugin import BasePlugin
 
 from .chatter import KokoroFlowChatter
 from .config import get_config
@@ -35,20 +34,20 @@ class KokoroFlowChatterPlugin(BasePlugin):
     dependencies: ClassVar[list[str]] = []
     python_dependencies: ClassVar[list[str]] = []
     config_file_name: str = "config.toml"
-    
+
     # 状态
     _is_started: bool = False
-    
+
     async def on_plugin_loaded(self):
         """插件加载时"""
         config = get_config()
-        
+
         if not config.enabled:
             logger.info("[KFC] 插件已禁用")
             return
 
         logger.info("[KFC] 插件已加载")
-        
+
         # 启动主动思考器
         if config.proactive.enabled:
             try:
@@ -57,7 +56,7 @@ class KokoroFlowChatterPlugin(BasePlugin):
                 self._is_started = True
             except Exception as e:
                 logger.error(f"[KFC] 启动主动思考器失败: {e}")
-    
+
     async def on_plugin_unloaded(self):
         """插件卸载时"""
         try:
@@ -66,16 +65,16 @@ class KokoroFlowChatterPlugin(BasePlugin):
             self._is_started = False
         except Exception as e:
             logger.warning(f"[KFC] 停止主动思考器失败: {e}")
-    
+
     def get_plugin_components(self):
         """返回组件列表"""
         config = get_config()
-        
+
         if not config.enabled:
             return []
-        
+
         components = []
-        
+
         try:
             # 注册 Chatter
             components.append((
@@ -97,9 +96,9 @@ class KokoroFlowChatterPlugin(BasePlugin):
             logger.debug("[KFC] 成功加载 KFCReplyAction 组件")
         except Exception as e:
             logger.error(f"[KFC] 加载 Reply 动作失败: {e}")
-        
+
         return components
-    
+
     def get_plugin_info(self) -> dict[str, Any]:
         """获取插件信息"""
         return {

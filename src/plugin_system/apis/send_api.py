@@ -93,7 +93,9 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from mofox_wire import MessageEnvelope
+
 from src.common.data_models.database_data_model import DatabaseUserInfo
+
 if TYPE_CHECKING:
     from src.common.data_models.database_data_model import DatabaseMessages
 

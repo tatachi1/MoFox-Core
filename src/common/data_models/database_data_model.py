@@ -89,44 +89,44 @@ class DatabaseMessages(BaseDataModel):
     """
 
     __slots__ = (
-        # 基础消息字段
-        "message_id",
-        "time",
-        "chat_id",
-        "reply_to",
-        "interest_value",
-        "key_words",
-        "key_words_lite",
-        "is_mentioned",
-        "is_at",
-        "reply_probability_boost",
-        "processed_plain_text",
-        "display_message",
-        "priority_mode",
-        "priority_info",
-        "additional_config",
-        "is_emoji",
-        "is_picid",
-        "is_command",
-        "is_notify",
-        "is_public_notice",
-        "notice_type",
-        "selected_expressions",
-        "is_read",
         "actions",
-        "should_reply",
-        "should_act",
-        # 关联对象
-        "user_info",
-        "group_info",
+        "additional_config",
+        "chat_id",
         "chat_info",
-        # 运行时扩展字段（固定）
-        "semantic_embedding",
-        "interest_calculated",
-        "is_voice",
-        "is_video",
+        "display_message",
+        "group_info",
         "has_emoji",
         "has_picid",
+        "interest_calculated",
+        "interest_value",
+        "is_at",
+        "is_command",
+        "is_emoji",
+        "is_mentioned",
+        "is_notify",
+        "is_picid",
+        "is_public_notice",
+        "is_read",
+        "is_video",
+        "is_voice",
+        "key_words",
+        "key_words_lite",
+        # 基础消息字段
+        "message_id",
+        "notice_type",
+        "priority_info",
+        "priority_mode",
+        "processed_plain_text",
+        "reply_probability_boost",
+        "reply_to",
+        "selected_expressions",
+        # 运行时扩展字段（固定）
+        "semantic_embedding",
+        "should_act",
+        "should_reply",
+        "time",
+        # 关联对象
+        "user_info",
     )
 
     def __init__(
@@ -405,16 +405,16 @@ class DatabaseActionRecords(BaseDataModel):
     """
 
     __slots__ = (
-        "action_id",
-        "time",
-        "action_name",
+        "action_build_into_prompt",
         "action_data",
         "action_done",
-        "action_build_into_prompt",
+        "action_id",
+        "action_name",
         "action_prompt_display",
         "chat_id",
-        "chat_info_stream_id",
         "chat_info_platform",
+        "chat_info_stream_id",
+        "time",
     )
 
     def __init__(

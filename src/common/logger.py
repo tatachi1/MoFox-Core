@@ -1,21 +1,22 @@
 # 使用基于时间戳的文件处理器，简单的轮转份数限制
 
 import logging
-from logging.handlers import QueueHandler, QueueListener
 import tarfile
 import threading
 import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
+from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
-
 from queue import SimpleQueue
+
 import orjson
 import structlog
 import tomlkit
 from rich.console import Console
 from rich.text import Text
 from structlog.typing import EventDict, WrappedLogger
+
 
 # 守护线程版本的队列监听器，防止退出时卡住
 class DaemonQueueListener(QueueListener):
@@ -879,14 +880,12 @@ class ModuleColoredConsoleRenderer:
         # sourcery skip: merge-duplicate-blocks
         """渲染日志消息"""
 
-        # 获取基本信息
         timestamp = event_dict.get("timestamp", "")
         level = event_dict.get("level", "info")
         logger_name = event_dict.get("logger_name", "")
         event = event_dict.get("event", "")
 
-        # 构建 Rich Text 对象列表
-        parts = []
+        parts: list[Text] = []
 
         # 日志级别样式配置
         log_level_style = self._config.get("log_level_style", "lite")
@@ -1298,9 +1297,9 @@ def start_log_cleanup_task():
     threading.Thread(target=cleanup_task, daemon=True, name="log-cleanup").start()
     logger = get_logger("logger")
     if retention_days == -1:
-        logger.info("已启动日志任务: 每天 00:00 压缩旧日志(不删除)")
+        logger.debug("已启动日志任务: 每天 00:00 压缩旧日志(不删除)")
     else:
-        logger.info(f"已启动日志任务: 每天 00:00 压缩并删除早于 {retention_days} 天的日志")
+        logger.debug(f"已启动日志任务: 每天 00:00 压缩并删除早于 {retention_days} 天的日志")
 
 
 def shutdown_logging():

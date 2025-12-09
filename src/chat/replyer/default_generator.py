@@ -8,9 +8,8 @@ import random
 import re
 import time
 import traceback
-import uuid
 from datetime import datetime, timedelta
-from typing import Any, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 from src.chat.express.expression_selector import expression_selector
 from src.chat.message_receive.uni_message_sender import HeartFCSender
@@ -25,7 +24,7 @@ from src.chat.utils.prompt import Prompt, global_prompt_manager
 from src.chat.utils.prompt_params import PromptParameters
 from src.chat.utils.timer_calculator import Timer
 from src.chat.utils.utils import get_chat_type_and_target_info
-from src.common.data_models.database_data_model import DatabaseMessages, DatabaseUserInfo
+from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.logger import get_logger
 from src.config.config import global_config, model_config
 from src.individuality.individuality import get_individuality
@@ -132,7 +131,7 @@ def init_prompt():
 
 {group_chat_reminder_block}
 - 在称呼用户时，请使用更自然的昵称或简称。对于长英文名，可使用首字母缩写；对于中文名，可提炼合适的简称。禁止直接复述复杂的用户名或输出用户名中的任何符号，让称呼更像人类习惯，注意，简称不是必须的，合理的使用。
-你的回复应该是一条简短、完整且口语化的回复。
+你的回复应该是一条简短、且口语化的回复。
 
  --------------------------------
 {time_block}
@@ -219,7 +218,7 @@ If you need to use the search tool, please directly call the function "lpmm_sear
 {safety_guidelines_block}
 {group_chat_reminder_block}
 - 在称呼用户时，请使用更自然的昵称或简称。对于长英文名，可使用首字母缩写；对于中文名，可提炼合适的简称。禁止直接复述复杂的用户名或输出用户名中的任何符号，让称呼更像人类习惯，注意，简称不是必须的，合理的使用。
-你的回复应该是一条简短、完整且口语化的回复。
+你的回复应该是一条简短、且口语化的回复。
 
  --------------------------------
 {time_block}
@@ -494,14 +493,12 @@ class DefaultReplyer:
                 )
 
             content = None
-            reasoning_content = None
-            model_name = "unknown_model"
             if not prompt:
                 logger.error("Prompt 构建失败，无法生成回复。")
                 return False, None, None
 
             try:
-                content, reasoning_content, model_name, _ = await self.llm_generate_content(prompt)
+                content, _reasoning_content, _model_name, _ = await self.llm_generate_content(prompt)
                 logger.info(f"想要表达：{raw_reply}||理由：{reason}||生成回复: {content}\n")
 
             except Exception as llm_e:
@@ -601,12 +598,14 @@ class DefaultReplyer:
             return ""
 
         try:
-            from src.memory_graph.manager_singleton import get_unified_memory_manager
+            from src.memory_graph.manager_singleton import (
+                ensure_unified_memory_manager_initialized,
+            )
             from src.memory_graph.utils.three_tier_formatter import memory_formatter
 
-            unified_manager = get_unified_memory_manager()
+            unified_manager = await ensure_unified_memory_manager_initialized()
             if not unified_manager:
-                logger.debug("[三层记忆] 管理器未初始化")
+                logger.debug("[三层记忆] 管理器初始化失败或未启用")
                 return ""
 
             # 目标查询改为使用最近多条消息的组合块
@@ -876,7 +875,6 @@ class DefaultReplyer:
                 notice_lines.append("")
 
                 result = "\n".join(notice_lines)
-                logger.info(f"notice块构建成功，chat_id={chat_id}, 长度={len(result)}")
                 return result
             else:
                 logger.debug(f"没有可用的notice文本，chat_id={chat_id}")
@@ -1252,7 +1250,7 @@ class DefaultReplyer:
             if action_items:
                 if len(action_items) == 1:
                     # 单个动作
-                    action_name, action_info = list(action_items.items())[0]
+                    action_name, action_info = next(iter(action_items.items()))
                     action_desc = action_info.description
 
                     # 构建基础决策信息

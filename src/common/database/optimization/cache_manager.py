@@ -6,6 +6,10 @@
 - LRU淘汰策略：自动淘汰最少使用的数据
 - 智能预热：启动时预加载高频数据
 - 统计信息：命中率、淘汰率等监控数据
+
+支持多种缓存后端：
+- memory: 内存多级缓存（默认）
+- redis: Redis 分布式缓存
 """
 
 import asyncio
@@ -16,6 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
+from src.common.database.optimization.cache_backend import CacheBackend
 from src.common.logger import get_logger
 from src.common.memory_utils import estimate_cache_item_size
 
@@ -243,7 +248,7 @@ class LRUCache(Generic[T]):
             return 1024
 
 
-class MultiLevelCache:
+class MultiLevelCache(CacheBackend):
     """多级缓存管理器
 
     实现两级缓存架构：
@@ -251,6 +256,8 @@ class MultiLevelCache:
     - L2: 扩展缓存，大容量，长TTL
 
     查询时先查L1，未命中再查L2，未命中再从数据源加载
+
+    实现 CacheBackend 接口，可与 Redis 缓存互换使用
     """
 
     def __init__(
@@ -328,8 +335,8 @@ class MultiLevelCache:
         self,
         key: str,
         value: Any,
-        size: int | None = None,
         ttl: float | None = None,
+        size: int | None = None,
     ) -> None:
         """设置缓存值
 
@@ -338,8 +345,8 @@ class MultiLevelCache:
         Args:
             key: 缓存键
             value: 缓存值
-            size: 数据大小（字节）
             ttl: 自定义过期时间（秒），如果为None则使用默认TTL
+            size: 数据大小（字节）
         """
         # 估算数据大小（如果未提供）
         if size is None:
@@ -372,16 +379,53 @@ class MultiLevelCache:
             await self.l1_cache.set(key, value, size)
             await self.l2_cache.set(key, value, size)
 
-    async def delete(self, key: str) -> None:
+    async def delete(self, key: str) -> bool:
         """删除缓存条目
 
         同时从L1和L2删除
 
         Args:
             key: 缓存键
+
+        Returns:
+            是否有条目被删除
         """
-        await self.l1_cache.delete(key)
-        await self.l2_cache.delete(key)
+        l1_deleted = await self.l1_cache.delete(key)
+        l2_deleted = await self.l2_cache.delete(key)
+        return l1_deleted or l2_deleted
+
+    async def exists(self, key: str) -> bool:
+        """检查键是否存在于缓存中
+
+        Args:
+            key: 缓存键
+
+        Returns:
+            键是否存在
+        """
+        # 检查 L1
+        if await self.l1_cache.get(key) is not None:
+            return True
+        # 检查 L2
+        if await self.l2_cache.get(key) is not None:
+            return True
+        return False
+
+    async def close(self) -> None:
+        """关闭缓存（停止清理任务并清空）"""
+        await self.stop_cleanup_task()
+        await self.clear()
+        logger.info("多级缓存已关闭")
+
+    @property
+    def backend_type(self) -> str:
+        """返回缓存后端类型标识"""
+        return "memory"
+
+    @property
+    def is_distributed(self) -> bool:
+        """内存缓存不是分布式的"""
+        return False
 
     async def clear(self) -> None:
         """清空所有缓存"""
@@ -440,8 +484,8 @@ class MultiLevelCache:
 
         # 计算共享键和独占键
         shared_keys = l1_keys & l2_keys
-        l1_only_keys = l1_keys - l2_keys
-        l2_only_keys = l2_keys - l1_keys
+        l1_only_keys = l1_keys - l2_keys  # noqa: F841
+        l2_only_keys = l2_keys - l1_keys  # noqa: F841
 
         # 🔧 修复：并行计算内存使用，避免锁嵌套
         l1_size_task = asyncio.create_task(self._calculate_memory_usage_safe(self.l1_cache, l1_keys))
@@ -749,18 +793,22 @@ class MultiLevelCache:
         return cleaned_count
 
 
-# 全局缓存实例
-_global_cache: MultiLevelCache | None = None
+# 全局缓存实例（支持多种后端类型）
+_global_cache: CacheBackend | None = None
 _cache_lock = asyncio.Lock()
+_cache_backend_type: str = "memory"  # 记录当前使用的后端类型
 
 
-async def get_cache() -> MultiLevelCache:
+async def get_cache() -> CacheBackend:
     """获取全局缓存实例（单例）
 
-    从配置文件读取缓存参数，如果配置未加载则使用默认值
-    如果配置中禁用了缓存，返回一个最小化的缓存实例（容量为1）
+    根据配置自动选择缓存后端：
+    - cache_backend = "memory": 使用内存多级缓存（默认）
+    - cache_backend = "redis": 使用 Redis 分布式缓存
+
+    如果配置中禁用了缓存，返回一个最小化的缓存实例
     """
-    global _global_cache
+    global _global_cache, _cache_backend_type
 
     if _global_cache is None:
         async with _cache_lock:
@@ -774,7 +822,7 @@ async def get_cache() -> MultiLevelCache:
 
                     # 检查是否启用缓存
                     if not db_config.enable_database_cache:
-                        logger.info("数据库缓存已禁用，使用最小化缓存实例")
+                        logger.info("数据库缓存已禁用，使用最小化内存缓存实例")
                         _global_cache = MultiLevelCache(
                             l1_max_size=1,
                             l1_ttl=1,
@@ -782,51 +830,109 @@ async def get_cache() -> MultiLevelCache:
                             l2_ttl=1,
                             max_memory_mb=1,
                         )
+                        _cache_backend_type = "memory"
                         return _global_cache
 
-                    l1_max_size = db_config.cache_l1_max_size
-                    l1_ttl = db_config.cache_l1_ttl
-                    l2_max_size = db_config.cache_l2_max_size
-                    l2_ttl = db_config.cache_l2_ttl
-                    max_memory_mb = db_config.cache_max_memory_mb
-                    max_item_size_mb = db_config.cache_max_item_size_mb
-                    cleanup_interval = db_config.cache_cleanup_interval
+                    # 根据配置选择缓存后端
+                    backend = db_config.cache_backend.lower()
+                    _cache_backend_type = backend
 
-                    logger.info(
-                        f"从配置加载缓存参数: L1({l1_max_size}/{l1_ttl}s), "
-                        f"L2({l2_max_size}/{l2_ttl}s), 内存限制({max_memory_mb}MB), "
-                        f"单项限制({max_item_size_mb}MB)"
-                    )
+                    if backend == "redis":
+                        # 使用 Redis 缓存
+                        _global_cache = await _create_redis_cache(db_config)
+                    else:
+                        # 默认使用内存缓存
+                        _global_cache = await _create_memory_cache(db_config)
+
                 except Exception as e:
-                    # 配置未加载，使用默认值
-                    logger.warning(f"无法从配置加载缓存参数，使用默认值: {e}")
-                    l1_max_size = 1000
-                    l1_ttl = 60
-                    l2_max_size = 10000
-                    l2_ttl = 300
-                    max_memory_mb = 100
-                    max_item_size_mb = 1
-                    cleanup_interval = 60
-
-                _global_cache = MultiLevelCache(
-                    l1_max_size=l1_max_size,
-                    l1_ttl=l1_ttl,
-                    l2_max_size=l2_max_size,
-                    l2_ttl=l2_ttl,
-                    max_memory_mb=max_memory_mb,
-                    max_item_size_mb=max_item_size_mb,
-                )
-                await _global_cache.start_cleanup_task(interval=cleanup_interval)
+                    # 配置未加载，使用默认内存缓存
+                    logger.warning(f"无法从配置加载缓存参数，使用默认内存缓存: {e}")
+                    _global_cache = MultiLevelCache()
+                    _cache_backend_type = "memory"
+                    await _global_cache.start_cleanup_task(interval=60)
 
     return _global_cache
 
 
+async def _create_memory_cache(db_config: Any) -> MultiLevelCache:
+    """创建内存多级缓存"""
+    l1_max_size = db_config.cache_l1_max_size
+    l1_ttl = db_config.cache_l1_ttl
+    l2_max_size = db_config.cache_l2_max_size
+    l2_ttl = db_config.cache_l2_ttl
+    max_memory_mb = db_config.cache_max_memory_mb
+    max_item_size_mb = db_config.cache_max_item_size_mb
+    cleanup_interval = db_config.cache_cleanup_interval
+
+    logger.info(
+        f"创建内存缓存: L1({l1_max_size}/{l1_ttl}s), "
+        f"L2({l2_max_size}/{l2_ttl}s), 内存限制({max_memory_mb}MB)"
+    )
+
+    cache = MultiLevelCache(
+        l1_max_size=l1_max_size,
+        l1_ttl=l1_ttl,
+        l2_max_size=l2_max_size,
+        l2_ttl=l2_ttl,
+        max_memory_mb=max_memory_mb,
+        max_item_size_mb=max_item_size_mb,
+    )
+    await cache.start_cleanup_task(interval=cleanup_interval)
+    return cache
+
+
+async def _create_redis_cache(db_config: Any) -> CacheBackend:
+    """创建 Redis 缓存
+
+    Raises:
+        RuntimeError: Redis 连接失败时抛出异常
+    """
+    from src.common.database.optimization.redis_cache import RedisCache
+
+    logger.info(
+        f"创建 Redis 缓存: {db_config.redis_host}:{db_config.redis_port}/{db_config.redis_db}, "
+        f"前缀={db_config.redis_key_prefix}, TTL={db_config.redis_default_ttl}s"
+    )
+
+    cache = RedisCache(
+        host=db_config.redis_host,
+        port=db_config.redis_port,
+        password=db_config.redis_password or None,
+        db=db_config.redis_db,
+        key_prefix=db_config.redis_key_prefix,
+        default_ttl=db_config.redis_default_ttl,
+        pool_size=db_config.redis_connection_pool_size,
+        socket_timeout=db_config.redis_socket_timeout,
+        ssl=db_config.redis_ssl,
+    )
+
+    # 测试连接
+    if await cache.health_check():
+        logger.info("Redis 缓存连接成功")
+        return cache
+    else:
+        await cache.close()
+        raise RuntimeError(
+            f"Redis 连接测试失败: {db_config.redis_host}:{db_config.redis_port}，"
+            "请检查 Redis 服务是否运行，或将 cache_backend 改为 'memory'"
+        )
+
+
+def get_cache_backend_type() -> str:
+    """获取当前使用的缓存后端类型
+
+    Returns:
+        "memory" 或 "redis"
+    """
+    return _cache_backend_type
+
+
 async def close_cache() -> None:
     """关闭全局缓存"""
-    global _global_cache
+    global _global_cache, _cache_backend_type
 
     if _global_cache is not None:
-        await _global_cache.stop_cleanup_task()
-        await _global_cache.clear()
+        await _global_cache.close()
+        logger.info(f"全局缓存已关闭 (后端: {_cache_backend_type})")
         _global_cache = None
-        logger.info("全局缓存已关闭")
+        _cache_backend_type = "memory"

@@ -524,7 +524,7 @@ class PromptComponentManager:
                     is_built_in=False,
                 )
                 # 从动态规则中收集并关联其所有注入规则
-                for target, rules_in_target in self._dynamic_rules.items():
+                for rules_in_target in self._dynamic_rules.values():
                     if name in rules_in_target:
                         rule, _, _ = rules_in_target[name]
                         dynamic_info.injection_rules.append(rule)

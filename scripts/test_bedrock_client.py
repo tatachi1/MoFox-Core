@@ -134,7 +134,7 @@ async def test_tool_calling():
     print("测试 4: 工具调用功能")
     print("=" * 60)
 
-    from src.llm_models.payload_content.tool_option import ToolOption, ToolOptionBuilder, ToolParamType
+    from src.llm_models.payload_content.tool_option import ToolOptionBuilder, ToolParamType
 
     provider = APIProvider(
         name="bedrock_test",
@@ -171,7 +171,7 @@ async def test_tool_calling():
         )
 
         if response.tool_calls:
-            print(f"✅ 模型调用了工具:")
+            print("✅ 模型调用了工具:")
             for call in response.tool_calls:
                 print(f"  - 工具名: {call.func_name}")
                 print(f"  - 参数: {call.args}")

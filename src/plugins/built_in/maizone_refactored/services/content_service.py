@@ -12,10 +12,10 @@ import aiohttp
 import filetype
 
 from src.chat.message_receive.chat_stream import get_chat_manager
+from src.common.data_models.database_data_model import DatabaseUserInfo
 from src.common.logger import get_logger
 from src.llm_models.utils_model import LLMRequest
 from src.plugin_system.apis import config_api, generator_api, llm_api
-from src.common.data_models.database_data_model import DatabaseUserInfo
 
 # 导入旧的工具函数，我们稍后会考虑是否也需要重构它
 from ..utils.history_utils import get_send_history

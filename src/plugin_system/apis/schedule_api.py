@@ -208,7 +208,7 @@ class ScheduleAPI:
                 if not time_range:
                     continue
                 try:
-                    event_start_str, event_end_str = time_range.split("-")
+                    event_start_str, _event_end_str = time_range.split("-")
                     event_start = datetime.strptime(event_start_str.strip(), "%H:%M").time()
                     if start <= event_start < end:
                         activities_in_range.append(event)

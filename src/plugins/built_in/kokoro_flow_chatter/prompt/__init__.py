@@ -10,7 +10,7 @@ from .builder import PromptBuilder, get_prompt_builder
 from .prompts import PROMPT_NAMES
 
 __all__ = [
+    "PROMPT_NAMES",
     "PromptBuilder",
     "get_prompt_builder",
-    "PROMPT_NAMES",
 ]

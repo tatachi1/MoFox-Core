@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from src.chat.planner_actions.action_manager import ChatterActionManager
 
 if TYPE_CHECKING:
-    from src.chat.chatter_manager import ChatterManager
+    pass
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.data_models.message_manager_data_model import MessageManagerStats, StreamStats
 from src.common.logger import get_logger
@@ -94,7 +94,7 @@ class MessageManager:
 
     async def add_message(self, stream_id: str, message: DatabaseMessages):
         """添加消息到指定聊天流
-        
+
         注意：Notice 消息已在 MessageHandler._handle_notice_message 中单独处理，
         不再经过此方法。此方法仅处理普通消息。
         """

@@ -6,7 +6,8 @@ import orjson
 from rich.traceback import install
 
 from src.common.logger import get_logger
-from src.config.config import global_config as _global_config, model_config as _model_config
+from src.config.config import global_config as _global_config
+from src.config.config import model_config as _model_config
 from src.llm_models.utils_model import LLMRequest
 from src.person_info.person_info import get_person_info_manager
 
@@ -46,7 +47,7 @@ class Individuality:
         personality_hash, _ = self._get_config_hash(bot_nickname, personality_core, personality_side, identity)
         self.bot_person_id = personality_hash
         self.name = bot_nickname
-        logger.info(f"生成的 personality_id: {self.bot_person_id[:16]}... (基于人设文本 hash)")
+        logger.debug(f"生成的 personality_id: {self.bot_person_id[:16]}... (基于人设文本 hash)")
 
         person_info_manager = get_person_info_manager()
 

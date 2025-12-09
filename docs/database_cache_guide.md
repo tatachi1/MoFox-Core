@@ -2,20 +2,45 @@
 
 ## 概述
 
-MoFox Bot 数据库系统集成了多级缓存架构，用于优化高频查询性能，减少数据库压力。
+MoFox Bot 数据库系统集成了可插拔的缓存架构，支持多种缓存后端：
 
-## 缓存架构
+- **内存缓存（Memory）**: 多级 LRU 缓存，适合单机部署
+- **Redis 缓存**: 分布式缓存，适合多实例部署或需要持久化缓存的场景
+
+## 缓存后端选择
+
+在 `bot_config.toml` 中配置：
+
+```toml
+[database]
+enable_database_cache = true  # 是否启用缓存
+cache_backend = "memory"      # 缓存后端: "memory" 或 "redis"
+```
+
+### 后端对比
+
+| 特性 | 内存缓存 (memory) | Redis 缓存 (redis) |
+|------|-------------------|-------------------|
+| 部署复杂度 | 低（无额外依赖） | 中（需要 Redis 服务） |
+| 分布式支持 | ❌ | ✅ |
+| 持久化 | ❌ | ✅ |
+| 性能 | 极高（本地内存） | 高（网络开销） |
+| 适用场景 | 单机部署 | 多实例/集群部署 |
+
+---
+
+## 内存缓存架构
 
 ### 多级缓存（Multi-Level Cache）
 
 - **L1 缓存（热数据）**
-  - 容量：1000 项
-  - TTL：60 秒
+  - 容量：1000 项（可配置）
+  - TTL：300 秒（可配置）
   - 用途：最近访问的热点数据
 
 - **L2 缓存（温数据）**
-  - 容量：10000 项
-  - TTL：300 秒
+  - 容量：10000 项（可配置）
+  - TTL：1800 秒（可配置）
   - 用途：较常访问但不是最热的数据
 
 ### LRU 驱逐策略
@@ -24,11 +49,45 @@ MoFox Bot 数据库系统集成了多级缓存架构，用于优化高频查询�
 - 缓存满时自动驱逐最少使用的项
 - 保证最常用数据始终在缓存中
 
+---
+
+## Redis 缓存架构
+
+### 特性
+
+- **分布式**: 多个 Bot 实例可共享缓存
+- **持久化**: Redis 支持 RDB/AOF 持久化
+- **TTL 管理**: 使用 Redis 原生过期机制
+- **模式删除**: 支持通配符批量删除缓存
+- **原子操作**: 支持 INCR/DECR 等原子操作
+
+### 配置参数
+
+```toml
+[database]
+# Redis缓存配置（cache_backend = "redis" 时生效）
+redis_host = "localhost"          # Redis服务器地址
+redis_port = 6379                 # Redis服务器端口
+redis_password = ""               # Redis密码（留空表示无密码）
+redis_db = 0                      # Redis数据库编号 (0-15)
+redis_key_prefix = "mofox:"       # 缓存键前缀
+redis_default_ttl = 600           # 默认过期时间（秒）
+redis_connection_pool_size = 10   # 连接池大小
+```
+
+### 安装 Redis 依赖
+
+```bash
+pip install redis
+```
+
+---
+
 ## 使用方法
 
 ### 1. 使用 @cached 装饰器（推荐）
 
-最简单的方式是使用 `@cached` 装饰器：
+最简单的方式，自动适配所有缓存后端：
 
 ```python
 from src.common.database.utils.decorators import cached
@@ -54,7 +113,7 @@ async def get_person_info(platform: str, person_id: str):
 需要更精细控制时，可以手动管理缓存：
 
 ```python
-from src.common.database.optimization.cache_manager import get_cache
+from src.common.database.optimization import get_cache
 
 async def custom_query():
     cache = await get_cache()
@@ -67,18 +126,33 @@ async def custom_query():
     # 缓存未命中，执行查询
     result = await execute_database_query()
     
-    # 写入缓存
-    await cache.set("my_key", result)
+    # 写入缓存（可指定自定义 TTL）
+    await cache.set("my_key", result, ttl=300)
     
     return result
 ```
 
-### 3. 缓存失效
+### 3. 使用 get_or_load 方法
+
+简化的缓存加载模式：
+
+```python
+cache = await get_cache()
+
+# 自动处理：缓存命中返回，未命中则执行 loader 并缓存结果
+result = await cache.get_or_load(
+    "my_key",
+    loader=lambda: fetch_data_from_db(),
+    ttl=600
+)
+```
+
+### 4. 缓存失效
 
 更新数据后需要主动使缓存失效：
 
 ```python
-from src.common.database.optimization.cache_manager import get_cache
+from src.common.database.optimization import get_cache
 from src.common.database.utils.decorators import generate_cache_key
 
 async def update_person_affinity(platform: str, person_id: str, affinity_delta: float):
@@ -90,6 +164,8 @@ async def update_person_affinity(platform: str, person_id: str, affinity_delta: 
     cache_key = generate_cache_key("person_info", platform, person_id)
     await cache.delete(cache_key)
 ```
+
+---
 
 ## 已缓存的查询
 
@@ -116,16 +192,34 @@ async def update_person_affinity(platform: str, person_id: str, affinity_delta: 
 
 ## 缓存统计
 
-查看缓存性能统计：
+### 内存缓存统计
 
 ```python
 cache = await get_cache()
 stats = await cache.get_stats()
 
-print(f"L1 命中率: {stats['l1_hits']}/{stats['l1_hits'] + stats['l1_misses']}")
-print(f"L2 命中率: {stats['l2_hits']}/{stats['l2_hits'] + stats['l2_misses']}")
-print(f"总命中率: {stats['total_hits']}/{stats['total_requests']}")
+if cache.backend_type == "memory":
+    print(f"L1: {stats['l1'].item_count}项, 命中率 {stats['l1'].hit_rate:.2%}")
+    print(f"L2: {stats['l2'].item_count}项, 命中率 {stats['l2'].hit_rate:.2%}")
 ```
+
+### Redis 缓存统计
+
+```python
+if cache.backend_type == "redis":
+    print(f"命中率: {stats['hit_rate']:.2%}")
+    print(f"键数量: {stats['key_count']}")
+```
+
+### 检查当前后端类型
+
+```python
+from src.common.database.optimization import get_cache_backend_type
+
+backend = get_cache_backend_type()  # "memory" 或 "redis"
+```
+
+---
 
 ## 最佳实践
 
@@ -150,9 +244,12 @@ print(f"总命中率: {stats['total_hits']}/{stats['total_requests']}")
 ### 4. 监控缓存效果
 
 定期检查缓存统计：
-- 命中率 > 70% - 缓存效果良好
-- 命中率 50-70% - 可以优化 TTL 或缓存策略
-- 命中率 < 50% - 考虑是否需要缓存该查询
+
+- 命中率 > 70% - 缓存效果良好 ✅
+- 命中率 50-70% - 可以优化 TTL 或缓存策略 ⚠️
+- 命中率 < 50% - 考虑是否需要缓存该查询 ❌
+
+---
 
 ## 性能提升数据
 
@@ -166,16 +263,22 @@ print(f"总命中率: {stats['total_hits']}/{stats['total_requests']}")
 
 1. **缓存一致性**: 更新数据后务必使缓存失效
 2. **内存占用**: 监控缓存大小，避免占用过多内存
-3. **序列化**: 缓存的对象需要可序列化（SQLAlchemy 模型实例可能需要特殊处理）
-4. **并发安全**: MultiLevelCache 是线程安全和协程安全的
+3. **序列化**: 缓存的对象需要可序列化
+   - 内存缓存：直接存储 Python 对象
+   - Redis 缓存：默认使用 JSON，复杂对象自动回退到 Pickle
+4. **并发安全**: 两种后端都是协程安全的
+5. **无自动回退**: Redis 连接失败时会抛出异常，不会自动回退到内存缓存（确保配置正确）
+
+---
 
 ## 故障排除
 
 ### 缓存未生效
 
-1. 检查是否正确导入装饰器
-2. 确认 TTL 设置合理
-3. 查看日志中的 "缓存命中" 消息
+1. 检查 `enable_database_cache = true`
+2. 检查是否正确导入装饰器
+3. 确认 TTL 设置合理
+4. 查看日志中的缓存消息
 
 ### 数据不一致
 
@@ -183,14 +286,24 @@ print(f"总命中率: {stats['total_hits']}/{stats['total_requests']}")
 2. 确认缓存键生成逻辑一致
 3. 考虑缩短 TTL 时间
 
-### 内存占用过高
+### 内存占用过高（内存缓存）
 
 1. 检查缓存统计中的项数
-2. 调整 L1/L2 缓存大小（在 cache_manager.py 中配置）
+2. 调整 L1/L2 缓存大小
 3. 缩短 TTL 加快驱逐
+
+### Redis 连接失败
+
+1. 检查 Redis 服务是否运行
+2. 确认连接参数（host/port/password）
+3. 检查防火墙/网络设置
+4. 查看日志中的错误信息
+
+---
 
 ## 扩展阅读
 
-- [数据库优化指南](./database_optimization_guide.md)
-- [多级缓存实现](../src/common/database/optimization/cache_manager.py)
-- [装饰器文档](../src/common/database/utils/decorators.py)
+- [缓存后端抽象](../src/common/database/optimization/cache_backend.py)
+- [内存缓存实现](../src/common/database/optimization/cache_manager.py)
+- [Redis 缓存实现](../src/common/database/optimization/redis_cache.py)
+- [缓存装饰器](../src/common/database/utils/decorators.py)

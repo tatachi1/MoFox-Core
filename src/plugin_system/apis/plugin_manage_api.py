@@ -217,7 +217,7 @@ async def load_plugin(plugin_name: str) -> bool:
         logger.info(f"插件 '{plugin_name}' 加载成功。")
     else:
         logger.error(f"插件 '{plugin_name}' 加载失败。")
-    
+
     return success
 
 

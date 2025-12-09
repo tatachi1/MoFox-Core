@@ -15,7 +15,6 @@ from sqlalchemy import and_, asc, desc, func, or_, select
 
 # 导入 CRUD 辅助函数以避免重复定义
 from src.common.database.api.crud import _dict_to_model, _model_to_dict
-from src.common.database.core.models import Base
 from src.common.database.core.session import get_db_session
 from src.common.database.optimization import get_cache
 from src.common.logger import get_logger
@@ -349,6 +348,7 @@ class QueryBuilder(Generic[T]):
             记录数量
         """
         cache_key = ":".join(self._cache_key_parts) + ":count"
+        count_stmt = select(func.count()).select_from(self._stmt.subquery())
 
         # 尝试从缓存获取
         if self._use_cache:
@@ -358,8 +358,6 @@ class QueryBuilder(Generic[T]):
                 return cached
 
         # 构建count查询
-        count_stmt = select(func.count()).select_from(self._stmt.subquery())
-
         # 从数据库查询
         async with get_db_session() as session:
             result = await session.execute(count_stmt)

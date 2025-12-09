@@ -99,36 +99,36 @@ class QAManager:
             # It seems kg_search expects the first element to be a tuple of strings?
             # But the implementation uses it as a hash key to look up in store.
             # Let's look at kg_manager.py again.
-            
+
             # In kg_manager.py:
             # def kg_search(self, relation_search_result: list[tuple[tuple[str, str, str], float]], ...)
             # ...
             # for relation_hash, similarity in relation_search_result:
             #    relation_item = embed_manager.relation_embedding_store.store.get(relation_hash)
-            
+
             # Wait, I just fixed kg_manager.py to:
             # for relation_hash, similarity in relation_search_result:
-            
+
             # So it expects a tuple of 2 elements?
             # But search_top_k returns (id, score, vector).
             # So relation_search_res is list[tuple[Any, float, float]].
-            
+
             # I need to adapt the data or cast it.
             # If I pass it directly, it has 3 elements.
             # If kg_manager expects 2, I should probably slice it.
-            
+
             # Let's cast it for now to silence the error, assuming the runtime behavior is compatible (unpacking first 2 of 3 is fine in python if not strict, but here it is strict unpacking in loop?)
             # In kg_manager.py I changed it to:
             # for relation_hash, similarity in relation_search_result:
             # This will fail if the tuple has 3 elements! "too many values to unpack"
-            
+
             # So I should probably fix the data passed to kg_search to be list[tuple[str, float]].
-            
+
             relation_search_result_for_kg = [(str(res[0]), float(res[1])) for res in relation_search_res]
-            
+
             result, ppr_node_weights = self.kg_manager.kg_search(
                 cast(list[tuple[tuple[str, str, str], float]], relation_search_result_for_kg), # The type hint in kg_manager is weird, but let's match it or cast to Any
-                paragraph_search_res, 
+                paragraph_search_res,
                 self.embed_manager
             )
             part_end_time = time.perf_counter()

@@ -610,7 +610,7 @@ class ExpressionSelector:
         # 4. 调用LLM
         try:
             # start_time = time.time()
-            content, (reasoning_content, model_name, _) = await self.llm_model.generate_response_async(prompt=prompt)
+            content, (_reasoning_content, _model_name, _) = await self.llm_model.generate_response_async(prompt=prompt)
 
             if not content:
                 logger.warning("LLM返回空结果")

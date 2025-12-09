@@ -5,19 +5,15 @@ from __future__ import annotations
 import base64
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
-import uuid
+from typing import TYPE_CHECKING, Any
 
-from mofox_wire import MessageBuilder
+from mofox_wire import (
+    MessageBuilder,
+    SegPayload,
+)
+
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api
-from mofox_wire import (
-    MessageEnvelope,
-    SegPayload,
-    MessageInfoPayload,
-    UserInfoPayload,
-    GroupInfoPayload,
-)
 
 from ...event_models import ACCEPT_FORMAT, QQ_FACE, RealMessageType
 from ..utils import *
@@ -33,13 +29,13 @@ class MessageHandler:
 
     def __init__(self, adapter: "NapcatAdapter"):
         self.adapter = adapter
-        self.plugin_config: Optional[Dict[str, Any]] = None
+        self.plugin_config: dict[str, Any] | None = None
 
-    def set_plugin_config(self, config: Dict[str, Any]) -> None:
+    def set_plugin_config(self, config: dict[str, Any]) -> None:
         """设置插件配置"""
         self.plugin_config = config
 
-    async def handle_raw_message(self, raw: Dict[str, Any]):
+    async def handle_raw_message(self, raw: dict[str, Any]):
         """
         处理原始消息并转换为 MessageEnvelope
 
@@ -48,7 +44,7 @@ class MessageHandler:
 
         Returns:
             MessageEnvelope (dict) or None
-        
+
         Note:
             黑白名单过滤已移动到 NapcatAdapter.from_platform_message 顶层执行，
             确保所有类型的事件（消息、通知等）都能被统一过滤。
@@ -95,7 +91,7 @@ class MessageHandler:
 
         # 解析消息段
         message_segments = raw.get("message", [])
-        seg_list: List[SegPayload] = []
+        seg_list: list[SegPayload] = []
 
         for segment in message_segments:
             seg_message = await self.handle_single_segment(segment, raw)
@@ -158,7 +154,7 @@ class MessageHandler:
                 return await self._handle_json_message(segment)
             case RealMessageType.file:
                 return await self._handle_file_message(segment)
-    
+
             case _:
                 logger.warning(f"Unsupported segment type: {seg_type}")
                 return None
@@ -189,7 +185,7 @@ class MessageHandler:
         try:
             image_base64 = await get_image_base64(message_data.get("url", ""))
         except Exception as e:
-            logger.error(f"图片消息处理失败: {str(e)}")
+            logger.error(f"图片消息处理失败: {e!s}")
             return None
         if image_sub_type == 0:
             return {"type": "image", "data": image_base64}
@@ -241,7 +237,7 @@ class MessageHandler:
             return {"type": "text", "data": "[无法获取被引用的消息]"}
 
         # 递归处理被引用的消息
-        reply_segments: List[SegPayload] = []
+        reply_segments: list[SegPayload] = []
         for reply_seg in message_detail.get("message", []):
             if isinstance(reply_seg, dict):
                 reply_result = await self.handle_single_segment(reply_seg, raw_message, in_reply=True)
@@ -280,7 +276,7 @@ class MessageHandler:
                 return None
             audio_base64 = record_detail.get("base64", "")
         except Exception as e:
-            logger.error(f"语音消息处理失败: {str(e)}")
+            logger.error(f"语音消息处理失败: {e!s}")
             return None
 
         if not audio_base64:
@@ -344,7 +340,7 @@ class MessageHandler:
                 return None
 
         except Exception as e:
-            logger.error(f"视频消息处理失败: {str(e)}")
+            logger.error(f"视频消息处理失败: {e!s}")
             return None
 
     async def _handle_rps_message(self, segment: dict) -> SegPayload:
@@ -400,7 +396,7 @@ class MessageHandler:
                 try:
                     encoded_image = await get_image_base64(image_url)
                 except Exception as e:
-                    logger.error(f"图片处理失败: {str(e)}")
+                    logger.error(f"图片处理失败: {e!s}")
                     return {"type": "text", "data": "[图片]"}
                 return {"type": "image", "data": encoded_image}
             if seg_data.get("type") == "emoji":
@@ -408,7 +404,7 @@ class MessageHandler:
                 try:
                     encoded_image = await get_image_base64(image_url)
                 except Exception as e:
-                    logger.error(f"图片处理失败: {str(e)}")
+                    logger.error(f"图片处理失败: {e!s}")
                     return {"type": "text", "data": "[表情包]"}
                 return {"type": "emoji", "data": encoded_image}
             logger.debug(f"不处理类型: {seg_data.get('type')}")
@@ -421,7 +417,7 @@ class MessageHandler:
         logger.debug(f"不处理类型: {seg_data.get('type')}")
         return seg_data
 
-    async def _handle_forward_message(self, message_list: list, layer: int) -> Tuple[SegPayload | None, int]:
+    async def _handle_forward_message(self, message_list: list, layer: int) -> tuple[SegPayload | None, int]:
         # sourcery skip: low-code-quality
         """
         递归处理实际转发消息
@@ -432,7 +428,7 @@ class MessageHandler:
             seg_data: Seg: 处理后的消息段
             image_count: int: 图片数量
         """
-        seg_list: List[SegPayload] = []
+        seg_list: list[SegPayload] = []
         image_count = 0
         if message_list is None:
             return None, 0
@@ -441,7 +437,7 @@ class MessageHandler:
             user_nickname: str = sender_info.get("nickname", "QQ用户")
             user_nickname_str = f"【{user_nickname}】:"
             break_seg: SegPayload = {"type": "text", "data": "\n"}
-            message_of_sub_message_list: List[Dict[str, Any]] = sub_message.get("message")
+            message_of_sub_message_list: list[dict[str, Any]] = sub_message.get("message")
             if not message_of_sub_message_list:
                 logger.warning("转发消息内容为空")
                 continue
@@ -475,7 +471,7 @@ class MessageHandler:
                 text_message = sub_message_data.get("text")
                 seg_data: SegPayload = {"type": "text", "data": text_message}
                 nickname_prefix = ("--" * layer) + user_nickname_str if layer > 0 else user_nickname_str
-                data_list: List[SegPayload] = [
+                data_list: list[SegPayload] = [
                     {"type": "text", "data": nickname_prefix},
                     seg_data,
                     break_seg,
@@ -607,7 +603,7 @@ class MessageHandler:
                         "data": f"这是一条小程序分享消息，可以根据来源，考虑使用对应解析工具\n{formatted_content}",
                     }
 
-                    
+
 
             # 检查是否是音乐分享 (QQ音乐类型)
             if nested_data.get("view") == "music" and "com.tencent.music" in str(nested_data.get("app", "")):
@@ -677,7 +673,7 @@ class MessageHandler:
         except Exception as e:
             logger.error(f"处理JSON消息时发生未知错误: {e}")
             return None
-        
+
     def _is_file_upload_echo(self, nested_data: Any) -> bool:
         """检查一个JSON对象是否是机器人自己上传文件的回声消息"""
         if not isinstance(nested_data, dict):
@@ -699,26 +695,26 @@ class MessageHandler:
 
         return False
 
-    def _extract_file_info_from_echo(self, nested_data: dict) -> Optional[dict]:
+    def _extract_file_info_from_echo(self, nested_data: dict) -> dict | None:
         """从文件上传的回声消息中提取文件信息"""
         try:
             meta = nested_data.get("meta", {})
             detail_1 = meta.get("detail_1", {})
-            
+
             # 文件名在 'desc' 字段
             file_name = detail_1.get("desc")
-            
+
             # 文件大小在 'summary' 字段，格式为 "大小：1.7MB"
             summary = detail_1.get("summary", "")
             file_size_str = summary.replace("大小：", "").strip() # 移除前缀和空格
-            
+
             # QQ API有时返回的大小不标准，这里我们只提取它给的字符串
             # 实际大小已经由Napcat在发送时记录，这里主要是为了保持格式一致
-            
+
             if file_name and file_size_str:
                 return {"file": file_name, "file_size": file_size_str, "file_id": None} # file_id在回声中不可用
         except Exception as e:
             logger.error(f"从文件回声中提取信息失败: {e}")
-            
+
         return None
-      
+

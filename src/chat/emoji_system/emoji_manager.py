@@ -415,7 +415,6 @@ class EmojiManager:
         self.emoji_num_max = global_config.emoji.max_reg_num
         self.emoji_num_max_reach_deletion = global_config.emoji.do_replace
         self.emoji_objects: list[MaiEmoji] = []  # 存储MaiEmoji对象的列表，使用类型注解明确列表元素类型
-        logger.info("启动表情包管理器")
         _ensure_emoji_dir()
         self._initialized = True
         logger.info("启动表情包管理器")
@@ -531,8 +530,8 @@ class EmojiManager:
 
             # 4. 调用LLM进行决策
             decision, _ = await self.llm_emotion_judge.generate_response_async(prompt, temperature=0.5, max_tokens=20)
-            logger.info(f"LLM选择的描述: {text_emotion}")
-            logger.info(f"LLM决策结果: {decision}")
+            logger.debug(f"LLM选择的描述: {text_emotion}")
+            logger.debug(f"LLM决策结果: {decision}")
 
             # 5. 解析LLM的决策结果
             match = re.search(r"(\d+)", decision)
@@ -773,7 +772,7 @@ class EmojiManager:
             # 先从内存中查找
             emoji = await self.get_emoji_from_manager(emoji_hash)
             if emoji and emoji.emotion:
-                logger.info(f"[缓存命中] 从内存获取表情包描述: {emoji.emotion}...")
+                logger.debug(f"[缓存命中] 从内存获取表情包描述: {emoji.emotion}...")
                 return ",".join(emoji.emotion)
 
             # 如果内存中没有，从数据库查找
@@ -781,7 +780,7 @@ class EmojiManager:
                 emoji_record = await self.get_emoji_from_db(emoji_hash)
                 if emoji_record and emoji_record[0].emotion:
                     emotion_str = ",".join(emoji_record[0].emotion)
-                    logger.info(f"[缓存命中] 从数据库获取表情包描述: {emotion_str[:50]}...")
+                    logger.debug(f"[缓存命中] 从数据库获取表情包描述: {emotion_str[:50]}...")
                     return emotion_str
             except Exception as e:
                 logger.error(f"从数据库查询表情包描述时出错: {e}")
@@ -806,7 +805,7 @@ class EmojiManager:
             # 先从内存中查找
             emoji = await self.get_emoji_from_manager(emoji_hash)
             if emoji and emoji.description:
-                logger.info(f"[缓存命中] 从内存获取表情包描述: {emoji.description[:50]}...")
+                logger.debug(f"[缓存命中] 从内存获取表情包描述: {emoji.description[:50]}...")
                 return emoji.description
 
             # 如果内存中没有，从数据库查找（使用 QueryBuilder 启用数据库缓存）
@@ -815,7 +814,7 @@ class EmojiManager:
 
                 emoji_record = cast(Emoji | None, await QueryBuilder(Emoji).filter(emoji_hash=emoji_hash).first())
                 if emoji_record and emoji_record.description:
-                    logger.info(f"[缓存命中] 从数据库获取表情包描述: {emoji_record.description[:50]}...")
+                    logger.debug(f"[缓存命中] 从数据库获取表情包描述: {emoji_record.description[:50]}...")
                     return emoji_record.description
             except Exception as e:
                 logger.error(f"从数据库查询表情包描述时出错: {e}")
@@ -1122,7 +1121,7 @@ class EmojiManager:
                 if emoji_base64 is None:  # 再次检查读取
                     logger.error(f"[注册失败] 无法读取图片以生成描述: {filename}")
                     return False
-                
+
                 # 等待描述生成完成
                 description, emotions = await self.build_emoji_description(emoji_base64)
 
@@ -1135,7 +1134,7 @@ class EmojiManager:
                     except Exception as e:
                         logger.error(f"[错误] 删除描述生成失败文件时出错: {e!s}")
                     return False
-                
+
                 new_emoji.description = description
                 new_emoji.emotion = emotions
             except Exception as build_desc_error:

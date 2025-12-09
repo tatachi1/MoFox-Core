@@ -38,8 +38,11 @@ connection_timeout = 10 # 连接超时时间（秒）
 # 批量动作记录存储配置
 batch_action_storage_enabled = true # 是否启用批量保存动作记录（开启后将多个动作一次性写入数据库，提升性能）
 
-# 数据库缓存配置（防止内存溢出）
+# 数据库缓存配置
 enable_database_cache = true # 是否启用数据库查询缓存系统
+cache_backend = "memory" # 缓存后端类型: "memory"(内存缓存) 或 "redis"(Redis缓存)
+
+# 内存缓存配置（cache_backend = "memory" 时生效）
 cache_l1_max_size = 1000 # L1缓存最大条目数（热数据，内存占用约1-5MB）
 cache_l1_ttl = 300 # L1缓存生存时间（秒）
 cache_l2_max_size = 10000 # L2缓存最大条目数（温数据，内存占用约10-50MB）
@@ -47,6 +50,17 @@ cache_l2_ttl = 1800 # L2缓存生存时间（秒）
 cache_cleanup_interval = 60 # 缓存清理任务执行间隔（秒）
 cache_max_memory_mb = 10 # 缓存最大内存占用（MB），超过此值将触发强制清理
 cache_max_item_size_mb = 1 # 单个缓存条目最大大小（MB），超过此值将不缓存
+
+# Redis缓存配置（cache_backend = "redis" 时生效）
+redis_host = "localhost" # Redis服务器地址
+redis_port = 6379 # Redis服务器端口
+redis_password = "" # Redis密码（留空表示无密码）
+redis_db = 0 # Redis数据库编号 (0-15)
+redis_key_prefix = "mofox:" # Redis缓存键前缀（用于区分不同应用）
+redis_default_ttl = 600 # Redis默认缓存过期时间（秒）
+redis_connection_pool_size = 10 # Redis连接池大小
+redis_socket_timeout = 5.0 # Redis socket超时时间（秒）
+redis_ssl = false # 是否启用Redis SSL连接
 
 [permission] # 权限系统配置
 # Master用户配置（拥有最高权限，无视所有权限节点）

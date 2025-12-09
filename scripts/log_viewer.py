@@ -31,6 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # 切换工作目录到项目根目录
 import os
+
 os.chdir(PROJECT_ROOT)
 
 # 日志目录

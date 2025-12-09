@@ -8,7 +8,7 @@ from typing import Any
 
 import orjson
 from mofox_wire import MessageEnvelope
-from mofox_wire.types import MessageInfoPayload, SegPayload, UserInfoPayload, GroupInfoPayload
+from mofox_wire.types import GroupInfoPayload, MessageInfoPayload, SegPayload, UserInfoPayload
 
 from src.chat.utils.self_voice_cache import consume_self_voice_text
 from src.chat.utils.utils_image import get_image_manager
@@ -40,7 +40,7 @@ async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: st
     # 提取核心数据（使用 TypedDict 类型）
     message_info: MessageInfoPayload = message_dict.get("message_info", {})  # type: ignore
     message_segment: SegPayload | list[SegPayload] = message_dict.get("message_segment", {"type": "text", "data": ""})  # type: ignore
-    
+
     # 初始化处理状态
     processing_state = {
         "is_emoji": False,
@@ -154,8 +154,8 @@ async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: st
 
 
 async def _process_message_segments(
-    segment: SegPayload | list[SegPayload], 
-    state: dict, 
+    segment: SegPayload | list[SegPayload],
+    state: dict,
     message_info: MessageInfoPayload
 ) -> str:
     """递归处理消息段，转换为文字描述
@@ -176,12 +176,12 @@ async def _process_message_segments(
             if processed:
                 segments_text.append(processed)
         return " ".join(segments_text)
-    
+
     # 如果是单个段
     if isinstance(segment, dict):
         seg_type = segment.get("type", "")
         seg_data = segment.get("data")
-        
+
         # 处理 seglist 类型
         if seg_type == "seglist" and isinstance(seg_data, list):
             segments_text = []
@@ -190,16 +190,16 @@ async def _process_message_segments(
                 if processed:
                     segments_text.append(processed)
             return " ".join(segments_text)
-        
+
         # 处理其他类型
         return await _process_single_segment(segment, state, message_info)
-    
+
     return ""
 
 
 async def _process_single_segment(
-    segment: SegPayload, 
-    state: dict, 
+    segment: SegPayload,
+    state: dict,
     message_info: MessageInfoPayload
 ) -> str:
     """处理单个消息段
@@ -214,7 +214,7 @@ async def _process_single_segment(
     """
     seg_type = segment.get("type", "")
     seg_data = segment.get("data")
-    
+
     try:
         if seg_type == "text":
             return str(seg_data) if seg_data else ""
@@ -308,7 +308,6 @@ async def _process_single_segment(
                         filename = seg_data.get("filename", "video.mp4")
 
                         logger.info(f"视频文件名: {filename}")
-                        logger.info(f"Base64数据长度: {len(video_base64) if video_base64 else 0}")
 
                         if video_base64:
                             # 解码base64视频数据
@@ -352,9 +351,9 @@ async def _process_single_segment(
 
 
 def _prepare_additional_config(
-    message_info: MessageInfoPayload, 
-    is_notify: bool, 
-    is_public_notice: bool, 
+    message_info: MessageInfoPayload,
+    is_notify: bool,
+    is_public_notice: bool,
     notice_type: str | None
 ) -> str | None:
     """准备 additional_config，包含 format_info 和 notice 信息
@@ -424,26 +423,26 @@ def _extract_reply_from_segment(segment: SegPayload | list[SegPayload]) -> str |
                 if reply_id:
                     return reply_id
             return None
-        
+
         # 如果是字典
         if isinstance(segment, dict):
             seg_type = segment.get("type", "")
             seg_data = segment.get("data")
-            
+
             # 如果是 seglist，递归搜索
             if seg_type == "seglist" and isinstance(seg_data, list):
                 for sub_seg in seg_data:
                     reply_id = _extract_reply_from_segment(sub_seg)
                     if reply_id:
                         return reply_id
-            
+
             # 如果是 reply 段，返回 message_id
             elif seg_type == "reply":
                 return str(seg_data) if seg_data else None
-                
+
     except Exception as e:
         logger.warning(f"提取reply_to信息失败: {e}")
-    
+
     return None
 
 
@@ -493,10 +492,10 @@ def get_message_info_from_db_message(db_message: DatabaseMessages) -> MessageInf
         "time": db_message.time,
         "user_info": user_info,
     }
-    
+
     if group_info:
         message_info["group_info"] = group_info
-    
+
     if additional_config:
         message_info["additional_config"] = additional_config
 

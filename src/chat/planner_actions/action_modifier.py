@@ -12,10 +12,9 @@ from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.plugin_system.base.component_types import ActionInfo
 
-
 if TYPE_CHECKING:
-    from src.common.data_models.message_manager_data_model import StreamContext
     from src.chat.message_receive.chat_stream import ChatStream
+    from src.common.data_models.message_manager_data_model import StreamContext
 
 logger = get_logger("action_manager")
 
@@ -68,7 +67,7 @@ class ActionModifier:
         2. 基于激活类型的智能动作判定，最终确定可用动作集
 
         处理后，ActionManager 将包含最终的可用动作集，供规划器直接使用
-        
+
         Args:
             message_content: 消息内容
             chatter_name: 当前使用的 Chatter 名称，用于过滤只允许特定 Chatter 使用的动作
@@ -108,7 +107,7 @@ class ActionModifier:
         for action_name in list(all_actions.keys()):
             if action_name in all_registered_actions:
                 action_info = all_registered_actions[action_name]
-                
+
                 # 检查聊天类型限制
                 chat_type_allow = getattr(action_info, "chat_type_allow", ChatType.ALL)
                 should_keep_chat_type = (
@@ -116,12 +115,12 @@ class ActionModifier:
                     or (chat_type_allow == ChatType.GROUP and is_group_chat)
                     or (chat_type_allow == ChatType.PRIVATE and not is_group_chat)
                 )
-                
+
                 if not should_keep_chat_type:
                     removals_s0.append((action_name, f"不支持{'群聊' if is_group_chat else '私聊'}"))
                     self.action_manager.remove_action_from_using(action_name)
                     continue
-                
+
                 # 检查 Chatter 限制
                 chatter_allow = getattr(action_info, "chatter_allow", [])
                 if chatter_allow and chatter_name:
@@ -132,7 +131,7 @@ class ActionModifier:
                         continue
 
         if removals_s0:
-            logger.info(f"{self.log_prefix} 第0阶段：类型/Chatter过滤 - 移除了 {len(removals_s0)} 个动作")
+            logger.info(f"{self.log_prefix} 第0阶段：类型Chatter过滤 - 移除了 {len(removals_s0)} 个动作")
             for action_name, reason in removals_s0:
                 logger.debug(f"{self.log_prefix} - 移除 {action_name}: {reason}")
 

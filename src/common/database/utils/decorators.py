@@ -10,7 +10,7 @@ import asyncio
 import functools
 import hashlib
 import time
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from typing import Any, ParamSpec, TypeVar
 
 from sqlalchemy.exc import DBAPIError, OperationalError

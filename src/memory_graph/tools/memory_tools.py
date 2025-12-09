@@ -83,7 +83,7 @@ class MemoryTools:
         self.search_min_importance = search_min_importance
         self.search_similarity_threshold = search_similarity_threshold
 
-        logger.debug(f"MemoryTools 初始化完成")
+        logger.debug("MemoryTools 初始化完成")
 
         # 初始化组件
         self.extractor = MemoryExtractor()
@@ -799,7 +799,7 @@ class MemoryTools:
 
             # 按综合分数排序
             memories_with_scores.sort(key=lambda x: x[1], reverse=True)
-            memories = [mem for mem, _, _ in memories_with_scores[:top_k]]
+            [mem for mem, _, _ in memories_with_scores[:top_k]]
 
             # 统计过滤情况
             total_candidates = len(all_memory_ids)
@@ -825,7 +825,7 @@ class MemoryTools:
                 filter_rate = filtered_count / total_candidates
                 if filter_rate > 0.5:  # 降低警告阈值到50%
                     logger.warning(
-                        f"⚠️ 过滤率较高 ({filter_rate*100:.1f}%)！"
+                        f"过滤率较高 ({filter_rate*100:.1f}%)！"
                         f"原因：{filter_stats['importance']}个记忆重要性 < {self.search_min_importance}。"
                         f"建议：1) 降低 min_importance 阈值，或 2) 检查记忆质量评分"
                     )
@@ -856,7 +856,7 @@ class MemoryTools:
         简化版多查询生成（直接在 Tools 层实现，避免循环依赖）
 
         让小模型直接生成3-5个不同角度的查询语句，并识别偏好的节点类型。
-        
+
         Returns:
             (查询列表, 偏好节点类型列表)
         """
