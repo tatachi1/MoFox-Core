@@ -1799,8 +1799,9 @@ class DefaultReplyer:
             )
 
             if content:
-                # 移除 [SPLIT] 标记，防止消息被分割
-                content = content.replace("[SPLIT]", "")
+                if not global_config.response_splitter.enable or global_config.response_splitter.split_mode != 'llm':
+                    # 移除 [SPLIT] 标记，防止消息被分割
+                    content = content.replace("[SPLIT]", "")
 
                 # 应用统一的格式过滤器
                 from src.chat.utils.utils import filter_system_format_content
