@@ -178,6 +178,10 @@ class ChatterActionPlanner:
                 message.interest_calculated = True
                 interest_updates[message_id] = result.interest_value
                 reply_updates[message_id] = result.should_reply
+        
+                # 批量处理后清理 embeddings 字典
+                embeddings.clear()
+                text_map.clear()
             else:
                 message.interest_calculated = False
 

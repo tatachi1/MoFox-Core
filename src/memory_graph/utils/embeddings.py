@@ -117,7 +117,13 @@ class EmbeddingGenerator:
             # 调用 API
             embedding_list, model_name = await self._llm_request.get_embedding(text)
 
-            if embedding_list and len(embedding_list) > 0:
+            # 兼容返回 np.ndarray 或 Python list
+            if isinstance(embedding_list, np.ndarray):
+                if embedding_list.size > 0:
+                    embedding = np.array(embedding_list, dtype=np.float32)
+                    logger.debug(f"🌐 API 生成嵌入: {text[:30]}... -> {len(embedding)}维 (模型: {model_name})")
+                    return embedding
+            elif embedding_list and len(embedding_list) > 0:
                 embedding = np.array(embedding_list, dtype=np.float32)
                 logger.debug(f"🌐 API 生成嵌入: {text[:30]}... -> {len(embedding)}维 (模型: {model_name})")
                 return embedding
@@ -187,12 +193,17 @@ class EmbeddingGenerator:
                 return None
 
             embeddings, model_name = await self._llm_request.get_embedding(texts)
-            if not embeddings:
+            if embeddings is None:
                 return None
 
             results: list[np.ndarray | None] = []
             for emb in embeddings:
-                if emb:
+                if isinstance(emb, np.ndarray):
+                    if emb.size > 0:
+                        results.append(np.array(emb, dtype=np.float32))
+                    else:
+                        results.append(None)
+                elif emb:
                     results.append(np.array(emb, dtype=np.float32))
                 else:
                     results.append(None)
