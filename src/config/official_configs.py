@@ -213,6 +213,12 @@ class ExpressionConfig(ValidatedConfigBase):
         default="classic",
         description="表达方式选择模式: classic=经典LLM评估, exp_model=机器学习模型预测"
     )
+    model_temperature: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=5.0,
+        description="表达模型采样温度，0为贪婪，值越大越容易采样到低分表达"
+    )
     expiration_days: int = Field(
         default=90,
         description="表达方式过期天数，超过此天数未激活的表达方式将被清理"
@@ -1009,4 +1015,3 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
         default_factory=KokoroFlowChatterProactiveConfig,
         description="私聊专属主动思考配置"
     )
-
