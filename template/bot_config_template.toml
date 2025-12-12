@@ -1,5 +1,5 @@
 [inner]
-version = "7.9.9"
+version = "8.0.0"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -537,8 +537,8 @@ s4u_blacklist_chats = []
 [affinity_flow]
 enable_normal_mode = true # 是否启用 Normal 聊天模式。启用后，在专注模式回复后会自动切换，并根据兴趣度决定是否回复，以实现更快速的回复。
 # 兴趣评分系统参数
-reply_action_interest_threshold = 0.7 # 回复动作兴趣阈值
-non_reply_action_interest_threshold = 0.6 # 非回复动作兴趣阈值
+reply_action_interest_threshold = 0.75 # 回复动作兴趣阈值
+non_reply_action_interest_threshold = 0.65 # 非回复动作兴趣阈值
 
 # 回复决策系统参数
 no_reply_threshold_adjustment = 0.02 # 不回复兴趣阈值调整值
