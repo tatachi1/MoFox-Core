@@ -28,6 +28,8 @@ from collections.abc import Callable, Coroutine
 from enum import Enum
 from typing import Any, ClassVar, Literal
 
+import numpy as np
+
 from rich.traceback import install
 
 from src.common.logger import get_logger
@@ -1170,7 +1172,8 @@ class LLMRequest:
             if not isinstance(embeddings, list):
                 raise RuntimeError("获取embedding失败，批量结果格式异常")
 
-            if embeddings and not isinstance(embeddings[0], list):
+            # embeddings 正常应该是 list[vector]；如果 provider 返回了一维列表（单向量），只在这种情况下套一层
+            if embeddings and not isinstance(embeddings[0], (list, tuple, np.ndarray)):
                 embeddings = [embeddings]  # type: ignore[list-item]
 
             # 批量请求返回二维列表

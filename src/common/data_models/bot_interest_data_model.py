@@ -6,18 +6,24 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+import numpy as np
+
 from src.config.config import model_config
 from . import BaseDataModel
 
 
 @dataclass
 class BotInterestTag(BaseDataModel):
-    """机器人兴趣标签"""
+    """机器人兴趣标签
+    
+    embedding 字段支持 NumPy 数组格式，减少对象分配
+    """
 
     tag_name: str
     weight: float = 1.0  # 权重，表示对这个兴趣的喜好程度 (0.0-1.0)
     expanded: str | None = None  # 标签的扩展描述，用于更精准的语义匹配
-    embedding: list[float] | None = None  # 标签的embedding向量
+    embedding: np.ndarray | list[float] | None = None  # 标签的embedding向量（支持 NumPy 数组）
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     is_active: bool = True

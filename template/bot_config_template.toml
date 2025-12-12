@@ -1,5 +1,5 @@
 [inner]
-version = "7.9.9"
+version = "8.0.0"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -103,7 +103,7 @@ command_prefixes = ['/']
 
 [personality]
 # 建议50字以内，描述人格的核心特质
-personality_core = "是一个积极向上的女大学生" 
+personality_core = "是一个积极向上的女大学生"
 # 人格的细节，描述人格的一些侧面
 personality_side = "用一句话或几句话描述人格的侧面特质"
 #アイデンティティがない 生まれないらららら
@@ -134,6 +134,8 @@ compress_identity = false # 是否压缩身份，压缩后会精简身份信息�
 #   - "classic": 经典模式，随机抽样 + LLM选择
 #   - "exp_model": 表达模型模式，使用机器学习模型预测最合适的表达
 mode = "classic"
+# model_temperature: 机器预测模式下的“温度”，0 为贪婪，越大越爱探索（更容易选到低分表达）
+model_temperature = 1.0
 
 # expiration_days: 表达方式过期天数，超过此天数未激活的表达方式将被清理
 expiration_days = 1
@@ -311,6 +313,7 @@ short_term_search_top_k = 5 # 搜索时返回的最大数量
 short_term_decay_factor = 0.98 # 衰减因子
 
 # 长期记忆层配置
+use_judge = true # 使用评判模型决定是否检索长期记忆
 long_term_batch_size = 10 # 批量转移大小
 long_term_decay_factor = 0.95 # 衰减因子
 long_term_auto_transfer_interval = 180 # 自动转移间隔（秒）
@@ -425,7 +428,7 @@ auto_install = true #it can work now!
 auto_install_timeout = 300
 # 是否使用PyPI镜像源（推荐，可加速下载）
 use_mirror = true
-mirror_url = "https://pypi.tuna.tsinghua.edu.cn/simple" # PyPI镜像源URL，如: "https://pypi.tuna.tsinghua.edu.cn/simple" 
+mirror_url = "https://pypi.tuna.tsinghua.edu.cn/simple" # PyPI镜像源URL，如: "https://pypi.tuna.tsinghua.edu.cn/simple"
 # 依赖安装日志级别
 install_log_level = "INFO"
 
@@ -536,14 +539,6 @@ enable_normal_mode = true # 是否启用 Normal 聊天模式。启用后，在�
 # 兴趣评分系统参数
 reply_action_interest_threshold = 0.75 # 回复动作兴趣阈值
 non_reply_action_interest_threshold = 0.65 # 非回复动作兴趣阈值
-high_match_interest_threshold = 0.6 # 高匹配兴趣阈值
-medium_match_interest_threshold = 0.4 # 中匹配兴趣阈值
-low_match_interest_threshold = 0.2 # 低匹配兴趣阈值
-high_match_keyword_multiplier = 4 # 高匹配关键词兴趣倍率
-medium_match_keyword_multiplier = 2.5 # 中匹配关键词兴趣倍率
-low_match_keyword_multiplier = 1.15 # 低匹配关键词兴趣倍率
-match_count_bonus = 0.01 # 匹配数关键词加成值
-max_match_bonus = 0.1 # 最大匹配数加成值
 
 # 回复决策系统参数
 no_reply_threshold_adjustment = 0.02 # 不回复兴趣阈值调整值

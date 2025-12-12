@@ -213,6 +213,12 @@ class ExpressionConfig(ValidatedConfigBase):
         default="classic",
         description="表达方式选择模式: classic=经典LLM评估, exp_model=机器学习模型预测"
     )
+    model_temperature: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=5.0,
+        description="表达模型采样温度，0为贪婪，值越大越容易采样到低分表达"
+    )
     expiration_days: int = Field(
         default=90,
         description="表达方式过期天数，超过此天数未激活的表达方式将被清理"
@@ -508,6 +514,7 @@ class MemoryConfig(ValidatedConfigBase):
     short_term_decay_factor: float = Field(default=0.98, description="衰减因子")
 
     # 长期记忆层配置
+    use_judge: bool = Field(default=True, description="使用评判模型决定是否检索长期记忆")
     long_term_batch_size: int = Field(default=10, description="批量转移大小")
     long_term_decay_factor: float = Field(default=0.95, description="衰减因子")
     long_term_auto_transfer_interval: int = Field(default=60, description="自动转移间隔（秒）")
@@ -796,14 +803,6 @@ class AffinityFlowConfig(ValidatedConfigBase):
     # 兴趣评分系统参数
     reply_action_interest_threshold: float = Field(default=0.4, description="回复动作兴趣阈值")
     non_reply_action_interest_threshold: float = Field(default=0.2, description="非回复动作兴趣阈值")
-    high_match_interest_threshold: float = Field(default=0.8, description="高匹配兴趣阈值")
-    medium_match_interest_threshold: float = Field(default=0.5, description="中匹配兴趣阈值")
-    low_match_interest_threshold: float = Field(default=0.2, description="低匹配兴趣阈值")
-    high_match_keyword_multiplier: float = Field(default=1.5, description="高匹配关键词兴趣倍率")
-    medium_match_keyword_multiplier: float = Field(default=1.2, description="中匹配关键词兴趣倍率")
-    low_match_keyword_multiplier: float = Field(default=1.0, description="低匹配关键词兴趣倍率")
-    match_count_bonus: float = Field(default=0.1, description="匹配数关键词加成值")
-    max_match_bonus: float = Field(default=0.5, description="最大匹配数加成值")
 
     # 回复决策系统参数
     no_reply_threshold_adjustment: float = Field(default=0.1, description="不回复兴趣阈值调整值")
@@ -1009,4 +1008,3 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
         default_factory=KokoroFlowChatterProactiveConfig,
         description="私聊专属主动思考配置"
     )
-

@@ -11,6 +11,7 @@ import asyncio
 import json
 import re
 import uuid
+import json_repair
 from pathlib import Path
 from typing import Any
 
@@ -186,8 +187,8 @@ class ShortTermMemoryManager:
   "importance": 0.7,
   "attributes": {{
     "time": "时间信息",
-    "attribute1": "其他属性1"
-    "attribute2": "其他属性2"
+    "attribute1": "其他属性1",
+    "attribute2": "其他属性2",
     ...
   }}
 }}
@@ -530,7 +531,7 @@ class ShortTermMemoryManager:
             json_str = re.sub(r"//.*", "", json_str)
             json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
 
-            data = json.loads(json_str)
+            data = json_repair.loads(json_str)
             return data
 
         except json.JSONDecodeError as e:

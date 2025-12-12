@@ -7,7 +7,6 @@ from src.plugin_system.base.component_types import (
     CommandInfo,
     ComponentType,
     EventHandlerInfo,
-    InterestCalculatorInfo,
     PlusCommandInfo,
     PromptInfo,
     ToolInfo,
@@ -17,7 +16,6 @@ from .base_action import BaseAction
 from .base_adapter import BaseAdapter
 from .base_command import BaseCommand
 from .base_events_handler import BaseEventHandler
-from .base_interest_calculator import BaseInterestCalculator
 from .base_prompt import BasePrompt
 from .base_tool import BaseTool
 from .plugin_base import PluginBase
@@ -57,15 +55,6 @@ class BasePlugin(PluginBase):
                 return component_class.get_action_info()
             else:
                 logger.warning(f"Action组件 {component_class.__name__} 缺少 get_action_info 方法")
-                return None
-
-        elif component_type == ComponentType.INTEREST_CALCULATOR:
-            if hasattr(component_class, "get_interest_calculator_info"):
-                return component_class.get_interest_calculator_info()
-            else:
-                logger.warning(
-                    f"InterestCalculator组件 {component_class.__name__} 缺少 get_interest_calculator_info 方法"
-                )
                 return None
 
         elif component_type == ComponentType.PLUS_COMMAND:
@@ -123,7 +112,6 @@ class BasePlugin(PluginBase):
         | tuple[PlusCommandInfo, type[PlusCommand]]
         | tuple[EventHandlerInfo, type[BaseEventHandler]]
         | tuple[ToolInfo, type[BaseTool]]
-        | tuple[InterestCalculatorInfo, type[BaseInterestCalculator]]
         | tuple[PromptInfo, type[BasePrompt]]
     ]:
         """获取插件包含的组件列表
