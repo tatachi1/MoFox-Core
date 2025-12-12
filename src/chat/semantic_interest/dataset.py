@@ -346,6 +346,8 @@ class DatasetGenerator:
                 response = response.split("```")[1].split("```")[0].strip()
             
             # 解析JSON
+            import json_repair
+            response = json_repair.repair_json(response)
             data = json.loads(response)
             
             # 验证格式
@@ -416,7 +418,7 @@ class DatasetGenerator:
         messages: list[dict[str, Any]],
         persona_info: dict[str, Any],
         save_path: Path | None = None,
-        batch_size: int = 20,
+        batch_size: int = 50,
     ) -> list[dict[str, Any]]:
         """批量标注消息（真正的批量模式）
         
