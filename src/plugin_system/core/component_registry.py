@@ -17,7 +17,6 @@ from src.plugin_system.base.base_chatter import BaseChatter
 from src.plugin_system.base.base_command import BaseCommand
 from src.plugin_system.base.base_events_handler import BaseEventHandler
 from src.plugin_system.base.base_http_component import BaseRouterComponent
-from src.plugin_system.base.base_interest_calculator import BaseInterestCalculator
 from src.plugin_system.base.base_prompt import BasePrompt
 from src.plugin_system.base.base_tool import BaseTool
 from src.plugin_system.base.component_types import (
@@ -28,7 +27,6 @@ from src.plugin_system.base.component_types import (
     ComponentInfo,
     ComponentType,
     EventHandlerInfo,
-    InterestCalculatorInfo,
     PluginInfo,
     PlusCommandInfo,
     PromptInfo,
@@ -48,7 +46,6 @@ ComponentClassType = (
     | type[BaseEventHandler]
     | type[PlusCommand]
     | type[BaseChatter]
-    | type[BaseInterestCalculator]
     | type[BasePrompt]
     | type[BaseRouterComponent]
     | type[BaseAdapter]
@@ -143,10 +140,6 @@ class ComponentRegistry:
         # Chatter 相关
         self._chatter_registry: dict[str, type[BaseChatter]] = {}
         self._enabled_chatter_registry: dict[str, type[BaseChatter]] = {}
-
-        # InterestCalculator 相关
-        self._interest_calculator_registry: dict[str, type[BaseInterestCalculator]] = {}
-        self._enabled_interest_calculator_registry: dict[str, type[BaseInterestCalculator]] = {}
 
         # Prompt 相关
         self._prompt_registry: dict[str, type[BasePrompt]] = {}
@@ -283,7 +276,6 @@ class ComponentRegistry:
             ComponentType.TOOL: self._register_tool,
             ComponentType.EVENT_HANDLER: self._register_event_handler,
             ComponentType.CHATTER: self._register_chatter,
-            ComponentType.INTEREST_CALCULATOR: self._register_interest_calculator,
             ComponentType.PROMPT: self._register_prompt,
             ComponentType.ROUTER: self._register_router,
             ComponentType.ADAPTER: self._register_adapter,
@@ -344,9 +336,6 @@ class ComponentRegistry:
                 case ComponentType.CHATTER:
                     self._chatter_registry.pop(component_name, None)
                     self._enabled_chatter_registry.pop(component_name, None)
-                case ComponentType.INTEREST_CALCULATOR:
-                    self._interest_calculator_registry.pop(component_name, None)
-                    self._enabled_interest_calculator_registry.pop(component_name, None)
                 case ComponentType.PROMPT:
                     self._prompt_registry.pop(component_name, None)
                     self._enabled_prompt_registry.pop(component_name, None)
@@ -495,25 +484,6 @@ class ComponentRegistry:
         self._chatter_registry[info.name] = chatter_class
         if chatter_info.enabled:
             self._enabled_chatter_registry[info.name] = chatter_class
-        return True
-
-    def _register_interest_calculator(self, info: ComponentInfo, cls: ComponentClassType) -> bool:
-        """
-        注册 InterestCalculator 组件到特定注册表。
-
-        Args:
-            info: InterestCalculator 组件的元数据信息
-            cls: InterestCalculator 组件的类定义
-
-        Returns:
-            注册成功返回 True
-        """
-        calc_info = cast(InterestCalculatorInfo, info)
-        calc_class = cast(type[BaseInterestCalculator], cls)
-        _assign_plugin_attrs(calc_class, info.plugin_name, self.get_plugin_config(info.plugin_name) or {})
-        self._interest_calculator_registry[info.name] = calc_class
-        if calc_info.enabled:
-            self._enabled_interest_calculator_registry[info.name] = calc_class
         return True
 
     def _register_prompt(self, info: ComponentInfo, cls: ComponentClassType) -> bool:
@@ -949,26 +919,6 @@ class ComponentRegistry:
         """
         info = self.get_component_info(chatter_name, ComponentType.CHATTER)
         return info if isinstance(info, ChatterInfo) else None
-
-    # --- InterestCalculator ---
-    def get_interest_calculator_registry(self) -> dict[str, type[BaseInterestCalculator]]:
-        """获取所有已注册的 InterestCalculator 类。"""
-        return self._interest_calculator_registry.copy()
-
-    def get_enabled_interest_calculator_registry(self) -> dict[str, type[BaseInterestCalculator]]:
-        """
-        获取所有已启用的 InterestCalculator 类。
-
-        会检查组件的全局启用状态。
-
-        Returns:
-            可用的 InterestCalculator 名称到类的字典
-        """
-        return {
-            name: cls
-            for name, cls in self._interest_calculator_registry.items()
-            if self.is_component_available(name, ComponentType.INTEREST_CALCULATOR)
-        }
 
     # --- Prompt ---
     def get_prompt_registry(self) -> dict[str, type[BasePrompt]]:

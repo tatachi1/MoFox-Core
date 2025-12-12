@@ -34,7 +34,6 @@ MoFox_Bot 是基于 MaiCore 的增强型 QQ 聊天机器人，集成了 LLM、�
 - `PLUS_COMMAND`: 增强命令（支持参数解析、权限检查）
 - `TOOL`: LLM 工具调用（函数调用集成）
 - `EVENT_HANDLER`: 事件订阅处理器
-- `INTEREST_CALCULATOR`: 兴趣值计算器
 - `PROMPT`: 自定义提示词注入
 
 **插件开发流程**:

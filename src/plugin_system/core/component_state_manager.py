@@ -110,8 +110,6 @@ class ComponentStateManager:
                 )
             case ComponentType.CHATTER:
                 self._registry._enabled_chatter_registry[component_name] = target_class  # type: ignore
-            case ComponentType.INTEREST_CALCULATOR:
-                self._registry._enabled_interest_calculator_registry[component_name] = target_class  # type: ignore
             case ComponentType.PROMPT:
                 self._registry._enabled_prompt_registry[component_name] = target_class  # type: ignore
             case ComponentType.ADAPTER:
@@ -161,8 +159,6 @@ class ComponentStateManager:
                     event_manager.remove_event_handler(component_name)
                 case ComponentType.CHATTER:
                     self._registry._enabled_chatter_registry.pop(component_name, None)
-                case ComponentType.INTEREST_CALCULATOR:
-                    self._registry._enabled_interest_calculator_registry.pop(component_name, None)
                 case ComponentType.PROMPT:
                     self._registry._enabled_prompt_registry.pop(component_name, None)
                 case ComponentType.ADAPTER:
