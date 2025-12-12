@@ -99,18 +99,16 @@ class VectorStore:
             # 处理额外的元数据，将 list 转换为 JSON 字符串
             for key, value in node.metadata.items():
                 if isinstance(value, list | dict):
-                    import json
-                    metadata[key] = json.dumps(value, ensure_ascii=False)
-                elif isinstance(value, str):
+                    import orjson
+                    metadata[key] = orjson.dumps(value, option=orjson.OPT_NON_STR_KEYS).decode("utf-8")
+                elif isinstance(value, str | int | float | bool) or value is None:
                     metadata[key] = value
-                elif isinstance(value, (int, float, bool)) or value is None:
-                    metadata[key] = str(value) if value is not None else ""
                 else:
                     metadata[key] = str(value)
 
             self.collection.add(
                 ids=[node.id],
-                embeddings=[node.embedding.tolist()] if node.embedding is not None else [[0.0]],  # type: ignore[union-attr]
+                embeddings=[node.embedding.tolist()],
                 metadatas=[metadata],
                 documents=[node.content],  # 文本内容用于检索
             )
@@ -140,6 +138,7 @@ class VectorStore:
 
         try:
             # 准备元数据
+            import orjson
             metadatas = []
             for n in valid_nodes:
                 metadata = {
@@ -149,24 +148,21 @@ class VectorStore:
                 }
                 for key, value in n.metadata.items():
                     if isinstance(value, list | dict):
-                        import json
-                        metadata[key] = json.dumps(value, ensure_ascii=False)
-                    elif isinstance(value, str):
-                        metadata[key] = value
-                    elif isinstance(value, (int, float, bool)) or value is None:
-                        metadata[key] = str(value) if value is not None else ""
+                        metadata[key] = orjson.dumps(value, option=orjson.OPT_NON_STR_KEYS).decode("utf-8")
+                    elif isinstance(value, str | int | float | bool) or value is None:
+                        metadata[key] = value  # type: ignore
                     else:
                         metadata[key] = str(value)
                 metadatas.append(metadata)
 
             self.collection.add(
                 ids=[n.id for n in valid_nodes],
-                embeddings=[n.embedding.tolist() if n.embedding is not None else [0.0] for n in valid_nodes],  # type: ignore[union-attr]
+                embeddings=[n.embedding.tolist() for n in valid_nodes],  # type: ignore
                 metadatas=metadatas,
                 documents=[n.content for n in valid_nodes],
             )
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"批量添加节点失败: {e}")
             raise
 
@@ -206,6 +202,7 @@ class VectorStore:
             )
 
             # 解析结果
+            import orjson
             similar_nodes = []
             # 修复：检查 ids 列表长度而不是直接判断真值（避免 numpy 数组歧义）
             ids = results.get("ids")
@@ -226,9 +223,8 @@ class VectorStore:
                         for key, value in list(metadata.items()):
                             if isinstance(value, str) and (value.startswith("[") or value.startswith("{")):
                                 try:
-                                    import json
-                                    metadata[key] = json.loads(value)
-                                except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError):
+                                    metadata[key] = orjson.loads(value)
+                                except Exception:
                                     pass  # 保持原值
 
                         similar_nodes.append((node_id, similarity, metadata))
@@ -236,7 +232,7 @@ class VectorStore:
             logger.debug(f"相似节点搜索: 找到 {len(similar_nodes)} 个结果")
             return similar_nodes
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"相似节点搜索失败: {e}")
             raise
 
@@ -288,7 +284,7 @@ class VectorStore:
             # 1. 对每个查询执行搜索
             all_results: dict[str, dict[str, Any]] = {}  # node_id -> {scores, metadata}
 
-            for _, (query_emb, weight) in enumerate(zip(query_embeddings, query_weights)):
+            for i, (query_emb, weight) in enumerate(zip(query_embeddings, query_weights)):
                 # 搜索更多结果以提高融合质量
                 search_limit = limit * 3
                 results = await self.search_similar_nodes(
@@ -381,7 +377,7 @@ class VectorStore:
 
             return None
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             # 节点不存在是正常情况，降级为 debug
             logger.debug(f"获取节点失败（节点可能不存在）: {e}")
             return None
@@ -436,14 +432,13 @@ class VectorStore:
 
         try:
             # 删除并重新创建集合
-            if self.client is not None:
-                self.client.delete_collection(self.collection_name)
-                self.collection = self.client.get_or_create_collection(
-                    name=self.collection_name,
-                    metadata={"description": "Memory graph node embeddings"},
-                )
+            self.client.delete_collection(self.collection_name)
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"description": "Memory graph node embeddings"},
+            )
             logger.warning(f"向量存储已清空: {self.collection_name}")
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"清空向量存储失败: {e}")
             raise

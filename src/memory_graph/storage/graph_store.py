@@ -9,7 +9,7 @@ from collections.abc import Iterable
 import networkx as nx
 
 from src.common.logger import get_logger
-from src.memory_graph.models import EdgeType, Memory, MemoryEdge
+from src.memory_graph.models import Memory, MemoryEdge
 
 logger = get_logger(__name__)
 
@@ -204,7 +204,7 @@ class GraphStore:
             logger.debug(f"添加节点成功: {node_id} -> {memory_id}")
             return True
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"添加节点失败: {e}")
             return False
 
@@ -253,7 +253,7 @@ class GraphStore:
                                 break
 
             return True
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"更新节点失败: {e}")
             return False
 
@@ -288,7 +288,8 @@ class GraphStore:
             import uuid
             from datetime import datetime
 
-            # EdgeType 已在模块顶部导入
+            from src.memory_graph.models import EdgeType, MemoryEdge
+
             edge_id = str(uuid.uuid4())
             created_at = datetime.now().isoformat()
 
@@ -314,7 +315,7 @@ class GraphStore:
 
             # 尝试转换 edge_type
             try:
-                edge_type_enum: EdgeType = EdgeType(edge_type)
+                edge_type_enum = EdgeType(edge_type)
             except ValueError:
                 edge_type_enum = EdgeType.RELATION
 
@@ -337,7 +338,7 @@ class GraphStore:
             logger.debug(f"添加边成功: {source_id} -> {target_id} ({relation})")
             return edge_id
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"添加边失败: {e}")
             return None
 
@@ -401,7 +402,7 @@ class GraphStore:
                             break
 
             return True
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"更新边失败: {e}")
             return False
 
@@ -451,7 +452,7 @@ class GraphStore:
                     memory.edges = [e for e in memory.edges if e.id != edge_id]
 
             return True
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"删除边失败: {e}")
             return False
 
@@ -507,7 +508,7 @@ class GraphStore:
             logger.info(f"成功合并记忆: {source_memory_ids} -> {target_memory_id}")
             return True
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"合并记忆失败: {e}")
             return False
 
@@ -693,7 +694,7 @@ class GraphStore:
 
         except nx.NetworkXNoPath:
             return None
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"查找路径失败: {e}")
             return None
 
@@ -745,8 +746,7 @@ class GraphStore:
         Returns:
             NetworkX 子图
         """
-        subgraph = self.graph.subgraph(node_ids)
-        return subgraph.copy()  # type: ignore[return-value]
+        return self.graph.subgraph(node_ids).copy()
 
     def merge_nodes(self, source_id: str, target_id: str) -> None:
         """
@@ -870,7 +870,7 @@ class GraphStore:
         # 5. 同步图中的边到 Memory.edges（保证内存对象和图一致）
         try:
             store._sync_memory_edges_from_graph()
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError):
+        except Exception:
             logger.exception("同步图边到记忆.edges 失败")
 
         store._rebuild_node_edge_index()
@@ -924,7 +924,7 @@ class GraphStore:
                 try:
                     # 使用 MemoryEdge.from_dict 构建对象
                     mem_edge = MemoryEdge.from_dict(edge_dict)
-                except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError):
+                except Exception:
                     # 兼容性：直接构造对象
                     mem_edge = MemoryEdge(
                         id=edge_dict["id"] or "",
@@ -978,7 +978,7 @@ class GraphStore:
             logger.debug(f"成功删除记忆: {memory_id}")
             return True
 
-        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.error(f"删除记忆失败 {memory_id}: {e}")
             return False
 

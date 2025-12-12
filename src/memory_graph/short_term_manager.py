@@ -92,7 +92,7 @@ class ShortTermMemoryManager:
             self._initialized = True
             logger.debug(f"短期记忆管理器初始化完成 (已加载 {len(self.memories)} 条记忆)")
 
-        except (OSError, RuntimeError, ValueError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"短期记忆管理器初始化失败: {e}")
             raise
 
@@ -144,7 +144,7 @@ class ShortTermMemoryManager:
 
             return result_memory
 
-        except (RuntimeError, ValueError, KeyError) as e:
+        except Exception as e:
             logger.error(f"添加短期记忆失败: {e}")
             return None
 
@@ -198,7 +198,7 @@ class ShortTermMemoryManager:
 
             # 调用短期记忆构建模型
             llm = LLMRequest(
-                model_set=model_config.model_task_config.memory_short_term_builder,  # type: ignore[union-attr]
+                model_set=model_config.model_task_config.memory_short_term_builder,
                 request_type="short_term_memory.extract",
             )
 
@@ -235,7 +235,7 @@ class ShortTermMemoryManager:
             logger.debug(f"提取结构化记忆: {memory.content[:50]}...")
             return memory
 
-        except (RuntimeError, ValueError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"提取结构化记忆失败: {e}")
             return None
 
@@ -303,7 +303,7 @@ class ShortTermMemoryManager:
 
             # 调用短期记忆决策模型
             llm = LLMRequest(
-                model_set=model_config.model_task_config.memory_short_term_decider,  # type: ignore[union-attr]
+                model_set=model_config.model_task_config.memory_short_term_decider,
                 request_type="short_term_memory.decide",
             )
 
@@ -340,7 +340,7 @@ class ShortTermMemoryManager:
             logger.debug(f"LLM 决策完成: {decision}")
             return decision
 
-        except (RuntimeError, ValueError, KeyError) as e:
+        except Exception as e:
             logger.error(f"LLM 决策失败: {e}")
             # 默认创建新记忆
             return ShortTermDecision(
@@ -431,7 +431,7 @@ class ShortTermMemoryManager:
                 self.memories.append(new_memory)
                 return new_memory
 
-        except (RuntimeError, ValueError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"执行决策失败: {e}")
             return None
 
@@ -465,7 +465,7 @@ class ShortTermMemoryManager:
 
             return scored[:top_k]
 
-        except (RuntimeError, ValueError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"查找相似记忆失败: {e}")
             return []
 
@@ -490,7 +490,7 @@ class ShortTermMemoryManager:
             embedding = await self.embedding_generator.generate(text)
             return embedding
 
-        except (RuntimeError, ValueError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"生成向量失败: {e}")
             return None
 
@@ -512,7 +512,7 @@ class ShortTermMemoryManager:
             embeddings = await self.embedding_generator.generate_batch(texts)
             return embeddings
 
-        except (RuntimeError, ValueError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"批量生成向量失败: {e}")
             return [None] * len(texts)
 
@@ -532,11 +532,7 @@ class ShortTermMemoryManager:
             json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
 
             data = json_repair.loads(json_str)
-            if isinstance(data, dict):
-                return data
-            else:
-                logger.warning(f"JSON 解析返回非字典类型: {type(data)}")
-                return None
+            return data
 
         except json.JSONDecodeError as e:
             logger.warning(f"JSON 解析失败: {e}, 响应: {response[:200]}")
@@ -586,7 +582,7 @@ class ShortTermMemoryManager:
             logger.debug(f"检索到 {len(results)} 条短期记忆")
             return results
 
-        except (RuntimeError, ValueError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"检索短期记忆失败: {e}")
             return []
 
@@ -646,7 +642,7 @@ class ShortTermMemoryManager:
             # 异步保存
             asyncio.create_task(self._save_to_disk())
 
-        except (RuntimeError, ValueError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"清除已转移记忆失败: {e}")
 
     def get_statistics(self) -> dict[str, Any]:
@@ -670,6 +666,8 @@ class ShortTermMemoryManager:
         """保存短期记忆到磁盘"""
         async with self._save_lock:
             try:
+                import orjson
+
                 save_path = self.data_dir / "short_term_memory.json"
                 data = {
                     "memories": [mem.to_dict() for mem in self.memories],
@@ -677,23 +675,25 @@ class ShortTermMemoryManager:
                     "transfer_threshold": self.transfer_importance_threshold,
                 }
 
-                save_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+                save_path.write_bytes(orjson.dumps(data, option=orjson.OPT_INDENT_2))
 
                 logger.debug(f"短期记忆已保存到 {save_path}")
 
-            except (OSError, TypeError, ValueError) as e:
+            except Exception as e:
                 logger.error(f"保存短期记忆失败: {e}")
 
     async def _load_from_disk(self) -> None:
         """从磁盘加载短期记忆"""
         try:
+            import orjson
+
             load_path = self.data_dir / "short_term_memory.json"
 
             if not load_path.exists():
-                logger.debug("未找到短期记忆数据文件")
+                logger.info("未找到短期记忆数据文件")
                 return
 
-            data = json.loads(load_path.read_text(encoding="utf-8"))
+            data = orjson.loads(load_path.read_bytes())
             self.memories = [ShortTermMemory.from_dict(m) for m in data.get("memories", [])]
 
             # 重新生成向量
@@ -701,7 +701,7 @@ class ShortTermMemoryManager:
 
             logger.info(f"短期记忆已从 {load_path} 加载 ({len(self.memories)} 条)")
 
-        except (OSError, ValueError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"加载短期记忆失败: {e}")
 
     async def _reload_embeddings(self) -> None:
@@ -746,7 +746,7 @@ class ShortTermMemoryManager:
             self._initialized = False
             logger.info("短期记忆管理器已关闭")
 
-        except (RuntimeError, ValueError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"关闭短期记忆管理器失败: {e}")
 
 
@@ -754,9 +754,9 @@ class ShortTermMemoryManager:
 _short_term_manager_instance: ShortTermMemoryManager | None = None
 
 
-def get_short_term_manager() -> ShortTermMemoryManager:  # type: ignore
+def get_short_term_manager() -> ShortTermMemoryManager:
     """获取短期记忆管理器单例"""
-    global _short_term_manager_instance  # type: ignore[name-defined,misc]
+    global _short_term_manager_instance
     if _short_term_manager_instance is None:
         _short_term_manager_instance = ShortTermMemoryManager()
     return _short_term_manager_instance
