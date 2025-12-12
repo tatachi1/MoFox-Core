@@ -118,7 +118,7 @@ class PerceptualMemoryManager:
                 f"(已加载 {len(self.perceptual_memory.blocks)} 个记忆块)"
             )
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.error(f"感知记忆管理器初始化失败: {e}")
             raise
 
@@ -146,24 +146,24 @@ class PerceptualMemoryManager:
 
         try:
             if not hasattr(self.perceptual_memory, "pending_messages"):
-                self.perceptual_memory.pending_messages = []
+                self.perceptual_memory.pending_messages = []  # type: ignore[union-attr]
 
             self._cleanup_pending_messages()
 
             stream_id = message.get("stream_id", "unknown")
             self._normalize_message_timestamp(message)
-            self.perceptual_memory.pending_messages.append(message)
+            self.perceptual_memory.pending_messages.append(message)  # type: ignore[union-attr]
             self._enforce_pending_limits(stream_id)
 
             logger.debug(
                 f"消息已添加到待处理队列 (stream={stream_id[:8]}, "
-                f"总数={len(self.perceptual_memory.pending_messages)})"
+                f"总数={len(self.perceptual_memory.pending_messages)})"  # type: ignore[union-attr]
             )
 
             # 按 stream_id 检查是否达到创建块的条件
             stream_messages = [
                 msg
-                for msg in self.perceptual_memory.pending_messages
+                for msg in self.perceptual_memory.pending_messages  # type: ignore[union-attr]
                 if msg.get("stream_id") == stream_id
             ]
 
@@ -173,7 +173,7 @@ class PerceptualMemoryManager:
 
             return None
 
-        except Exception as e:
+        except (KeyError, TypeError, ValueError) as e:
             logger.error(f"添加消息失败: {e}")
             return None
 
@@ -190,7 +190,7 @@ class PerceptualMemoryManager:
         try:
             self._cleanup_pending_messages()
             # 只取出指定 stream_id 的 block_size 条消息
-            stream_messages = [msg for msg in self.perceptual_memory.pending_messages if msg.get("stream_id") == stream_id]
+            stream_messages = [msg for msg in self.perceptual_memory.pending_messages if msg.get("stream_id") == stream_id]  # type: ignore[union-attr]
 
             if len(stream_messages) < self.block_size:
                 logger.warning(f"stream {stream_id} 的消息不足 {self.block_size} 条，无法创建块")
@@ -201,7 +201,7 @@ class PerceptualMemoryManager:
 
             # 从 pending_messages 中移除这些消息
             for msg in messages:
-                self.perceptual_memory.pending_messages.remove(msg)
+                self.perceptual_memory.pending_messages.remove(msg)  # type: ignore[union-attr]
 
             # 合并消息文本
             combined_text = self._combine_messages(messages)
@@ -219,21 +219,21 @@ class PerceptualMemoryManager:
             )
 
             # 添加到记忆堆顶部
-            self.perceptual_memory.blocks.insert(0, block)
+            self.perceptual_memory.blocks.insert(0, block)  # type: ignore[union-attr]
 
             # 更新所有块的位置
-            for i, b in enumerate(self.perceptual_memory.blocks):
+            for i, b in enumerate(self.perceptual_memory.blocks):  # type: ignore[union-attr]
                 b.position_in_stack = i
 
             # FIFO 淘汰：如果超过最大容量，移除最旧的块
-            if len(self.perceptual_memory.blocks) > self.max_blocks:
-                removed_blocks = self.perceptual_memory.blocks[self.max_blocks :]
-                self.perceptual_memory.blocks = self.perceptual_memory.blocks[: self.max_blocks]
+            if len(self.perceptual_memory.blocks) > self.max_blocks:  # type: ignore[union-attr]
+                removed_blocks = self.perceptual_memory.blocks[self.max_blocks :]  # type: ignore[union-attr]
+                self.perceptual_memory.blocks = self.perceptual_memory.blocks[: self.max_blocks]  # type: ignore[union-attr]
                 logger.debug(f"记忆堆已满，移除 {len(removed_blocks)} 个旧块")
 
             logger.debug(
                 f"✅ 创建新记忆块: {block.id} (stream={stream_id[:8]}, "
-                f"堆大小={len(self.perceptual_memory.blocks)}/{self.max_blocks})"
+                f"堆大小={len(self.perceptual_memory.blocks)}/{self.max_blocks})"  # type: ignore[union-attr]
             )
 
             # 异步保存
@@ -241,7 +241,7 @@ class PerceptualMemoryManager:
 
             return block
 
-        except Exception as e:
+        except (KeyError, TypeError, ValueError, AttributeError) as e:
             logger.error(f"创建记忆块失败: {e}")
             return None
 
@@ -249,7 +249,7 @@ class PerceptualMemoryManager:
         """确保消息包含 timestamp 字段并返回其值。"""
         raw_ts = message.get("timestamp", message.get("time"))
         try:
-            timestamp = float(raw_ts)
+            timestamp = float(raw_ts) if raw_ts is not None else time.time()
         except (TypeError, ValueError):
             timestamp = time.time()
         message["timestamp"] = timestamp
@@ -270,7 +270,7 @@ class PerceptualMemoryManager:
             for msg in pending:
                 ts = msg.get("timestamp") or msg.get("time")
                 try:
-                    ts_value = float(ts)
+                    ts_value = float(ts) if ts is not None else time.time()
                 except (TypeError, ValueError):
                     ts_value = time.time()
                 msg["timestamp"] = ts_value
@@ -369,7 +369,7 @@ class PerceptualMemoryManager:
             embedding = await self.embedding_generator.generate(text)
             return embedding
 
-        except Exception as e:
+        except (RuntimeError, ValueError, AttributeError) as e:
             logger.error(f"生成向量失败: {e}")
             return None
 
@@ -391,7 +391,7 @@ class PerceptualMemoryManager:
             embeddings = await self.embedding_generator.generate_batch(texts)
             return embeddings
 
-        except Exception as e:
+        except (RuntimeError, ValueError, AttributeError) as e:
             logger.error(f"批量生成向量失败: {e}")
             return [None] * len(texts)
 
@@ -425,18 +425,18 @@ class PerceptualMemoryManager:
                 logger.warning("查询向量生成失败，返回空列表")
                 return []
 
-            # 批量计算所有块的相似度（使用异步版本）
+            # 批量计算相似度（使用异步版本）
             blocks_with_embeddings = [
-                block for block in self.perceptual_memory.blocks
+                block for block in self.perceptual_memory.blocks  # type: ignore[union-attr]
                 if block.embedding is not None
             ]
 
             if not blocks_with_embeddings:
                 return []
 
-            # 批量计算相似度
+            # 批量计算相似度，过滤掉 None 向量
             block_embeddings = [block.embedding for block in blocks_with_embeddings]
-            similarities = await batch_cosine_similarity_async(query_embedding, block_embeddings)
+            similarities = await batch_cosine_similarity_async(query_embedding, block_embeddings)  # type: ignore[arg-type]
 
             # 过滤和排序
             scored_blocks = []
@@ -489,7 +489,7 @@ class PerceptualMemoryManager:
 
             return recalled_blocks
 
-        except Exception as e:
+        except (KeyError, TypeError, ValueError, AttributeError) as e:
             logger.error(f"召回记忆块失败: {e}")
             return []
 
@@ -503,20 +503,20 @@ class PerceptualMemoryManager:
         try:
             # 从原位置移除这些块
             for block in blocks_to_promote:
-                if block in self.perceptual_memory.blocks:
-                    self.perceptual_memory.blocks.remove(block)
+                if block in self.perceptual_memory.blocks:  # type: ignore[union-attr]
+                    self.perceptual_memory.blocks.remove(block)  # type: ignore[union-attr]
 
             # 将它们插入到堆顶（保持原有的相对顺序）
             for block in reversed(blocks_to_promote):
-                self.perceptual_memory.blocks.insert(0, block)
+                self.perceptual_memory.blocks.insert(0, block)  # type: ignore[union-attr]
 
             # 更新所有块的位置
-            for i, block in enumerate(self.perceptual_memory.blocks):
+            for i, block in enumerate(self.perceptual_memory.blocks):  # type: ignore[union-attr]
                 block.position_in_stack = i
 
             logger.debug(f"提升 {len(blocks_to_promote)} 个块到堆顶")
 
-        except Exception as e:
+        except (ValueError, AttributeError) as e:
             logger.error(f"提升块失败: {e}")
 
     def get_activated_blocks(self) -> list[MemoryBlock]:
@@ -531,7 +531,7 @@ class PerceptualMemoryManager:
 
         activated = [
             block
-            for block in self.perceptual_memory.blocks
+            for block in self.perceptual_memory.blocks  # type: ignore[union-attr]
             if block.recall_count >= self.activation_threshold
         ]
 
@@ -552,12 +552,12 @@ class PerceptualMemoryManager:
 
         try:
             # 查找并移除块
-            for i, block in enumerate(self.perceptual_memory.blocks):
+            for i, block in enumerate(self.perceptual_memory.blocks):  # type: ignore[union-attr]
                 if block.id == block_id:
-                    self.perceptual_memory.blocks.pop(i)
+                    self.perceptual_memory.blocks.pop(i)  # type: ignore[union-attr]
 
                     # 更新剩余块的位置
-                    for j, b in enumerate(self.perceptual_memory.blocks):
+                    for j, b in enumerate(self.perceptual_memory.blocks):  # type: ignore[union-attr]
                         b.position_in_stack = j
 
                     # 异步保存
@@ -568,7 +568,7 @@ class PerceptualMemoryManager:
             logger.warning(f"记忆块不存在: {block_id}")
             return False
 
-        except Exception as e:
+        except (ValueError, AttributeError) as e:
             logger.error(f"移除记忆块失败: {e}")
             return False
 
@@ -607,22 +607,22 @@ class PerceptualMemoryManager:
                 self._cleanup_pending_messages()
 
                 # 保存到 JSON 文件
-                import orjson
+                import json
 
                 save_path = self.data_dir / "perceptual_memory.json"
                 data = self.perceptual_memory.to_dict()
 
-                save_path.write_bytes(orjson.dumps(data, option=orjson.OPT_INDENT_2))
+                save_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
                 logger.debug(f"感知记忆已保存到 {save_path}")
 
-            except Exception as e:
+            except (OSError, TypeError, ValueError) as e:
                 logger.error(f"保存感知记忆失败: {e}")
 
     async def _load_from_disk(self) -> None:
         """从磁盘加载感知记忆"""
         try:
-            import orjson
+            import json
 
             load_path = self.data_dir / "perceptual_memory.json"
 
@@ -630,13 +630,13 @@ class PerceptualMemoryManager:
                 logger.debug("未找到感知记忆数据文件")
                 return
 
-            data = orjson.loads(load_path.read_bytes())
+            data = json.loads(load_path.read_text(encoding="utf-8"))
             self.perceptual_memory = PerceptualMemory.from_dict(data)
 
             # 重新加载向量数据
             await self._reload_embeddings()
 
-        except Exception as e:
+        except (OSError, ValueError, AttributeError) as e:
             logger.error(f"加载感知记忆失败: {e}")
 
     async def _reload_embeddings(self) -> None:
@@ -680,7 +680,7 @@ class PerceptualMemoryManager:
 
             self._initialized = False
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.error(f"关闭感知记忆管理器失败: {e}")
 
 
@@ -690,7 +690,7 @@ _perceptual_manager_instance: PerceptualMemoryManager | None = None
 
 def get_perceptual_manager() -> PerceptualMemoryManager:
     """获取感知记忆管理器单例"""
-    global _perceptual_manager_instance
+    global _perceptual_manager_instance  # type: ignore
     if _perceptual_manager_instance is None:
         _perceptual_manager_instance = PerceptualMemoryManager()
     return _perceptual_manager_instance

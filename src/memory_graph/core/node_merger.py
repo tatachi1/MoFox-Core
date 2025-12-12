@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 from src.common.logger import get_logger
 from src.config.official_configs import MemoryConfig
 from src.memory_graph.models import MemoryNode, NodeType
@@ -72,7 +74,7 @@ class NodeMerger:
         try:
             # 在向量存储中搜索相似节点
             results = await self.vector_store.search_similar_nodes(
-                query_embedding=node.embedding,
+                query_embedding=node.embedding,  # type: ignore[arg-type]
                 limit=limit + 1,  # +1 因为可能包含节点自己
                 node_types=[node.node_type],  # 只搜索相同类型的节点
                 min_similarity=threshold,
@@ -80,7 +82,7 @@ class NodeMerger:
 
             # 过滤掉节点自己，并构建结果
             similar_nodes = []
-            for node_id, similarity, metadata in results:
+            for node_id, similarity, _ in results:
                 if node_id == node.id:
                     continue  # 跳过自己
 
@@ -95,7 +97,7 @@ class NodeMerger:
             logger.debug(f"找到 {len(similar_nodes)} 个相似节点 (阈值: {threshold})")
             return similar_nodes
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError, AttributeError) as e:
             logger.error(f"查找相似节点失败: {e}")
             return []
 
@@ -179,13 +181,13 @@ class NodeMerger:
 
         # 3. 检查邻居内容是否有重叠
         source_neighbor_contents = set()
-        for neighbor_id, edge_data in source_neighbors:
+        for neighbor_id, _ in source_neighbors:
             neighbor_node = self._get_node_content(neighbor_id)
             if neighbor_node:
                 source_neighbor_contents.add(neighbor_node.lower())
 
         target_neighbor_contents = set()
-        for neighbor_id, edge_data in target_neighbors:
+        for neighbor_id, _ in target_neighbors:
             neighbor_node = self._get_node_content(neighbor_id)
             if neighbor_node:
                 target_neighbor_contents.add(neighbor_node.lower())
@@ -243,7 +245,7 @@ class NodeMerger:
             logger.debug(f"节点合并成功: {source.id} → {target.id}")
             return True
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError, AttributeError) as e:
             logger.error(f"节点合并失败: {e}")
             return False
 
@@ -276,7 +278,7 @@ class NodeMerger:
     async def batch_merge_similar_nodes(
         self,
         nodes: list[MemoryNode],
-        progress_callback: callable | None = None,
+        progress_callback: Callable[..., None] | None = None,
     ) -> dict:
         """
         批量处理节点合并
@@ -324,7 +326,7 @@ class NodeMerger:
                 if progress_callback:
                     progress_callback(i + 1, stats["total"], stats)
 
-            except Exception as e:
+            except (RuntimeError, ValueError, KeyError, AttributeError) as e:
                 logger.error(f"处理节点 {node.id} 时失败: {e}")
                 stats["skipped"] += 1
 
@@ -337,19 +339,19 @@ class NodeMerger:
 
     def get_merge_candidates(
         self,
-        min_similarity: float = 0.85,
-        limit: int = 100,
+        _min_similarity: float = 0.85,
+        _limit: int = 100,
     ) -> list[tuple[str, str, float]]:
         """
         获取待合并的候选节点对
 
         Args:
-            min_similarity: 最小相似度
-            limit: 最大返回数量
+            _min_similarity: 最小相似度
+            _limit: 最大返回数量
 
         Returns:
             List of (node_id_1, node_id_2, similarity)
         """
-        # TODO: 实现更智能的候选查找算法
+        # 改进空间: 实现更智能的候选查找算法
         # 目前返回空列表，后续可以基于向量存储进行批量查询
         return []

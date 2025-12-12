@@ -13,7 +13,6 @@ from datetime import datetime
 from pathlib import Path
 
 import aiofiles
-import orjson
 
 from src.common.logger import get_logger
 from src.memory_graph.models import StagedMemory
@@ -68,7 +67,6 @@ async def safe_atomic_write(temp_path: Path, target_path: Path, max_retries: int
                             target_path.rename(old_file)
                         except OSError:
                             # 策略3: 使用时间戳后缀
-                            from datetime import datetime
                             backup_file = target_path.with_suffix(f".bak_{datetime.now().strftime('%H%M%S')}")
                             target_path.rename(backup_file)
                             # 标记稍后清理
@@ -127,7 +125,7 @@ async def _cleanup_backup_files(directory: Path, file_stem: str, keep_recent: in
             except OSError as e:
                 logger.debug(f"清理备份文件失败: {old_file.name}, {e}")
 
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
         logger.debug(f"清理备份文件任务失败: {e}")
 
 
@@ -192,11 +190,12 @@ class PersistenceManager:
                     "statistics": graph_store.get_statistics(),
                 }
 
-                # 使用 orjson 序列化（更快）
-                json_data = orjson.dumps(
+                # 使用 json 序列化
+                json_data = json.dumps(
                     data,
-                    option=orjson.OPT_INDENT_2 | orjson.OPT_SERIALIZE_NUMPY,
-                )
+                    indent=2,
+                    ensure_ascii=False
+                ).encode("utf-8")
 
                 # 原子写入（先写临时文件，再重命名）
                 temp_file = self.graph_file.with_suffix(".tmp")
@@ -208,7 +207,7 @@ class PersistenceManager:
 
                 logger.debug(f"图数据已保存: {self.graph_file}, 大小: {len(json_data) / 1024:.2f} KB")
 
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
                 logger.error(f"保存图数据失败: {e}")
                 raise
 
@@ -235,7 +234,7 @@ class PersistenceManager:
                     try:
                         async with aiofiles.open(self.graph_file, "rb") as f:
                             json_data = await f.read()
-                        data = orjson.loads(json_data)
+                        data = json.loads(json_data.decode("utf-8"))
                         break
                     except OSError as e:
                         if attempt == max_retries - 1:
@@ -253,7 +252,7 @@ class PersistenceManager:
                 logger.debug(f"图数据加载完成: {graph_store.get_statistics()}")
                 return graph_store
 
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
                 logger.error(f"加载图数据失败: {e}")
                 # 尝试加载备份
                 return await self._load_from_backup()
@@ -276,7 +275,7 @@ class PersistenceManager:
                     "staged_memories": [sm.to_dict() for sm in staged_memories],
                 }
 
-                json_data = orjson.dumps(data, option=orjson.OPT_INDENT_2 | orjson.OPT_SERIALIZE_NUMPY)
+                json_data = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")
 
                 temp_file = self.staged_file.with_suffix(".tmp")
                 async with aiofiles.open(temp_file, "wb") as f:
@@ -285,7 +284,7 @@ class PersistenceManager:
                 # 使用安全的原子写入
                 await safe_atomic_write(temp_file, self.staged_file)
 
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
                 logger.error(f"保存临时记忆失败: {e}")
                 raise
 
@@ -309,7 +308,7 @@ class PersistenceManager:
                     try:
                         async with aiofiles.open(self.staged_file, "rb") as f:
                             json_data = await f.read()
-                        data = orjson.loads(json_data)
+                        data = json.loads(json_data.decode("utf-8"))
                         break
                     except OSError as e:
                         if attempt == max_retries - 1:
@@ -324,7 +323,7 @@ class PersistenceManager:
                 staged_memories = [StagedMemory.from_dict(sm) for sm in data.get("staged_memories", [])]
                 return staged_memories
 
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
                 logger.error(f"加载临时记忆失败: {e}")
                 return []
 
@@ -354,7 +353,7 @@ class PersistenceManager:
 
             return None
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
             logger.error(f"创建备份失败: {e}")
             return None
 
@@ -378,7 +377,7 @@ class PersistenceManager:
                 try:
                     async with aiofiles.open(latest_backup, "rb") as f:
                         json_data = await f.read()
-                    data = orjson.loads(json_data)
+                    data = json.loads(json_data.decode("utf-8"))
                     break
                 except OSError as e:
                     if attempt == max_retries - 1:
@@ -395,7 +394,7 @@ class PersistenceManager:
 
             return graph_store
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
             logger.error(f"从备份恢复失败: {e}")
             return None
 
@@ -414,7 +413,7 @@ class PersistenceManager:
                 backup_file.unlink()
                 logger.debug(f"删除旧备份: {backup_file}")
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
             logger.warning(f"清理旧备份失败: {e}")
 
     async def start_auto_save(
@@ -459,7 +458,7 @@ class PersistenceManager:
                     if current_time.minute == 0:  # 每个整点
                         await self.create_backup()
 
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, AttributeError, KeyError, TypeError) as e:
                     logger.error(f"自动保存失败: {e}")
 
         self._auto_save_task = asyncio.create_task(auto_save_loop())

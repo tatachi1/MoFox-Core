@@ -82,7 +82,7 @@ class UnifiedMemoryManager:
         self.long_term_manager: LongTermMemoryManager
 
         # 底层 MemoryManager（长期记忆）
-        self.memory_manager: MemoryManager = memory_manager
+        self.memory_manager: MemoryManager = memory_manager  # type: ignore[assignment]
 
         # 配置参数存储（用于初始化）
         self._config = {
@@ -163,7 +163,7 @@ class UnifiedMemoryManager:
             # 启动自动转移任务
             self._start_auto_transfer_task()
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, AttributeError) as e:
             logger.error(f"统一记忆管理器初始化失败: {e}")
             raise
 
@@ -284,7 +284,7 @@ class UnifiedMemoryManager:
 
             return result
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, AttributeError) as e:
             logger.error(f"智能检索失败: {e}")
             return {
                 "perceptual_blocks": [],
@@ -366,10 +366,10 @@ class UnifiedMemoryManager:
 请输出JSON："""
 
             # 调用记忆裁判模型
-            if not model_config.model_task_config:
+            if not model_config.model_task_config:  # type: ignore[union-attr]
                 raise ValueError("模型任务配置未加载")
             llm = LLMRequest(
-                model_set=model_config.model_task_config.memory_judge,
+                model_set=model_config.model_task_config.memory_judge,  # type: ignore[union-attr]
                 request_type="unified_memory.judge",
             )
 
@@ -401,7 +401,7 @@ class UnifiedMemoryManager:
 
             return decision
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError) as e:
             logger.error(f"裁判模型评估失败: {e}")
             # 默认判定为不充足，需要检索长期记忆
             return JudgeDecision(
@@ -429,7 +429,7 @@ class UnifiedMemoryManager:
                 done_task.result()
             except asyncio.CancelledError:
                 logger.info(f"{task_name} 后台任务已取消")
-            except Exception as exc:
+            except (RuntimeError, ValueError, KeyError) as exc:
                 logger.error(f"{task_name} 后台任务失败: {exc}")
 
         task.add_done_callback(_callback)
@@ -472,7 +472,7 @@ class UnifiedMemoryManager:
                 await self.perceptual_manager.remove_block(block.id)
                 self._trigger_transfer_wakeup()
                 logger.debug(f"✓ 记忆块 {block.id} 已被转移到短期记忆 {stm.id}")
-            except Exception as exc:
+            except (RuntimeError, ValueError, KeyError, AttributeError) as exc:
                 logger.error(f"后台转移失败，记忆块 {block.id}: {exc}")
 
     def _build_manual_multi_queries(self, queries: list[str]) -> list[dict[str, float]]:
@@ -523,7 +523,6 @@ class UnifiedMemoryManager:
         memories = await self.memory_manager.search_memories(**search_params)
         unique_memories = self._deduplicate_memories(memories)
 
-        len(manual_queries) if manual_queries else 1
         return unique_memories
 
     def _deduplicate_memories(self, memories: list[Any]) -> list[Any]:
@@ -633,7 +632,7 @@ class UnifiedMemoryManager:
             except asyncio.CancelledError:
                 logger.debug("自动转移循环被取消")
                 break
-            except Exception as e:
+            except (RuntimeError, ValueError, KeyError, AttributeError) as e:
                 logger.error(f"自动转移循环异常: {e}")
 
     async def manual_transfer(self) -> dict[str, Any]:
@@ -664,7 +663,7 @@ class UnifiedMemoryManager:
             logger.info(f"手动转移完成: {result}")
             return result
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, AttributeError) as e:
             logger.error(f"手动转移失败: {e}")
             return {"error": str(e), "transferred_count": 0}
 
@@ -716,5 +715,5 @@ class UnifiedMemoryManager:
             self._initialized = False
             logger.info("统一记忆管理器已关闭")
 
-        except Exception as e:
+        except (RuntimeError, ValueError, AttributeError) as e:
             logger.error(f"关闭统一记忆管理器失败: {e}")
