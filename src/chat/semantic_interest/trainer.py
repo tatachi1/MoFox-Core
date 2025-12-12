@@ -47,6 +47,9 @@ class SemanticInterestTrainer:
         max_samples: int = 1000,
         model_name: str | None = None,
         dataset_name: str | None = None,
+        generate_initial_keywords: bool = True,
+        keyword_temperature: float = 0.7,
+        keyword_iterations: int = 3,
     ) -> Path:
         """准备训练数据集
         
@@ -56,6 +59,9 @@ class SemanticInterestTrainer:
             max_samples: 最大采样数
             model_name: LLM 模型名称
             dataset_name: 数据集名称（默认使用时间戳）
+            generate_initial_keywords: 是否生成初始关键词数据集
+            keyword_temperature: 关键词生成温度
+            keyword_iterations: 关键词生成迭代次数
             
         Returns:
             数据集文件路径
@@ -74,6 +80,9 @@ class SemanticInterestTrainer:
             days=days,
             max_samples=max_samples,
             model_name=model_name,
+            generate_initial_keywords=generate_initial_keywords,
+            keyword_temperature=keyword_temperature,
+            keyword_iterations=keyword_iterations,
         )
 
         return output_path

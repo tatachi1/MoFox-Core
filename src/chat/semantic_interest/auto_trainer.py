@@ -31,7 +31,7 @@ class AutoTrainer:
         self,
         data_dir: Path | None = None,
         model_dir: Path | None = None,
-        min_train_interval_hours: int = 24,  # 最小训练间隔（小时）
+        min_train_interval_hours: int = 720,  # 最小训练间隔（小时，30天）
         min_samples_for_training: int = 100,  # 最小训练样本数
     ):
         """初始化自动训练器

@@ -35,7 +35,6 @@ class StartupStageReporter:
         else:
             self._logger.info(title)
 
-
 startup_stage = StartupStageReporter(logger)
 
 # 常量定义
