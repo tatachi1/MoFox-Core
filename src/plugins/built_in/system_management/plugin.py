@@ -619,7 +619,6 @@ class SystemCommand(PlusCommand):
         # 禁用保护
         if not enabled:
             protected_types = [
-                ComponentType.INTEREST_CALCULATOR,
                 ComponentType.PROMPT,
                 ComponentType.ROUTER,
             ]
@@ -736,7 +735,6 @@ class SystemCommand(PlusCommand):
         if not enabled:  # 如果是禁用操作
             # 定义不可禁用的核心组件类型
             protected_types = [
-                ComponentType.INTEREST_CALCULATOR,
                 ComponentType.PROMPT,
                 ComponentType.ROUTER,
             ]

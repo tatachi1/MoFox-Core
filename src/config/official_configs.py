@@ -804,11 +804,6 @@ class AffinityFlowConfig(ValidatedConfigBase):
     reply_action_interest_threshold: float = Field(default=0.4, description="回复动作兴趣阈值")
     non_reply_action_interest_threshold: float = Field(default=0.2, description="非回复动作兴趣阈值")
 
-    # 语义兴趣度评分优化参数
-    use_batch_scoring: bool = Field(default=False, description="是否启用批处理评分模式，适合高频群聊场景")
-    batch_size: int = Field(default=8, ge=1, le=64, description="批处理大小，达到后立即处理")
-    batch_flush_interval_ms: float = Field(default=30.0, ge=10.0, le=200.0, description="批处理刷新间隔（毫秒），超过后强制处理")
-
     # 回复决策系统参数
     no_reply_threshold_adjustment: float = Field(default=0.1, description="不回复兴趣阈值调整值")
     reply_cooldown_reduction: int = Field(default=2, description="回复后减少的不回复计数")

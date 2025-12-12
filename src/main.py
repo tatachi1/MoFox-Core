@@ -33,7 +33,6 @@ from src.config.config import global_config
 from src.individuality.individuality import Individuality, get_individuality
 from src.manager.async_task_manager import async_task_manager
 from src.mood.mood_manager import mood_manager
-from src.plugin_system.base.base_interest_calculator import BaseInterestCalculator
 from src.plugin_system.base.component_types import EventType
 from src.plugin_system.core.event_manager import event_manager
 from src.plugin_system.core.plugin_manager import plugin_manager
@@ -119,93 +118,6 @@ class MainSystem:
 
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
-
-    async def _initialize_interest_calculator(self) -> None:
-        """初始化兴趣值计算组件 - 通过插件系统自动发现和加载"""
-        try:
-            logger.debug("开始自动发现兴趣值计算组件...")
-
-            # 使用组件注册表自动发现兴趣计算器组件
-            interest_calculators = {}
-            try:
-                from src.plugin_system.apis.component_manage_api import get_components_info_by_type
-                from src.plugin_system.base.component_types import ComponentType
-
-                interest_calculators = get_components_info_by_type(ComponentType.INTEREST_CALCULATOR)
-                logger.debug(f"通过组件注册表发现 {len(interest_calculators)} 个兴趣计算器组件")
-            except Exception as e:
-                logger.error(f"从组件注册表获取兴趣计算器失败: {e}")
-
-            if not interest_calculators:
-                logger.warning("未发现任何兴趣计算器组件")
-                return
-
-            # 初始化兴趣度管理器
-            from src.chat.interest_system.interest_manager import get_interest_manager
-
-            interest_manager = get_interest_manager()
-            await interest_manager.initialize()
-
-            # 尝试注册所有可用的计算器
-            registered_calculators = []
-
-            for calc_name, calc_info in interest_calculators.items():
-                enabled = getattr(calc_info, "enabled", True)
-                default_enabled = getattr(calc_info, "enabled_by_default", True)
-
-                if not enabled or not default_enabled:
-                    logger.debug(f"兴趣计算器 {calc_name} 未启用，跳过")
-                    continue
-
-                try:
-                    from src.plugin_system.base.component_types import ComponentType as CT
-                    from src.plugin_system.core.component_registry import component_registry
-
-                    component_class = component_registry.get_component_class(
-                        calc_name, CT.INTEREST_CALCULATOR
-                    )
-
-                    if not component_class:
-                        logger.warning(f"无法找到 {calc_name} 的组件类")
-                        continue
-
-                    logger.debug(f"成功获取 {calc_name} 的组件类: {component_class.__name__}")
-
-                    # 确保组件是 BaseInterestCalculator 的子类
-                    if not issubclass(component_class, BaseInterestCalculator):
-                        logger.warning(f"{calc_name} 不是 BaseInterestCalculator 的有效子类")
-                        continue
-
-                    # 显式转换类型以修复 Pyright 错误
-                    component_class = cast(type[BaseInterestCalculator], component_class)
-
-                    # 创建组件实例
-                    calculator_instance = component_class()
-
-                    # 初始化组件
-                    if not await calculator_instance.initialize():
-                        logger.error(f"兴趣计算器 {calc_name} 初始化失败")
-                        continue
-
-                    # 注册到兴趣管理器
-                    if await interest_manager.register_calculator(calculator_instance):
-                        registered_calculators.append(calculator_instance)
-                        logger.debug(f"成功注册兴趣计算器: {calc_name}")
-                    else:
-                        logger.error(f"兴趣计算器 {calc_name} 注册失败")
-
-                except Exception as e:
-                    logger.error(f"处理兴趣计算器 {calc_name} 时出错: {e}")
-
-            if registered_calculators:
-                logger.debug(f"成功注册了 {len(registered_calculators)} 个兴趣计算器")
-                for calc in registered_calculators:
-                    logger.debug(f"  - {calc.component_name} v{calc.component_version}")
-            else:
-                logger.error("未能成功注册任何兴趣计算器")
-
-        except Exception as e:
-            logger.error(f"初始化兴趣度计算器失败: {e}")
 
     async def _async_cleanup(self) -> None:
         """异步清理资源"""
@@ -498,9 +410,6 @@ class MainSystem:
                 logger.debug("三层记忆系统未启用（配置中禁用）")
         except Exception as e:
             logger.error(f"三层记忆系统初始化失败: {e}")
-
-        # 初始化消息兴趣值计算组件
-        await self._initialize_interest_calculator()
 
         # 初始化LPMM知识库
         try:
