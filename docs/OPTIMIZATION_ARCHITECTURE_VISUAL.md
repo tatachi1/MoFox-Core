@@ -444,13 +444,6 @@ else:
 
 ---
 
-## 🔗 相关文档
-
-- 📖 [完整优化报告](./short_term_memory_optimization.md)
-- 📊 [性能基准数据](./performance_benchmark_detailed.md)
-- 💻 [代码对比示例](./code_comparison_examples.md)
-- ⚡ [速查表](./optimization_quick_reference.md)
-
 ---
 
 **最后更新**: 2025-12-13  
