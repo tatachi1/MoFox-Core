@@ -104,9 +104,21 @@ class MessageManager:
             if not chat_stream:
                 logger.warning(f"MessageManager.add_message: 聊天流 {stream_id} 不存在")
                 return
-            # 启动 stream loop 任务（如果尚未启动）
-            await stream_loop_manager.start_stream_loop(stream_id)
-            await self._check_and_handle_interruption(chat_stream, message)
+
+            # 快速检查：如果已有驱动器在跑，则跳过重复启动，避免不必要的 await
+            context = chat_stream.context
+            if not (context.stream_loop_task and not context.stream_loop_task.done()):
+                # 异步启动驱动器任务；避免在高并发下阻塞消息入队
+                context.stream_loop_task = asyncio.create_task(
+                    stream_loop_manager.start_stream_loop(stream_id)
+                )
+
+            # 并行触发打断检查，不阻塞消息入队
+            context.interruption_task = asyncio.create_task(
+                self._check_and_handle_interruption(chat_stream, message)
+            )
+
+            # 入队消息
             await chat_stream.context.add_message(message)
 
         except Exception as e:
@@ -476,8 +488,7 @@ class MessageManager:
             is_processing: 是否正在处理
         """
         try:
-            # 尝试更新StreamContext的处理状态
-            import asyncio
+            # 尝试更新StreamContext的处理状态（使用顶层 asyncio 导入）
             async def _update_context():
                 try:
                     chat_manager = get_chat_manager()
@@ -492,7 +503,7 @@ class MessageManager:
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    asyncio.create_task(_update_context())
+                    self._update_context_task = asyncio.create_task(_update_context())
                 else:
                     # 如果事件循环未运行，则跳过
                     logger.debug("事件循环未运行，跳过StreamContext状态更新")
@@ -512,8 +523,7 @@ class MessageManager:
             bool: 是否正在处理
         """
         try:
-            # 尝试从StreamContext获取处理状态
-            import asyncio
+            # 尝试从StreamContext获取处理状态（使用顶层 asyncio 导入）
             async def _get_context_status():
                 try:
                     chat_manager = get_chat_manager()

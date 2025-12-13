@@ -6,8 +6,6 @@
 
 import asyncio
 import time
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class PerformanceBenchmark:
@@ -20,7 +18,7 @@ class PerformanceBenchmark:
         """测试查询去重性能"""
         # 这里需要导入实际的管理器
         # from src.memory_graph.unified_manager import UnifiedMemoryManager
-        
+
         test_cases = [
             {
                 "name": "small_queries",
@@ -67,7 +65,7 @@ class PerformanceBenchmark:
             seen = set()
             decay = 0.15
             manual_queries = []
-            
+
             for raw in queries:
                 text = (raw or "").strip()
                 if text and text not in seen:
@@ -192,7 +190,7 @@ class PerformanceBenchmark:
                     mem_id = mem.get("id")
                 else:
                     mem_id = getattr(mem, "id", None)
-                
+
                 if mem_id and mem_id in seen_ids:
                     continue
                 unique_memories.append(mem)

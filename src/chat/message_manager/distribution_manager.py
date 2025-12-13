@@ -55,7 +55,7 @@ async def conversation_loop(
     stream_id: str,
     get_context_func: Callable[[str], Awaitable["StreamContext | None"]],
     calculate_interval_func: Callable[[str, bool], Awaitable[float]],
-    flush_cache_func: Callable[[str], Awaitable[None]],
+    flush_cache_func: Callable[[str], Awaitable[list[Any]]],
     check_force_dispatch_func: Callable[["StreamContext", int], bool],
     is_running_func: Callable[[], bool],
 ) -> AsyncIterator[ConversationTick]:
@@ -121,7 +121,7 @@ async def conversation_loop(
         except asyncio.CancelledError:
             logger.info(f" [生成器] stream={stream_id[:8]}, 被取消")
             break
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f" [生成器] stream={stream_id[:8]}, 出错: {e}")
             await asyncio.sleep(5.0)
 
@@ -151,10 +151,10 @@ async def run_chat_stream(
         # 创建生成器
         tick_generator = conversation_loop(
             stream_id=stream_id,
-            get_context_func=manager._get_stream_context,
-            calculate_interval_func=manager._calculate_interval,
-            flush_cache_func=manager._flush_cached_messages_to_unread,
-            check_force_dispatch_func=manager._needs_force_dispatch_for_context,
+            get_context_func=manager._get_stream_context,  # noqa: SLF001
+            calculate_interval_func=manager._calculate_interval,  # noqa: SLF001
+            flush_cache_func=manager._flush_cached_messages_to_unread,  # noqa: SLF001
+            check_force_dispatch_func=manager._needs_force_dispatch_for_context,  # noqa: SLF001
             is_running_func=lambda: manager.is_running,
         )
 
@@ -162,13 +162,13 @@ async def run_chat_stream(
         async for tick in tick_generator:
             try:
                 # 获取上下文
-                context = await manager._get_stream_context(stream_id)
+                context = await manager._get_stream_context(stream_id)  # noqa: SLF001
                 if not context:
                     continue
 
                 # 并发保护：检查是否正在处理
                 if context.is_chatter_processing:
-                    if manager._recover_stale_chatter_state(stream_id, context):
+                    if manager._recover_stale_chatter_state(stream_id, context):  # noqa: SLF001
                         logger.warning(f" [驱动器] stream={stream_id[:8]}, 处理标志残留已修复")
                     else:
                         logger.debug(f" [驱动器] stream={stream_id[:8]}, Chatter正在处理，跳过此Tick")
@@ -182,17 +182,18 @@ async def run_chat_stream(
 
                 # 更新能量值
                 try:
-                    await manager._update_stream_energy(stream_id, context)
+                    await manager._update_stream_energy(stream_id, context)  # noqa: SLF001
                 except Exception as e:
                     logger.debug(f"更新能量失败: {e}")
 
                 # 处理消息
                 assert global_config is not None
                 try:
-                    success = await asyncio.wait_for(
-                        manager._process_stream_messages(stream_id, context),
-                        global_config.chat.thinking_timeout
-                    )
+                    async with manager._processing_semaphore:
+                        success = await asyncio.wait_for(
+                            manager._process_stream_messages(stream_id, context),  # noqa: SLF001
+                            global_config.chat.thinking_timeout,
+                        )
                 except asyncio.TimeoutError:
                     logger.warning(f" [驱动器] stream={stream_id[:8]}, Tick#{tick.tick_count}, 处理超时")
                     success = False
@@ -208,7 +209,7 @@ async def run_chat_stream(
 
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f" [驱动器] stream={stream_id[:8]}, 处理Tick时出错: {e}")
                 manager.stats["total_failures"] += 1
 
@@ -221,7 +222,7 @@ async def run_chat_stream(
             if context and context.stream_loop_task:
                 context.stream_loop_task = None
                 logger.debug(f" [驱动器] stream={stream_id[:8]}, 清理任务记录")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug(f"清理任务记录失败: {e}")
 
 
@@ -267,6 +268,9 @@ class StreamLoopManager:
 
         # 流启动锁：防止并发启动同一个流的多个任务
         self._stream_start_locks: dict[str, asyncio.Lock] = {}
+
+        # 并发控制：限制同时进行的 Chatter 处理任务数
+        self._processing_semaphore = asyncio.Semaphore(self.max_concurrent_streams)
 
         logger.info(f"流循环管理器初始化完成 (最大并发流数: {self.max_concurrent_streams})")
 
