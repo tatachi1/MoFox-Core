@@ -82,6 +82,45 @@ class SemanticInterestScorer:
         self.total_scores = 0
         self.total_time = 0.0
 
+    def _get_underlying_clf(self):
+        model = self.model
+        if model is None:
+            return None
+        return model.clf if hasattr(model, "clf") else model
+
+    def _proba_to_three(self, proba_row) -> tuple[float, float, float]:
+        """将任意 predict_proba 输出对齐为 (-1, 0, 1) 三类概率。
+
+        兼容情况：
+        - 三分类：classes_ 可能不是 [-1,0,1]，需要按 classes_ 重排
+        - 二分类：classes_ 可能是 [-1,1] / [0,1] / [-1,0]
+        - 包装模型：可能已输出固定 3 列（按 [-1,0,1]）但 classes_ 仍为二类
+        """
+        # numpy array / list 都支持 len() 与迭代
+        proba_row = list(proba_row)
+        clf = self._get_underlying_clf()
+        classes = getattr(clf, "classes_", None)
+
+        if classes is not None and len(classes) == len(proba_row):
+            mapping = {int(cls): float(p) for cls, p in zip(classes, proba_row)}
+            return (
+                mapping.get(-1, 0.0),
+                mapping.get(0, 0.0),
+                mapping.get(1, 0.0),
+            )
+
+        # 兼容包装模型输出：固定为 [-1, 0, 1]
+        if len(proba_row) == 3:
+            return float(proba_row[0]), float(proba_row[1]), float(proba_row[2])
+
+        # 无 classes_ 时的保守兜底（尽量不抛异常）
+        if len(proba_row) == 2:
+            return float(proba_row[0]), 0.0, float(proba_row[1])
+        if len(proba_row) == 1:
+            return 0.0, float(proba_row[0]), 0.0
+
+        raise ValueError(f"不支持的 proba 形状: len={len(proba_row)}")
+
     def load(self):
         """同步加载模型（阻塞）"""
         if not self.model_path.exists():
@@ -105,13 +144,17 @@ class SemanticInterestScorer:
                     ngram_range=self.vectorizer.get_config().get("ngram_range", (2, 3)),
                     weight_prune_threshold=1e-4,
                 )
-                self._fast_scorer = FastScorer.from_sklearn_model(
-                    self.vectorizer, self.model, config
-                )
-                logger.info(
-                    f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
-                    f"剪枝到 {len(self._fast_scorer.token_weights)}"
-                )
+                try:
+                    self._fast_scorer = FastScorer.from_sklearn_model(
+                        self.vectorizer, self.model, config
+                    )
+                    logger.info(
+                        f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
+                        f"剪枝到 {len(self._fast_scorer.token_weights)}"
+                    )
+                except Exception as e:
+                    self._fast_scorer = None
+                    logger.warning(f"[FastScorer] 初始化失败，将回退到 sklearn 评分路径: {e}")
 
             self.is_loaded = True
             load_time = time.time() - start_time
@@ -154,13 +197,17 @@ class SemanticInterestScorer:
                     ngram_range=self.vectorizer.get_config().get("ngram_range", (2, 3)),
                     weight_prune_threshold=1e-4,
                 )
-                self._fast_scorer = FastScorer.from_sklearn_model(
-                    self.vectorizer, self.model, config
-                )
-                logger.info(
-                    f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
-                    f"剪枝到 {len(self._fast_scorer.token_weights)}"
-                )
+                try:
+                    self._fast_scorer = FastScorer.from_sklearn_model(
+                        self.vectorizer, self.model, config
+                    )
+                    logger.info(
+                        f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
+                        f"剪枝到 {len(self._fast_scorer.token_weights)}"
+                    )
+                except Exception as e:
+                    self._fast_scorer = None
+                    logger.warning(f"[FastScorer] 初始化失败，将回退到 sklearn 评分路径: {e}")
 
             self.is_loaded = True
             load_time = time.time() - start_time
@@ -218,8 +265,7 @@ class SemanticInterestScorer:
                 # 预测概率
                 proba = self.model.predict_proba(X)[0]
 
-                # proba 顺序为 [-1, 0, 1]
-                p_neg, p_neu, p_pos = proba
+                p_neg, p_neu, p_pos = self._proba_to_three(proba)
 
                 # 兴趣分计算策略：
                 # interest = P(1) + 0.5 * P(0)
@@ -297,7 +343,8 @@ class SemanticInterestScorer:
 
                 # 计算兴趣分
                 interests = []
-                for p_neg, p_neu, p_pos in proba:
+                for row in proba:
+                    _, p_neu, p_pos = self._proba_to_three(row)
                     interest = float(p_pos + 0.5 * p_neu)
                     interest = max(0.0, min(1.0, interest))
                     interests.append(interest)
@@ -390,7 +437,7 @@ class SemanticInterestScorer:
         proba = self.model.predict_proba(X)[0]
         pred_label = self.model.predict(X)[0]
 
-        p_neg, p_neu, p_pos = proba
+        p_neg, p_neu, p_pos = self._proba_to_three(proba)
         interest = float(p_pos + 0.5 * p_neu)
 
         return {

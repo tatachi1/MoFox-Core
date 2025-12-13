@@ -101,6 +101,11 @@ class FastScorer:
         # 偏置项: bias_pos - bias_neg
         self.bias: float = 0.0
 
+        # 输出变换：interest = output_bias + output_scale * sigmoid(z)
+        # 用于兼容二分类(缺少中立/负类)等情况
+        self.output_bias: float = 0.0
+        self.output_scale: float = 1.0
+
         # 元信息
         self.meta: dict[str, Any] = {}
         self.is_loaded = False
@@ -156,19 +161,64 @@ class FastScorer:
         idf = tfidf.idf_  # numpy array, shape (n_features,)
 
         # 获取 LR 权重
-        # clf.coef_ shape: (n_classes, n_features) 对于多分类
-        # classes_ 顺序应该是 [-1, 0, 1]
-        coef = clf.coef_  # shape (3, n_features)
-        intercept = clf.intercept_  # shape (3,)
-        classes = clf.classes_
+        # - 多分类: coef_.shape == (n_classes, n_features)
+        # - 二分类: coef_.shape == (1, n_features)，对应 classes_[1] 的 logit
+        coef = np.asarray(clf.coef_)
+        intercept = np.asarray(clf.intercept_)
+        classes = np.asarray(clf.classes_)
 
-        # 找到 -1 和 1 的索引
-        idx_neg = np.where(classes == -1)[0][0]
-        idx_pos = np.where(classes == 1)[0][0]
+        # 默认输出变换
+        self.output_bias = 0.0
+        self.output_scale = 1.0
 
-        # 计算 z_interest = z_pos - z_neg 的权重
-        w_interest = coef[idx_pos] - coef[idx_neg]  # shape (n_features,)
-        b_interest = intercept[idx_pos] - intercept[idx_neg]
+        extraction_mode = "unknown"
+        b_interest: float
+
+        if len(classes) == 2 and coef.shape[0] == 1:
+            # 二分类：sigmoid(w·x + b) == P(classes_[1])
+            w_interest = coef[0]
+            b_interest = float(intercept[0]) if intercept.size else 0.0
+            extraction_mode = "binary"
+
+            # 兼容兴趣分定义：interest = P(1) + 0.5*P(0)
+            # 二分类下缺失的类别概率视为 0 或 (1-P(pos))，可化简为线性变换
+            class_set = {int(c) for c in classes.tolist()}
+            pos_label = int(classes[1])
+            if class_set == {-1, 1} and pos_label == 1:
+                # interest = P(1)
+                self.output_bias, self.output_scale = 0.0, 1.0
+            elif class_set == {0, 1} and pos_label == 1:
+                # P(0) = 1 - P(1) => interest = P(1) + 0.5*(1-P(1)) = 0.5 + 0.5*P(1)
+                self.output_bias, self.output_scale = 0.5, 0.5
+            elif class_set == {-1, 0} and pos_label == 0:
+                # interest = 0.5*P(0)
+                self.output_bias, self.output_scale = 0.0, 0.5
+            else:
+                logger.warning(f"[FastScorer] 非标准二分类标签 {classes.tolist()}，将直接使用 sigmoid(logit)")
+
+        else:
+            # 多分类/非标准：尽量构造一个可用的 z
+            if coef.ndim != 2 or coef.shape[0] != len(classes):
+                raise ValueError(
+                    f"不支持的模型权重形状: coef={coef.shape}, classes={classes.tolist()}"
+                )
+
+            if (-1 in classes) and (1 in classes):
+                # 对三分类：使用 z_pos - z_neg 近似兴趣 logit（忽略中立）
+                idx_neg = int(np.where(classes == -1)[0][0])
+                idx_pos = int(np.where(classes == 1)[0][0])
+                w_interest = coef[idx_pos] - coef[idx_neg]
+                b_interest = float(intercept[idx_pos] - intercept[idx_neg])
+                extraction_mode = "multiclass_diff"
+            elif 1 in classes:
+                # 退化：仅使用 class=1 的 logit（仍然输出 sigmoid(logit)）
+                idx_pos = int(np.where(classes == 1)[0][0])
+                w_interest = coef[idx_pos]
+                b_interest = float(intercept[idx_pos])
+                extraction_mode = "multiclass_pos_only"
+                logger.warning(f"[FastScorer] 模型缺少 -1 类别: {classes.tolist()}，将仅使用 class=1 logit")
+            else:
+                raise ValueError(f"模型缺少 class=1，无法构建兴趣评分: classes={classes.tolist()}")
 
         # 融合: combined_weight = w_interest * idf
         combined_weights = w_interest * idf
@@ -200,6 +250,10 @@ class FastScorer:
             "top_k_weights": self.config.top_k_weights,
             "bias": self.bias,
             "ngram_range": self.config.ngram_range,
+            "classes": classes.tolist(),
+            "extraction_mode": extraction_mode,
+            "output_bias": self.output_bias,
+            "output_scale": self.output_scale,
         }
 
         logger.info(
@@ -271,6 +325,9 @@ class FastScorer:
                 interest = 1.0 / (1.0 + math.exp(-alpha * z))
             except OverflowError:
                 interest = 0.0 if z < 0 else 1.0
+
+            interest = self.output_bias + self.output_scale * interest
+            interest = max(0.0, min(1.0, interest))
 
             # 统计
             self.total_scores += 1
