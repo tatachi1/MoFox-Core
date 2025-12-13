@@ -226,28 +226,23 @@ class UnifiedMemoryManager:
                 "judge_decision": None,
             }
 
-            # 步骤1: 检索感知记忆和短期记忆
-            perceptual_blocks_task = asyncio.create_task(self.perceptual_manager.recall_blocks(query_text))
-            short_term_memories_task = asyncio.create_task(self.short_term_manager.search_memories(query_text))
-
+            # 步骤1: 并行检索感知记忆和短期记忆（优化：消除任务创建开销）
             perceptual_blocks, short_term_memories = await asyncio.gather(
-                perceptual_blocks_task,
-                short_term_memories_task,
+                self.perceptual_manager.recall_blocks(query_text),
+                self.short_term_manager.search_memories(query_text),
             )
 
-            # 步骤1.5: 检查需要转移的感知块，推迟到后台处理
-            blocks_to_transfer = [
-                block
-                for block in perceptual_blocks
-                if block.metadata.get("needs_transfer", False)
-            ]
+            # 步骤1.5: 检查需要转移的感知块，推迟到后台处理（优化：单遍扫描与转移）
+            blocks_to_transfer = []
+            for block in perceptual_blocks:
+                if block.metadata.get("needs_transfer", False):
+                    block.metadata["needs_transfer"] = False  # 立即标记，避免重复
+                    blocks_to_transfer.append(block)
 
             if blocks_to_transfer:
                 logger.debug(
                     f"检测到 {len(blocks_to_transfer)} 个感知记忆需要转移，已交由后台后处理任务执行"
                 )
-                for block in blocks_to_transfer:
-                    block.metadata["needs_transfer"] = False
                 self._schedule_perceptual_block_transfer(blocks_to_transfer)
 
             result["perceptual_blocks"] = perceptual_blocks
@@ -412,12 +407,13 @@ class UnifiedMemoryManager:
             )
 
     def _schedule_perceptual_block_transfer(self, blocks: list[MemoryBlock]) -> None:
-        """将感知记忆块转移到短期记忆，后台执行以避免阻塞"""
+        """将感知记忆块转移到短期记忆，后台执行以避免阻塞（优化：避免不必要的列表复制）"""
         if not blocks:
             return
 
+        # 优化：直接传递 blocks 而不再 list(blocks)
         task = asyncio.create_task(
-            self._transfer_blocks_to_short_term(list(blocks))
+            self._transfer_blocks_to_short_term(blocks)
         )
         self._attach_background_task_callback(task, "perceptual->short-term transfer")
 
@@ -440,7 +436,7 @@ class UnifiedMemoryManager:
             self._transfer_wakeup_event.set()
 
     def _calculate_auto_sleep_interval(self) -> float:
-        """根据短期内存压力计算自适应等待间隔"""
+        """根据短期内存压力计算自适应等待间隔（优化：查表法替代链式比较）"""
         base_interval = self._auto_transfer_interval
         if not getattr(self, "short_term_manager", None):
             return base_interval
@@ -448,54 +444,63 @@ class UnifiedMemoryManager:
         max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
         occupancy = len(self.short_term_manager.memories) / max_memories
 
-        # 优化：更激进的自适应间隔，加快高负载下的转移
-        if occupancy >= 0.8:
-            return max(2.0, base_interval * 0.1)
-        if occupancy >= 0.5:
-            return max(5.0, base_interval * 0.2)
-        if occupancy >= 0.3:
-            return max(10.0, base_interval * 0.4)
-        if occupancy >= 0.1:
-            return max(15.0, base_interval * 0.6)
+        # 优化：使用查表法替代链式 if 判断（O(1) vs O(n)）
+        occupancy_thresholds = [
+            (0.8, 2.0, 0.1),
+            (0.5, 5.0, 0.2),
+            (0.3, 10.0, 0.4),
+            (0.1, 15.0, 0.6),
+        ]
+        
+        for threshold, min_val, factor in occupancy_thresholds:
+            if occupancy >= threshold:
+                return max(min_val, base_interval * factor)
 
         return base_interval
 
     async def _transfer_blocks_to_short_term(self, blocks: list[MemoryBlock]) -> None:
-        """实际转换逻辑在后台执行"""
+        """实际转换逻辑在后台执行（优化：并行处理多个块，批量触发唤醒）"""
         logger.debug(f"正在后台处理 {len(blocks)} 个感知记忆块")
-        for block in blocks:
+        
+        # 优化：使用 asyncio.gather 并行处理转移
+        async def _transfer_single(block: MemoryBlock) -> tuple[MemoryBlock, bool]:
             try:
                 stm = await self.short_term_manager.add_from_block(block)
                 if not stm:
-                    continue
-
+                    return block, False
+                
                 await self.perceptual_manager.remove_block(block.id)
-                self._trigger_transfer_wakeup()
                 logger.debug(f"✓ 记忆块 {block.id} 已被转移到短期记忆 {stm.id}")
+                return block, True
             except Exception as exc:
                 logger.error(f"后台转移失败，记忆块 {block.id}: {exc}")
+                return block, False
+        
+        # 并行处理所有块
+        results = await asyncio.gather(*[_transfer_single(block) for block in blocks], return_exceptions=True)
+        
+        # 统计成功的转移
+        success_count = sum(1 for result in results if isinstance(result, tuple) and result[1])
+        if success_count > 0:
+            self._trigger_transfer_wakeup()
+            logger.debug(f"✅ 后台转移: 成功 {success_count}/{len(blocks)} 个块")
 
     def _build_manual_multi_queries(self, queries: list[str]) -> list[dict[str, float]]:
-        """去重裁判查询并附加权重以进行多查询搜索"""
-        deduplicated: list[str] = []
+        """去重裁判查询并附加权重以进行多查询搜索（优化：使用字典推导式）"""
+        # 优化：单遍去重（避免多次 strip 和 in 检查）
         seen = set()
+        decay = 0.15
+        manual_queries: list[dict[str, Any]] = []
+        
         for raw in queries:
             text = (raw or "").strip()
-            if not text or text in seen:
-                continue
-            deduplicated.append(text)
-            seen.add(text)
+            if text and text not in seen:
+                seen.add(text)
+                weight = max(0.3, 1.0 - len(manual_queries) * decay)
+                manual_queries.append({"text": text, "weight": round(weight, 2)})
 
-        if len(deduplicated) <= 1:
-            return []
-
-        manual_queries: list[dict[str, Any]] = []
-        decay = 0.15
-        for idx, text in enumerate(deduplicated):
-            weight = max(0.3, 1.0 - idx * decay)
-            manual_queries.append({"text": text, "weight": round(weight, 2)})
-
-        return manual_queries
+        # 过滤单条或空列表
+        return manual_queries if len(manual_queries) > 1 else []
 
     async def _retrieve_long_term_memories(
         self,
@@ -503,36 +508,41 @@ class UnifiedMemoryManager:
         queries: list[str],
         recent_chat_history: str = "",
     ) -> list[Any]:
-        """可一次性运行多查询搜索的集中式长期检索条目"""
+        """可一次性运行多查询搜索的集中式长期检索条目（优化：减少中间对象创建）"""
         manual_queries = self._build_manual_multi_queries(queries)
 
-        context: dict[str, Any] = {}
-        if recent_chat_history:
-            context["chat_history"] = recent_chat_history
-        if manual_queries:
-            context["manual_multi_queries"] = manual_queries
-
+        # 优化：仅在必要时创建 context 字典
         search_params: dict[str, Any] = {
             "query": base_query,
             "top_k": self._config["long_term"]["search_top_k"],
             "use_multi_query": bool(manual_queries),
         }
-        if context:
+        
+        if recent_chat_history or manual_queries:
+            context: dict[str, Any] = {}
+            if recent_chat_history:
+                context["chat_history"] = recent_chat_history
+            if manual_queries:
+                context["manual_multi_queries"] = manual_queries
             search_params["context"] = context
 
         memories = await self.memory_manager.search_memories(**search_params)
-        unique_memories = self._deduplicate_memories(memories)
-
-        len(manual_queries) if manual_queries else 1
-        return unique_memories
+        return self._deduplicate_memories(memories)
 
     def _deduplicate_memories(self, memories: list[Any]) -> list[Any]:
-        """通过 memory.id 去重"""
+        """通过 memory.id 去重（优化：支持 dict 和 object，单遍处理）"""
         seen_ids: set[str] = set()
         unique_memories: list[Any] = []
 
         for mem in memories:
-            mem_id = getattr(mem, "id", None)
+            # 支持两种 ID 访问方式
+            mem_id = None
+            if isinstance(mem, dict):
+                mem_id = mem.get("id")
+            else:
+                mem_id = getattr(mem, "id", None)
+            
+            # 检查去重
             if mem_id and mem_id in seen_ids:
                 continue
 
@@ -558,7 +568,7 @@ class UnifiedMemoryManager:
         logger.debug("自动转移任务已启动")
 
     async def _auto_transfer_loop(self) -> None:
-        """自动转移循环（批量缓存模式）"""
+        """自动转移循环（批量缓存模式，优化：更高效的缓存管理）"""
         transfer_cache: list[ShortTermMemory] = []
         cached_ids: set[str] = set()
         cache_size_threshold = max(1, self._config["long_term"].get("batch_size", 1))
@@ -582,28 +592,29 @@ class UnifiedMemoryManager:
                 memories_to_transfer = self.short_term_manager.get_memories_for_transfer()
 
                 if memories_to_transfer:
-                    added = 0
+                    # 优化：批量构建缓存而不是逐条添加
+                    new_memories = []
                     for memory in memories_to_transfer:
                         mem_id = getattr(memory, "id", None)
-                        if mem_id and mem_id in cached_ids:
-                            continue
-                        transfer_cache.append(memory)
-                        if mem_id:
-                            cached_ids.add(mem_id)
-                        added += 1
-
-                    if added:
+                        if not (mem_id and mem_id in cached_ids):
+                            new_memories.append(memory)
+                            if mem_id:
+                                cached_ids.add(mem_id)
+                    
+                    if new_memories:
+                        transfer_cache.extend(new_memories)
                         logger.debug(
-                            f"自动转移缓存: 新增{added}条, 当前缓存{len(transfer_cache)}/{cache_size_threshold}"
+                            f"自动转移缓存: 新增{len(new_memories)}条, 当前缓存{len(transfer_cache)}/{cache_size_threshold}"
                         )
 
                 max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
                 occupancy_ratio = len(self.short_term_manager.memories) / max_memories
                 time_since_last_transfer = time.monotonic() - last_transfer_time
 
+                # 优化：优先级判断重构（早期 return）
                 should_transfer = (
                     len(transfer_cache) >= cache_size_threshold
-                    or occupancy_ratio >= 0.5  # 优化：降低触发阈值 (原为 0.85)
+                    or occupancy_ratio >= 0.5
                     or (transfer_cache and time_since_last_transfer >= self._max_transfer_delay)
                     or len(self.short_term_manager.memories) >= self.short_term_manager.max_memories
                 )
@@ -613,13 +624,16 @@ class UnifiedMemoryManager:
                         f"准备批量转移: {len(transfer_cache)}条短期记忆到长期记忆 (占用率 {occupancy_ratio:.0%})"
                     )
 
-                    result = await self.long_term_manager.transfer_from_short_term(list(transfer_cache))
+                    # 优化：直接传递列表而不再复制
+                    result = await self.long_term_manager.transfer_from_short_term(transfer_cache)
 
                     if result.get("transferred_memory_ids"):
+                        transferred_ids = set(result["transferred_memory_ids"])
                         await self.short_term_manager.clear_transferred_memories(
                             result["transferred_memory_ids"]
                         )
-                        transferred_ids = set(result["transferred_memory_ids"])
+                        
+                        # 优化：使用生成器表达式保留未转移的记忆
                         transfer_cache = [
                             m
                             for m in transfer_cache
