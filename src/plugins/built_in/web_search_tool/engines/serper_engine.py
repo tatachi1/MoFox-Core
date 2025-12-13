@@ -121,13 +121,17 @@ class SerperSearchEngine(BaseSearchEngine):
 
             # 添加有机搜索结果
             if "organic" in data:
-                for result in data["organic"][:num_results]:
-                    results.append({
-                        "title": result.get("title", "无标题"),
-                        "url": result.get("link", ""),
-                        "snippet": result.get("snippet", ""),
-                        "provider": "Serper",
-                    })
+                results.extend(
+                    [
+                        {
+                            "title": result.get("title", "无标题"),
+                            "url": result.get("link", ""),
+                            "snippet": result.get("snippet", ""),
+                            "provider": "Serper",
+                        }
+                        for result in data["organic"][:num_results]
+                    ]
+                )
 
             logger.info(f"Serper搜索成功: 查询='{query}', 结果数={len(results)}")
             return results

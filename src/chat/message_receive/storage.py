@@ -3,7 +3,7 @@ import re
 import time
 import traceback
 from collections import deque
-from typing import TYPE_CHECKING, Optional, Any, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import orjson
 from sqlalchemy import desc, insert, select, update

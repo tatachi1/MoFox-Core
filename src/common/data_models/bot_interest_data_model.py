@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from src.config.config import model_config
+
 from . import BaseDataModel
 
 

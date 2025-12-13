@@ -11,7 +11,6 @@ from inspect import iscoroutinefunction
 from src.chat.message_receive.chat_stream import ChatStream
 from src.plugin_system.apis.logging_api import get_logger
 from src.plugin_system.apis.permission_api import permission_api
-from src.plugin_system.apis.send_api import text_to_stream
 
 logger = get_logger(__name__)
 

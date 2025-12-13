@@ -7,7 +7,7 @@ import time
 import traceback
 from collections.abc import Callable, Coroutine
 from random import choices
-from typing import Any, cast
+from typing import Any
 
 from rich.traceback import install
 

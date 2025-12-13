@@ -597,7 +597,7 @@ class OpenaiClient(BaseClient):
         """
         client = self._create_client()
         is_batch_request = isinstance(embedding_input, list)
-        
+
         # 关键修复：指定 encoding_format="base64" 避免 SDK 自动 tolist() 转换
         # OpenAI SDK 在不指定 encoding_format 时会调用 np.frombuffer().tolist()
         # 这会创建大量 Python float 对象，导致严重的内存泄露
@@ -643,14 +643,14 @@ class OpenaiClient(BaseClient):
                     # 兜底：如果 SDK 返回的不是 base64（旧版或其他情况）
                     # 转换为 NumPy 数组
                     embeddings.append(np.array(item.embedding, dtype=np.float32))
-            
+
             response.embedding = embeddings if is_batch_request else embeddings[0]
         else:
             raise RespParseException(
                 raw_response,
                 "响应解析失败，缺失嵌入数据。",
             )
-        
+
         # 大批量请求后触发垃圾回收（batch_size > 8）
         if is_batch_request and len(embedding_input) > 8:
             gc.collect()

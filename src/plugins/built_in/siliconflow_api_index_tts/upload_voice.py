@@ -43,8 +43,7 @@ class VoiceUploader:
             raise FileNotFoundError(f"音频文件不存在: {audio_path}")
 
         # 读取音频文件并转换为base64
-        with open(audio_path, "rb") as f:
-            audio_data = f.read()
+        audio_data = await asyncio.to_thread(audio_path.read_bytes)
 
         audio_base64 = base64.b64encode(audio_data).decode("utf-8")
 
@@ -60,7 +59,7 @@ class VoiceUploader:
         }
 
         logger.info(f"正在上传音频文件: {audio_path}")
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 self.upload_url,

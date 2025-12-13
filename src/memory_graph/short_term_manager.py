@@ -11,11 +11,10 @@ import asyncio
 import json
 import re
 import uuid
-import json_repair
 from pathlib import Path
 from typing import Any
-from collections import defaultdict
 
+import json_repair
 import numpy as np
 
 from src.common.logger import get_logger
@@ -65,7 +64,7 @@ class ShortTermMemoryManager:
         # 核心数据
         self.memories: list[ShortTermMemory] = []
         self.embedding_generator: EmbeddingGenerator | None = None
-        
+
         # 优化：快速查找索引
         self._memory_id_index: dict[str, ShortTermMemory] = {}  # ID 快速查找
         self._similarity_cache: dict[str, dict[str, float]] = {}  # 相似度缓存 {query_id: {target_id: sim}}
@@ -395,7 +394,7 @@ class ShortTermMemoryManager:
                 # 重新生成向量
                 target.embedding = await self._generate_embedding(target.content)
                 target.update_access()
-                
+
                 # 清除此记忆的缓存
                 self._similarity_cache.pop(target.id, None)
 
@@ -422,7 +421,7 @@ class ShortTermMemoryManager:
 
                 target.source_block_ids.extend(new_memory.source_block_ids)
                 target.update_access()
-                
+
                 # 清除此记忆的缓存
                 self._similarity_cache.pop(target.id, None)
 
@@ -471,8 +470,8 @@ class ShortTermMemoryManager:
             # 检查缓存
             if memory.id in self._similarity_cache:
                 cached = self._similarity_cache[memory.id]
-                scored = [(self._memory_id_index[mid], sim) 
-                         for mid, sim in cached.items() 
+                scored = [(self._memory_id_index[mid], sim)
+                         for mid, sim in cached.items()
                          if mid in self._memory_id_index]
                 scored.sort(key=lambda x: x[1], reverse=True)
                 return scored[:top_k]
@@ -488,14 +487,14 @@ class ShortTermMemoryManager:
                 return []
 
             similarities = await asyncio.gather(*tasks)
-            
+
             # 构建结果并缓存
             scored = []
             cache_entry = {}
             for existing_mem, similarity in zip([m for m in self.memories if m.embedding is not None], similarities):
                 scored.append((existing_mem, similarity))
                 cache_entry[existing_mem.id] = similarity
-            
+
             self._similarity_cache[memory.id] = cache_entry
 
             # 按相似度降序排序
@@ -511,7 +510,7 @@ class ShortTermMemoryManager:
         """根据ID查找记忆（优化版：O(1) 哈希表查找）"""
         if not memory_id:
             return None
-        
+
         # 使用索引进行 O(1) 查找
         return self._memory_id_index.get(memory_id)
 
@@ -688,12 +687,12 @@ class ShortTermMemoryManager:
         try:
             remove_ids = set(memory_ids)
             self.memories = [mem for mem in self.memories if mem.id not in remove_ids]
-            
+
             # 更新索引
             for mem_id in remove_ids:
                 self._memory_id_index.pop(mem_id, None)
                 self._similarity_cache.pop(mem_id, None)
-            
+
             logger.info(f"清除 {len(memory_ids)} 条已转移的短期记忆")
 
             # 异步保存

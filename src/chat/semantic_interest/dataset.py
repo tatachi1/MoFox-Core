@@ -3,7 +3,6 @@
 从数据库采样消息并使用 LLM 进行兴趣度标注
 """
 
-import asyncio
 import json
 import random
 from datetime import datetime, timedelta
@@ -11,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 from src.common.logger import get_logger
-from src.config.config import global_config
 
 logger = get_logger("semantic_interest.dataset")
 
@@ -111,16 +109,16 @@ class DatasetGenerator:
     async def initialize(self):
         """初始化 LLM 客户端"""
         try:
-            from src.llm_models.utils_model import LLMRequest
             from src.config.config import model_config
-            
+            from src.llm_models.utils_model import LLMRequest
+
             # 使用 utilities 模型配置（标注更偏工具型）
-            if hasattr(model_config.model_task_config, 'utils'):
+            if hasattr(model_config.model_task_config, "utils"):
                 self.model_client = LLMRequest(
                     model_set=model_config.model_task_config.utils,
                     request_type="semantic_annotation"
                 )
-                logger.info(f"数据集生成器初始化完成，使用 utils 模型")
+                logger.info("数据集生成器初始化完成，使用 utils 模型")
             else:
                 logger.error("未找到 utils 模型配置")
                 self.model_client = None
@@ -149,9 +147,9 @@ class DatasetGenerator:
         Returns:
             消息样本列表
         """
+
         from src.common.database.api.query import QueryBuilder
         from src.common.database.core.models import Messages
-        from sqlalchemy import func, or_
 
         logger.info(f"开始采样消息，时间范围: 最近 {days} 天，目标数量: {max_samples}")
 
@@ -174,14 +172,14 @@ class DatasetGenerator:
         # 查询条件
         cutoff_time = datetime.now() - timedelta(days=days)
         cutoff_ts = cutoff_time.timestamp()
-        
+
         # 优化策略：为了过滤掉长度不足的消息，预取 max_samples * 1.5 条
         # 这样可以在保证足够样本的同时减少查询量
         prefetch_limit = int(max_samples * 1.5)
-        
+
         # 构建优化查询：在数据库层面限制数量并按时间倒序（最新消息优先）
         query_builder = QueryBuilder(Messages)
-        
+
         # 过滤条件：时间范围 + 消息文本不为空
         messages = await query_builder.filter(
             time__gte=cutoff_ts,
@@ -254,43 +252,43 @@ class DatasetGenerator:
             await self.initialize()
 
         logger.info(f"开始生成初始关键词数据集，温度={temperature}，迭代{num_iterations}次")
-        
+
         # 构造人格描述
         persona_desc = self._format_persona_info(persona_info)
-        
+
         # 构造提示词
         prompt = self.KEYWORD_GENERATION_PROMPT.format(
             persona_info=persona_desc,
         )
-        
+
         all_keywords_data = []
-        
+
         # 重复生成多次
         for iteration in range(num_iterations):
             try:
                 if not self.model_client:
                     logger.warning("LLM 客户端未初始化，跳过关键词生成")
                     break
-                
+
                 logger.info(f"第 {iteration + 1}/{num_iterations} 次生成关键词...")
-                
+
                 # 调用 LLM（使用较高温度）
                 response = await self.model_client.generate_response_async(
                     prompt=prompt,
                     max_tokens=1000,  # 关键词列表需要较多token
                     temperature=temperature,
                 )
-                
+
                 # 解析响应（generate_response_async 返回元组）
                 response_text = response[0] if isinstance(response, tuple) else response
                 keywords_data = self._parse_keywords_response(response_text)
-                
+
                 if keywords_data:
                     interested = keywords_data.get("interested", [])
                     not_interested = keywords_data.get("not_interested", [])
-                    
+
                     logger.info(f"  生成 {len(interested)} 个感兴趣关键词，{len(not_interested)} 个不感兴趣关键词")
-                    
+
                     # 转换为训练格式（标签 1 表示感兴趣，-1 表示不感兴趣）
                     for keyword in interested:
                         if keyword and keyword.strip():
@@ -300,7 +298,7 @@ class DatasetGenerator:
                                 "source": "llm_generated_initial",
                                 "iteration": iteration + 1,
                             })
-                    
+
                     for keyword in not_interested:
                         if keyword and keyword.strip():
                             all_keywords_data.append({
@@ -311,21 +309,21 @@ class DatasetGenerator:
                             })
                 else:
                     logger.warning(f"第 {iteration + 1} 次生成失败，未能解析关键词")
-                    
+
             except Exception as e:
                 logger.error(f"第 {iteration + 1} 次关键词生成失败: {e}")
                 import traceback
                 traceback.print_exc()
-        
+
         logger.info(f"初始关键词数据集生成完成，共 {len(all_keywords_data)} 条（不去重）")
-        
+
         # 统计标签分布
         label_counts = {}
         for item in all_keywords_data:
             label = item["label"]
             label_counts[label] = label_counts.get(label, 0) + 1
         logger.info(f"标签分布: {label_counts}")
-        
+
         return all_keywords_data
 
     def _parse_keywords_response(self, response: str) -> dict | None:
@@ -344,20 +342,20 @@ class DatasetGenerator:
                 response = response.split("```json")[1].split("```")[0].strip()
             elif "```" in response:
                 response = response.split("```")[1].split("```")[0].strip()
-            
+
             # 解析JSON
             import json_repair
             response = json_repair.repair_json(response)
             data = json.loads(response)
-            
+
             # 验证格式
             if isinstance(data, dict) and "interested" in data and "not_interested" in data:
                 if isinstance(data["interested"], list) and isinstance(data["not_interested"], list):
                     return data
-            
+
             logger.warning(f"关键词响应格式不正确: {data}")
             return None
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"解析关键词JSON失败: {e}")
             logger.debug(f"响应内容: {response}")
@@ -437,10 +435,10 @@ class DatasetGenerator:
 
         for i in range(0, len(messages), batch_size):
             batch = messages[i : i + batch_size]
-            
+
             # 批量标注（一次LLM请求处理多条消息）
             labels = await self._annotate_batch_llm(batch, persona_info)
-            
+
             # 保存结果
             for msg, label in zip(batch, labels):
                 annotated_data.append({
@@ -632,7 +630,7 @@ class DatasetGenerator:
 
             # 提取JSON内容
             import re
-            json_match = re.search(r'```json\s*({.*?})\s*```', response, re.DOTALL)
+            json_match = re.search(r"```json\s*({.*?})\s*```", response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
             else:
@@ -642,7 +640,7 @@ class DatasetGenerator:
             # 解析JSON
             labels_json = json_repair.repair_json(json_str)
             labels_dict = json.loads(labels_json)  # 验证是否为有效JSON
-            
+
             # 转换为列表
             labels = []
             for i in range(1, expected_count + 1):
@@ -703,7 +701,7 @@ class DatasetGenerator:
         Returns:
             (文本列表, 标签列表)
         """
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         texts = [item["message_text"] for item in data]
@@ -770,7 +768,7 @@ async def generate_training_dataset(
     logger.info("=" * 60)
     logger.info("步骤 3/3: LLM 标注真实消息")
     logger.info("=" * 60)
-    
+
     # 注意：不保存到文件，返回标注后的数据
     annotated_messages = await generator.annotate_batch(
         messages=messages,
@@ -783,21 +781,21 @@ async def generate_training_dataset(
     logger.info("=" * 60)
     logger.info("步骤 4/4: 合并数据集")
     logger.info("=" * 60)
-    
+
     # 合并初始关键词和标注后的消息（不去重，保持所有重复项）
     combined_dataset = []
-    
+
     # 添加初始关键词数据
     if initial_keywords_data:
         combined_dataset.extend(initial_keywords_data)
         logger.info(f"  + 初始关键词: {len(initial_keywords_data)} 条")
-    
+
     # 添加标注后的消息
     combined_dataset.extend(annotated_messages)
     logger.info(f"  + 标注消息: {len(annotated_messages)} 条")
-    
+
     logger.info(f"✓ 合并后总计: {len(combined_dataset)} 条（不去重）")
-    
+
     # 统计标签分布
     label_counts = {}
     for item in combined_dataset:
@@ -809,7 +807,7 @@ async def generate_training_dataset(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(combined_dataset, f, ensure_ascii=False, indent=2)
-    
+
     logger.info("=" * 60)
     logger.info(f"✓ 训练数据集已保存: {output_path}")
     logger.info("=" * 60)

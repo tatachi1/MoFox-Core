@@ -53,7 +53,7 @@ class AffinityInterestCalculator(BaseInterestCalculator):
         self.use_semantic_scoring = True  # 必须启用
         self._semantic_initialized = False  # 防止重复初始化
         self.model_manager = None
-        
+
         # 评分阈值
         self.reply_threshold = affinity_config.reply_action_interest_threshold  # 回复动作兴趣阈值
         self.mention_threshold = affinity_config.mention_bot_adjustment_threshold  # 提及bot后的调整阈值
@@ -286,15 +286,15 @@ class AffinityInterestCalculator(BaseInterestCalculator):
         if self._semantic_initialized:
             logger.debug("[语义评分] 评分器已初始化，跳过")
             return
-        
+
         if not self.use_semantic_scoring:
             logger.debug("[语义评分] 未启用语义兴趣度评分")
             return
 
         # 防止并发初始化（使用锁）
-        if not hasattr(self, '_init_lock'):
+        if not hasattr(self, "_init_lock"):
             self._init_lock = asyncio.Lock()
-        
+
         async with self._init_lock:
             # 双重检查
             if self._semantic_initialized:
@@ -315,15 +315,15 @@ class AffinityInterestCalculator(BaseInterestCalculator):
                 if self.model_manager is None:
                     self.model_manager = ModelManager(model_dir)
                     logger.debug("[语义评分] 模型管理器已创建")
-            
+
                 # 获取人设信息
                 persona_info = self._get_current_persona_info()
-                
+
                 # 先检查是否已有可用模型
                 from src.chat.semantic_interest.auto_trainer import get_auto_trainer
                 auto_trainer = get_auto_trainer()
                 existing_model = auto_trainer.get_model_for_persona(persona_info)
-                
+
                 # 加载模型（自动选择合适的版本，使用单例 + FastScorer）
                 try:
                     if existing_model and existing_model.exists():
@@ -336,14 +336,14 @@ class AffinityInterestCalculator(BaseInterestCalculator):
                             version="auto",  # 自动选择或训练
                             persona_info=persona_info
                         )
-                    
+
                     self.semantic_scorer = scorer
-                          
+
                     logger.info("[语义评分] 语义兴趣度评分器初始化成功（FastScorer优化 + 单例）")
-                    
+
                     # 设置初始化标志
                     self._semantic_initialized = True
-                    
+
                     # 启动自动训练任务（每24小时检查一次）- 只在没有模型时或明确需要时启动
                     if not existing_model or not existing_model.exists():
                         await self.model_manager.start_auto_training(
@@ -352,9 +352,9 @@ class AffinityInterestCalculator(BaseInterestCalculator):
                         )
                     else:
                         logger.debug("[语义评分] 已有模型，跳过自动训练启动")
-                    
+
                 except FileNotFoundError:
-                    logger.warning(f"[语义评分] 未找到训练模型，将自动训练...")
+                    logger.warning("[语义评分] 未找到训练模型，将自动训练...")
                     # 触发首次训练
                     trained, model_path = await auto_trainer.auto_train_if_needed(
                         persona_info=persona_info,
@@ -447,7 +447,7 @@ class AffinityInterestCalculator(BaseInterestCalculator):
 
         try:
             score = await self.semantic_scorer.score_async(content, timeout=2.0)
-            
+
             logger.debug(f"[语义评分] 内容: '{content[:50]}...' -> 分数: {score:.3f}")
             return score
 
@@ -462,14 +462,14 @@ class AffinityInterestCalculator(BaseInterestCalculator):
             return
 
         logger.info("[语义评分] 开始重新加载模型...")
-        
+
         # 检查人设是否变化
-        if hasattr(self, 'model_manager') and self.model_manager:
+        if hasattr(self, "model_manager") and self.model_manager:
             persona_info = self._get_current_persona_info()
             reloaded = await self.model_manager.check_and_reload_for_persona(persona_info)
             if reloaded:
                 self.semantic_scorer = self.model_manager.get_scorer()
-                           
+
                 logger.info("[语义评分] 模型重载完成（人设已更新）")
             else:
                 logger.info("[语义评分] 人设未变化，无需重载")

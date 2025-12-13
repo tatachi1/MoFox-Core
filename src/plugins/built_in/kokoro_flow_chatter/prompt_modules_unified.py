@@ -115,9 +115,9 @@ def build_custom_decision_module() -> str:
 
     kfc_config = get_config()
     custom_prompt = getattr(kfc_config, "custom_decision_prompt", "")
-    
+
     # 调试输出
-    logger.debug(f"[自定义决策提示词] 原始值: {repr(custom_prompt)}, 类型: {type(custom_prompt)}")
+    logger.debug(f"[自定义决策提示词] 原始值: {custom_prompt!r}, 类型: {type(custom_prompt)}")
 
     if not custom_prompt or not custom_prompt.strip():
         logger.debug("[自定义决策提示词] 为空或仅含空白字符，跳过")

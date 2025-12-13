@@ -34,7 +34,7 @@ def get_accurate_size(obj: Any, seen: set | None = None, max_depth: int = 3, _cu
     # 深度限制：防止递归爆炸
     if _current_depth >= max_depth:
         return sys.getsizeof(obj)
-    
+
     # 对象数量限制：防止内存爆炸
     if len(seen) > 10000:
         return sys.getsizeof(obj)
@@ -55,7 +55,7 @@ def get_accurate_size(obj: Any, seen: set | None = None, max_depth: int = 3, _cu
     if isinstance(obj, dict):
         # 限制处理的键值对数量
         items = list(obj.items())[:1000]  # 最多处理1000个键值对
-        size += sum(get_accurate_size(k, seen, max_depth, _current_depth + 1) + 
+        size += sum(get_accurate_size(k, seen, max_depth, _current_depth + 1) +
                    get_accurate_size(v, seen, max_depth, _current_depth + 1)
                    for k, v in items)
 
@@ -204,7 +204,7 @@ def estimate_cache_item_size(obj: Any) -> int:
     if pickle_size > 0:
         # pickle 通常略小于实际内存，乘以1.5作为安全系数
         return int(pickle_size * 1.5)
-    
+
     # 方法2: 智能估算（深度受限，采样大容器）
     try:
         smart_size = estimate_size_smart(obj, max_depth=5, sample_large=True)
