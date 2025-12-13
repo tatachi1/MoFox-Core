@@ -643,7 +643,7 @@ class LongTermMemoryManager:
             subject=params.get("subject", source_stm.subject or "未知"),
             memory_type=params.get("memory_type", source_stm.memory_type or "fact"),
             topic=params.get("topic", source_stm.topic or source_stm.content[:50]),
-            object=params.get("object", source_stm.object),
+            obj=params.get("object", source_stm.object),
             attributes=params.get("attributes", source_stm.attributes),
             importance=params.get("importance", source_stm.importance),
         )
