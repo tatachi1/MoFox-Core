@@ -576,9 +576,8 @@ class ChatManager:
         Returns:
             dict[str, ChatStream]: 包含所有聊天流的字典，key为stream_id，value为ChatStream对象
 
-        注意：直接返回内部字典的引用以提高性能，调用方应避免修改
         """
-        return self.streams  # 直接返回引用，避免复制开销
+        return self.streams.copy()
 
     @staticmethod
     def _build_fields_to_save(stream_data_dict: dict) -> dict:
