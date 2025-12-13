@@ -206,7 +206,8 @@ class KokoroFlowChatter(BaseChatter):
                 exec_results = []
                 has_reply = False
 
-                for action in plan_response.actions:
+                for idx, action in enumerate(plan_response.actions, 1):
+                    logger.debug(f"[KFC] 执行第 {idx}/{len(plan_response.actions)} 个动作: {action.type}")
                     action_data = action.params.copy()
 
                     result = await self.action_manager.execute_action(
@@ -218,6 +219,7 @@ class KokoroFlowChatter(BaseChatter):
                         thinking_id=None,
                         log_prefix="[KFC]",
                     )
+                    logger.debug(f"[KFC] 动作 {action.type} 执行结果: success={result.get('success')}, reply_text={result.get('reply_text', '')[:50]}")
                     exec_results.append(result)
                     if result.get("success") and action.type in ("kfc_reply", "respond"):
                         has_reply = True

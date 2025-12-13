@@ -389,13 +389,13 @@ async def generate_unified_response(
                 f"--- PROMPT END ---"
             )
 
-        # 获取 replyer 模型配置并调用 LLM
+        # 获取 replyer_private 模型配置并调用 LLM（KFC私聊专用）
         models = llm_api.get_available_models()
-        replyer_config = models.get("replyer")
+        replyer_config = models.get("replyer_private")
 
         if not replyer_config:
-            logger.error("[KFC Unified] 未找到 replyer 模型配置")
-            return LLMResponse.create_error_response("未找到 replyer 模型配置")
+            logger.error("[KFC Unified] 未找到 replyer_private 模型配置")
+            return LLMResponse.create_error_response("未找到 replyer_private 模型配置")
 
         # 调用 LLM（使用合并后的提示词）
         success, raw_response, _reasoning, _model_name = await llm_api.generate_with_model(

@@ -61,12 +61,12 @@ async def generate_reply_text(
         if global_config and global_config.debug.show_prompt:
             logger.info(f"[KFC Replyer] 生成的回复提示词:\n{prompt}")
 
-        # 2. 获取 replyer 模型配置并调用 LLM
+        # 2. 获取 replyer_private 模型配置并调用 LLM（KFC私聊专用）
         models = llm_api.get_available_models()
-        replyer_config = models.get("replyer")
+        replyer_config = models.get("replyer_private")
 
         if not replyer_config:
-            logger.error("[KFC Replyer] 未找到 replyer 模型配置")
+            logger.error("[KFC Replyer] 未找到 replyer_private 模型配置")
             return False, "（回复生成失败：未找到模型配置）"
 
         success, raw_response, _reasoning, _model_name = await llm_api.generate_with_model(
