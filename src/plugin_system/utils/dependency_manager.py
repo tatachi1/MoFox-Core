@@ -1,7 +1,10 @@
 import importlib
 import importlib.util
+import os
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 from packaging import version
@@ -14,8 +17,89 @@ from src.plugin_system.utils.dependency_alias import INSTALL_NAME_TO_IMPORT_NAME
 logger = get_logger("dependency_manager")
 
 
+class VenvDetector:
+    """虚拟环境检测器"""
+
+    @staticmethod
+    def detect_venv_type() -> str | None:
+        """
+        检测虚拟环境类型
+        返回: 'uv' | 'venv' | 'conda' | None
+        """
+        # 检查是否在虚拟环境中
+        in_venv = hasattr(sys, "real_prefix") or (
+            hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+        )
+
+        if not in_venv:
+            logger.warning("当前不在虚拟环境中")
+            return None
+
+        venv_path = Path(sys.prefix)
+
+        # 1. 检测 uv (优先检查 pyvenv.cfg 文件)
+        pyvenv_cfg = venv_path / "pyvenv.cfg"
+        if pyvenv_cfg.exists():
+            try:
+                with open(pyvenv_cfg, encoding="utf-8") as f:
+                    content = f.read()
+                    if "uv = " in content:
+                        logger.info("检测到 uv 虚拟环境")
+                        return "uv"
+            except Exception as e:
+                logger.warning(f"读取 pyvenv.cfg 失败: {e}")
+
+        # 2. 检测 conda (检查环境变量和路径)
+        if "CONDA_DEFAULT_ENV" in os.environ or "CONDA_PREFIX" in os.environ:
+            logger.info("检测到 conda 虚拟环境")
+            return "conda"
+
+        # 通过路径特征检测 conda
+        if "conda" in str(venv_path).lower() or "anaconda" in str(venv_path).lower():
+            logger.info(f"检测到 conda 虚拟环境 (路径: {venv_path})")
+            return "conda"
+
+        # 3. 默认为 venv (标准 Python 虚拟环境)
+        logger.info(f"检测到标准 venv 虚拟环境 (路径: {venv_path})")
+        return "venv"
+
+    @staticmethod
+    def get_install_command(venv_type: str | None) -> list[str]:
+        """
+        根据虚拟环境类型获取安装命令
+
+        Args:
+            venv_type: 虚拟环境类型 ('uv' | 'venv' | 'conda' | None)
+
+        Returns:
+            安装命令列表 (不包括包名)
+        """
+        if venv_type == "uv":
+            # 检查 uv 是否可用
+            uv_path = shutil.which("uv")
+            if uv_path:
+                logger.debug("使用 uv pip 安装")
+                return [uv_path, "pip", "install"]
+            else:
+                logger.warning("未找到 uv 命令，回退到标准 pip")
+                return [sys.executable, "-m", "pip", "install"]
+
+        elif venv_type == "conda":
+            # 获取当前 conda 环境名
+            conda_env = os.environ.get("CONDA_DEFAULT_ENV")
+            if conda_env:
+                logger.debug(f"使用 conda 在环境 {conda_env} 中安装")
+                return ["conda", "install", "-n", conda_env, "-y"]
+            else:
+                logger.warning("未找到 conda 环境名，回退到 pip")
+                return [sys.executable, "-m", "pip", "install"]
+
+        else:
+            # 默认使用 pip
+            logger.debug("使用标准 pip 安装")
+            return [sys.executable, "-m", "pip", "install"]
 class DependencyManager:
-    """Python包依赖管理器
+    """Python包依赖管理器 (整合配置和虚拟环境检测)
 
     负责检查和自动安装插件的Python包依赖
     """
@@ -30,15 +114,15 @@ class DependencyManager:
         """
         # 延迟导入配置以避免循环依赖
         try:
-            from src.plugin_system.utils.dependency_config import get_dependency_config
+            from src.config.config import global_config
 
-            config = get_dependency_config()
-
+            dep_config = global_config.dependency_management
             # 优先使用配置文件中的设置，参数作为覆盖
-            self.auto_install = config.auto_install if auto_install is True else auto_install
-            self.use_mirror = config.use_mirror if use_mirror is False else use_mirror
-            self.mirror_url = config.mirror_url if mirror_url is None else mirror_url
-            self.install_timeout = config.install_timeout
+            self.auto_install = dep_config.auto_install if auto_install is True else auto_install
+            self.use_mirror = dep_config.use_mirror if use_mirror is False else use_mirror
+            self.mirror_url = dep_config.mirror_url if mirror_url is None else mirror_url
+            self.install_timeout = dep_config.auto_install_timeout
+            self.prompt_before_install = dep_config.prompt_before_install
 
         except Exception as e:
             logger.warning(f"无法加载依赖配置，使用默认设置: {e}")
@@ -46,6 +130,15 @@ class DependencyManager:
             self.use_mirror = use_mirror or False
             self.mirror_url = mirror_url or ""
             self.install_timeout = 300
+            self.prompt_before_install = False
+
+        # 检测虚拟环境类型
+        self.venv_type = VenvDetector.detect_venv_type()
+        if self.venv_type:
+            logger.info(f"依赖管理器初始化完成，虚拟环境类型: {self.venv_type}")
+        else:
+            logger.warning("依赖管理器初始化完成，但未检测到虚拟环境")
+    # ========== 依赖检查和安装核心方法 ==========
 
     def check_dependencies(self, dependencies: Any, plugin_name: str = "") -> tuple[bool, list[str], list[str]]:
         """检查依赖包是否满足要求
@@ -250,23 +343,36 @@ class DependencyManager:
         return False
 
     def _install_single_package(self, package: str, plugin_name: str = "") -> bool:
-        """安装单个包"""
+        """安装单个包 (支持虚拟环境自动检测)"""
         try:
-            cmd = [sys.executable, "-m", "pip", "install", package]
+            log_prefix = f"[Plugin:{plugin_name}] " if plugin_name else ""
 
-            # 添加镜像源设置
-            if self.use_mirror and self.mirror_url:
+            # 根据虚拟环境类型构建安装命令
+            cmd = VenvDetector.get_install_command(self.venv_type)
+            cmd.append(package)
+
+            # 添加镜像源设置 (仅对 pip/uv 有效)
+            if self.use_mirror and self.mirror_url and "pip" in cmd:
                 cmd.extend(["-i", self.mirror_url])
-                logger.debug(f"[Plugin:{plugin_name}] 使用PyPI镜像源: {self.mirror_url}")
+                logger.debug(f"{log_prefix}使用PyPI镜像源: {self.mirror_url}")
 
-            logger.debug(f"[Plugin:{plugin_name}] 执行安装命令: {' '.join(cmd)}")
+            logger.info(f"{log_prefix}执行安装命令: {' '.join(cmd)}")
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.install_timeout, check=False)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+                timeout=self.install_timeout,
+                check=False,
+            )
 
             if result.returncode == 0:
+                logger.info(f"{log_prefix}安装成功: {package}")
                 return True
             else:
-                logger.error(f"[Plugin:{plugin_name}] pip安装失败: {result.stderr}")
+                logger.error(f"{log_prefix}安装失败: {result.stderr}")
                 return False
 
         except subprocess.TimeoutExpired:
