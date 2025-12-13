@@ -13,6 +13,12 @@ from src.config.config_base import ValidatedConfigBase
 """
 
 
+class InnerConfig(ValidatedConfigBase):
+    """配置文件元信息"""
+
+    version: str = Field(..., description="配置文件版本号（用于配置文件升级与兼容性检查）")
+
+
 class DatabaseConfig(ValidatedConfigBase):
     """数据库配置类"""
 
@@ -588,6 +594,20 @@ class ResponseSplitterConfig(ValidatedConfigBase):
     enable_kaomoji_protection: bool = Field(default=False, description="启用颜文字保护")
 
 
+class LogConfig(ValidatedConfigBase):
+    """日志配置类"""
+
+    date_style: str = Field(default="m-d H:i:s", description="日期格式")
+    log_level_style: str = Field(default="lite", description="日志级别样式")
+    color_text: str = Field(default="full", description="日志文本颜色")
+    log_level: str = Field(default="INFO", description="全局日志级别（向下兼容，优先级低于分别设置）")
+    file_retention_days: int = Field(default=7, description="文件日志保留天数，0=禁用文件日志，-1=永不删除")
+    console_log_level: str = Field(default="INFO", description="控制台日志级别")
+    file_log_level: str = Field(default="DEBUG", description="文件日志级别")
+    suppress_libraries: list[str] = Field(default_factory=list, description="完全屏蔽日志的第三方库列表")
+    library_log_levels: dict[str, str] = Field(default_factory=dict, description="设置特定库的日志级别")
+
+
 class DebugConfig(ValidatedConfigBase):
     """调试配置类"""
 
@@ -703,6 +723,7 @@ class WebSearchConfig(ValidatedConfigBase):
     enable_url_tool: bool = Field(default=True, description="启用URL工具")
     tavily_api_keys: list[str] = Field(default_factory=lambda: [], description="Tavily API密钥列表，支持轮询机制")
     exa_api_keys: list[str] = Field(default_factory=lambda: [], description="exa API密钥列表，支持轮询机制")
+    metaso_api_keys: list[str] = Field(default_factory=lambda: [], description="Metaso API密钥列表，支持轮询机制")
     searxng_instances: list[str] = Field(default_factory=list, description="SearXNG 实例 URL 列表")
     searxng_api_keys: list[str] = Field(default_factory=list, description="SearXNG 实例 API 密钥列表")
     serper_api_keys: list[str] = Field(default_factory=list, description="serper API 密钥列表")
@@ -988,6 +1009,12 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
         description="开启后KFC将接管所有私聊消息；关闭后私聊消息将由AFC处理"
     )
 
+    # --- 工作模式 ---
+    mode: Literal["unified", "split"] = Field(
+        default="split",
+        description='工作模式: "unified"(单次调用) 或 "split"(planner+replyer两次调用)',
+    )
+
     # --- 核心行为配置 ---
     max_wait_seconds_default: int = Field(
         default=300, ge=30, le=3600,
@@ -996,6 +1023,12 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
     enable_continuous_thinking: bool = Field(
         default=True,
         description="是否在等待期间启用心理活动更新"
+    )
+
+    # --- 自定义决策提示词 ---
+    custom_decision_prompt: str = Field(
+        default="",
+        description="自定义KFC决策行为指导提示词（unified影响整体，split仅影响planner）",
     )
 
     waiting: KokoroFlowChatterWaitingConfig = Field(

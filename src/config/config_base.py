@@ -142,7 +142,7 @@ class ValidatedConfigBase(BaseModel):
     """带验证的配置基类，继承自Pydantic BaseModel"""
 
     model_config = {
-        "extra": "allow",  # 允许额外字段
+        "extra": "forbid",  # 禁止额外字段（防止跨版本遗留废弃配置项）
         "validate_assignment": True,  # 验证赋值
         "arbitrary_types_allowed": True,  # 允许任意类型
         "strict": True,  # 如果设为 True 会完全禁用类型转换
