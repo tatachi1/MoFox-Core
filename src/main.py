@@ -7,7 +7,7 @@ import time
 import traceback
 from collections.abc import Callable, Coroutine
 from random import choices
-from typing import Any, cast
+from typing import Any
 
 from rich.traceback import install
 
@@ -385,6 +385,14 @@ class MainSystem:
         # 启动情绪管理器
         await mood_manager.start()
         logger.debug("情绪管理器初始化成功")
+
+        # 初始化日志广播系统
+        try:
+            from src.common.log_broadcaster import setup_log_broadcasting
+            setup_log_broadcasting()
+            logger.debug("日志广播系统初始化成功")
+        except Exception as e:
+            logger.error(f"日志广播系统初始化失败: {e}")
 
         # 启动聊天管理器的自动保存任务
         from src.chat.message_receive.chat_stream import get_chat_manager

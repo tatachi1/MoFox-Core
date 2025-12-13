@@ -29,7 +29,6 @@ from enum import Enum
 from typing import Any, ClassVar, Literal
 
 import numpy as np
-
 from rich.traceback import install
 
 from src.common.logger import get_logger

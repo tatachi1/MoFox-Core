@@ -4,17 +4,15 @@
 """
 
 import time
-from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 
-from src.common.logger import get_logger
 from src.chat.semantic_interest.features_tfidf import TfidfFeatureExtractor
+from src.common.logger import get_logger
 
 logger = get_logger("semantic_interest.model")
 
@@ -173,12 +171,12 @@ class SemanticInterestModel:
         # 确保类别顺序为 [-1, 0, 1]
         classes = self.clf.classes_
         if not np.array_equal(classes, [-1, 0, 1]):
-            # 需要重新排序
-            sorted_proba = np.zeros_like(proba)
+            # 需要重排/补齐（即使是二分类，也保证输出 3 列）
+            sorted_proba = np.zeros((proba.shape[0], 3), dtype=proba.dtype)
             for i, cls in enumerate([-1, 0, 1]):
                 idx = np.where(classes == cls)[0]
                 if len(idx) > 0:
-                    sorted_proba[:, i] = proba[:, idx[0]]
+                    sorted_proba[:, i] = proba[:, int(idx[0])]
             return sorted_proba
 
         return proba

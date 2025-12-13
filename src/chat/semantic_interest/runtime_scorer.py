@@ -16,11 +16,10 @@ from pathlib import Path
 from typing import Any
 
 import joblib
-import numpy as np
 
-from src.common.logger import get_logger
 from src.chat.semantic_interest.features_tfidf import TfidfFeatureExtractor
 from src.chat.semantic_interest.model_lr import SemanticInterestModel
+from src.common.logger import get_logger
 
 logger = get_logger("semantic_interest.scorer")
 
@@ -74,7 +73,7 @@ class SemanticInterestScorer:
         self.model: SemanticInterestModel | None = None
         self.meta: dict[str, Any] = {}
         self.is_loaded = False
-        
+
         # 快速评分器模式
         self._use_fast_scorer = use_fast_scorer
         self._fast_scorer = None  # FastScorer 实例
@@ -82,6 +81,45 @@ class SemanticInterestScorer:
         # 统计信息
         self.total_scores = 0
         self.total_time = 0.0
+
+    def _get_underlying_clf(self):
+        model = self.model
+        if model is None:
+            return None
+        return model.clf if hasattr(model, "clf") else model
+
+    def _proba_to_three(self, proba_row) -> tuple[float, float, float]:
+        """将任意 predict_proba 输出对齐为 (-1, 0, 1) 三类概率。
+
+        兼容情况：
+        - 三分类：classes_ 可能不是 [-1,0,1]，需要按 classes_ 重排
+        - 二分类：classes_ 可能是 [-1,1] / [0,1] / [-1,0]
+        - 包装模型：可能已输出固定 3 列（按 [-1,0,1]）但 classes_ 仍为二类
+        """
+        # numpy array / list 都支持 len() 与迭代
+        proba_row = list(proba_row)
+        clf = self._get_underlying_clf()
+        classes = getattr(clf, "classes_", None)
+
+        if classes is not None and len(classes) == len(proba_row):
+            mapping = {int(cls): float(p) for cls, p in zip(classes, proba_row)}
+            return (
+                mapping.get(-1, 0.0),
+                mapping.get(0, 0.0),
+                mapping.get(1, 0.0),
+            )
+
+        # 兼容包装模型输出：固定为 [-1, 0, 1]
+        if len(proba_row) == 3:
+            return float(proba_row[0]), float(proba_row[1]), float(proba_row[2])
+
+        # 无 classes_ 时的保守兜底（尽量不抛异常）
+        if len(proba_row) == 2:
+            return float(proba_row[0]), 0.0, float(proba_row[1])
+        if len(proba_row) == 1:
+            return 0.0, float(proba_row[0]), 0.0
+
+        raise ValueError(f"不支持的 proba 形状: len={len(proba_row)}")
 
     def load(self):
         """同步加载模型（阻塞）"""
@@ -101,18 +139,22 @@ class SemanticInterestScorer:
             # 如果启用快速评分器模式，创建 FastScorer
             if self._use_fast_scorer:
                 from src.chat.semantic_interest.optimized_scorer import FastScorer, FastScorerConfig
-                
+
                 config = FastScorerConfig(
                     ngram_range=self.vectorizer.get_config().get("ngram_range", (2, 3)),
                     weight_prune_threshold=1e-4,
                 )
-                self._fast_scorer = FastScorer.from_sklearn_model(
-                    self.vectorizer, self.model, config
-                )
-                logger.info(
-                    f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
-                    f"剪枝到 {len(self._fast_scorer.token_weights)}"
-                )
+                try:
+                    self._fast_scorer = FastScorer.from_sklearn_model(
+                        self.vectorizer, self.model, config
+                    )
+                    logger.info(
+                        f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
+                        f"剪枝到 {len(self._fast_scorer.token_weights)}"
+                    )
+                except Exception as e:
+                    self._fast_scorer = None
+                    logger.warning(f"[FastScorer] 初始化失败，将回退到 sklearn 评分路径: {e}")
 
             self.is_loaded = True
             load_time = time.time() - start_time
@@ -128,7 +170,7 @@ class SemanticInterestScorer:
         except Exception as e:
             logger.error(f"模型加载失败: {e}")
             raise
-    
+
     async def load_async(self):
         """异步加载模型（非阻塞）"""
         if not self.model_path.exists():
@@ -150,18 +192,22 @@ class SemanticInterestScorer:
             # 如果启用快速评分器模式，创建 FastScorer
             if self._use_fast_scorer:
                 from src.chat.semantic_interest.optimized_scorer import FastScorer, FastScorerConfig
-                
+
                 config = FastScorerConfig(
                     ngram_range=self.vectorizer.get_config().get("ngram_range", (2, 3)),
                     weight_prune_threshold=1e-4,
                 )
-                self._fast_scorer = FastScorer.from_sklearn_model(
-                    self.vectorizer, self.model, config
-                )
-                logger.info(
-                    f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
-                    f"剪枝到 {len(self._fast_scorer.token_weights)}"
-                )
+                try:
+                    self._fast_scorer = FastScorer.from_sklearn_model(
+                        self.vectorizer, self.model, config
+                    )
+                    logger.info(
+                        f"[FastScorer] 已启用，词表从 {self.vectorizer.get_vocabulary_size()} "
+                        f"剪枝到 {len(self._fast_scorer.token_weights)}"
+                    )
+                except Exception as e:
+                    self._fast_scorer = None
+                    logger.warning(f"[FastScorer] 初始化失败，将回退到 sklearn 评分路径: {e}")
 
             self.is_loaded = True
             load_time = time.time() - start_time
@@ -173,7 +219,7 @@ class SemanticInterestScorer:
 
             if self.meta:
                 logger.info(f"模型元信息: {self.meta}")
-            
+
             # 预热模型
             await self._warmup_async()
 
@@ -186,7 +232,7 @@ class SemanticInterestScorer:
         logger.info("重新加载模型...")
         self.is_loaded = False
         self.load()
-    
+
     async def reload_async(self):
         """异步重新加载模型"""
         logger.info("异步重新加载模型...")
@@ -219,8 +265,7 @@ class SemanticInterestScorer:
                 # 预测概率
                 proba = self.model.predict_proba(X)[0]
 
-                # proba 顺序为 [-1, 0, 1]
-                p_neg, p_neu, p_pos = proba
+                p_neg, p_neu, p_pos = self._proba_to_three(proba)
 
                 # 兴趣分计算策略：
                 # interest = P(1) + 0.5 * P(0)
@@ -283,7 +328,7 @@ class SemanticInterestScorer:
             # 优先使用 FastScorer
             if self._fast_scorer is not None:
                 interests = self._fast_scorer.score_batch(texts)
-                
+
                 # 统计
                 self.total_scores += len(texts)
                 self.total_time += time.time() - start_time
@@ -298,7 +343,8 @@ class SemanticInterestScorer:
 
                 # 计算兴趣分
                 interests = []
-                for p_neg, p_neu, p_pos in proba:
+                for row in proba:
+                    _, p_neu, p_pos = self._proba_to_three(row)
                     interest = float(p_pos + 0.5 * p_neu)
                     interest = max(0.0, min(1.0, interest))
                     interests.append(interest)
@@ -325,11 +371,11 @@ class SemanticInterestScorer:
         """
         if not texts:
             return []
-        
+
         # 计算动态超时
         if timeout is None:
             timeout = DEFAULT_SCORE_TIMEOUT * len(texts)
-        
+
         # 使用全局线程池
         executor = _get_global_executor()
         loop = asyncio.get_running_loop()
@@ -341,7 +387,7 @@ class SemanticInterestScorer:
         except asyncio.TimeoutError:
             logger.warning(f"批量兴趣度计算超时（{timeout}秒），批次大小: {len(texts)}")
             return [0.5] * len(texts)
-    
+
     def _warmup(self, sample_texts: list[str] | None = None):
         """预热模型（执行几次推理以优化性能）
         
@@ -350,26 +396,26 @@ class SemanticInterestScorer:
         """
         if not self.is_loaded:
             return
-        
+
         if sample_texts is None:
             sample_texts = [
                 "你好",
                 "今天天气怎么样？",
                 "我对这个话题很感兴趣"
             ]
-        
+
         logger.debug(f"开始预热模型，样本数: {len(sample_texts)}")
         start_time = time.time()
-        
+
         for text in sample_texts:
             try:
                 self.score(text)
             except Exception:
                 pass  # 忽略预热错误
-        
+
         warmup_time = time.time() - start_time
         logger.debug(f"模型预热完成，耗时: {warmup_time:.3f}秒")
-    
+
     async def _warmup_async(self, sample_texts: list[str] | None = None):
         """异步预热模型"""
         loop = asyncio.get_event_loop()
@@ -391,7 +437,7 @@ class SemanticInterestScorer:
         proba = self.model.predict_proba(X)[0]
         pred_label = self.model.predict(X)[0]
 
-        p_neg, p_neu, p_pos = proba
+        p_neg, p_neu, p_pos = self._proba_to_three(proba)
         interest = float(p_pos + 0.5 * p_neu)
 
         return {
@@ -429,11 +475,11 @@ class SemanticInterestScorer:
             "fast_scorer_enabled": self._fast_scorer is not None,
             "meta": self.meta,
         }
-        
+
         # 如果启用了 FastScorer，添加其统计
         if self._fast_scorer is not None:
             stats["fast_scorer_stats"] = self._fast_scorer.get_statistics()
-        
+
         return stats
 
     def __repr__(self) -> str:
@@ -465,7 +511,7 @@ class ModelManager:
         self.current_version: str | None = None
         self.current_persona_info: dict[str, Any] | None = None
         self._lock = asyncio.Lock()
-        
+
         # 自动训练器集成
         self._auto_trainer = None
         self._auto_training_started = False  # 防止重复启动自动训练
@@ -495,7 +541,7 @@ class ModelManager:
 
             # 使用单例获取评分器
             scorer = await get_semantic_scorer(model_path, force_reload=False, use_async=use_async)
-            
+
             self.current_scorer = scorer
             self.current_version = version
             self.current_persona_info = persona_info
@@ -550,30 +596,30 @@ class ModelManager:
         try:
             # 延迟导入避免循环依赖
             from src.chat.semantic_interest.auto_trainer import get_auto_trainer
-            
+
             if self._auto_trainer is None:
                 self._auto_trainer = get_auto_trainer()
-            
+
             # 检查是否需要训练
             trained, model_path = await self._auto_trainer.auto_train_if_needed(
                 persona_info=persona_info,
                 days=7,
                 max_samples=1000,  # 初始训练使用1000条消息
             )
-            
+
             if trained and model_path:
                 logger.info(f"[模型管理器] 使用新训练的模型: {model_path.name}")
                 return model_path
-            
+
             # 获取现有的人设模型
             model_path = self._auto_trainer.get_model_for_persona(persona_info)
             if model_path:
                 return model_path
-            
+
             # 降级到 latest
             logger.warning("[模型管理器] 未找到人设模型，使用 latest")
             return self._get_latest_model()
-            
+
         except Exception as e:
             logger.error(f"[模型管理器] 获取人设模型失败: {e}")
             return self._get_latest_model()
@@ -590,9 +636,9 @@ class ModelManager:
         # 检查人设是否变化
         if self.current_persona_info == persona_info:
             return False
-        
+
         logger.info("[模型管理器] 检测到人设变化，重新加载模型...")
-        
+
         try:
             await self.load_model(version="auto", persona_info=persona_info)
             return True
@@ -611,25 +657,25 @@ class ModelManager:
         async with self._lock:
             # 检查是否已经启动
             if self._auto_training_started:
-                logger.debug(f"[模型管理器] 自动训练任务已启动，跳过")
+                logger.debug("[模型管理器] 自动训练任务已启动，跳过")
                 return
-            
+
             try:
                 from src.chat.semantic_interest.auto_trainer import get_auto_trainer
-                
+
                 if self._auto_trainer is None:
                     self._auto_trainer = get_auto_trainer()
-                
+
                 logger.info(f"[模型管理器] 启动自动训练任务，间隔: {interval_hours}小时")
-                
+
                 # 标记为已启动
                 self._auto_training_started = True
-                
+
                 # 在后台任务中运行
                 asyncio.create_task(
                     self._auto_trainer.scheduled_train(persona_info, interval_hours)
                 )
-                
+
             except Exception as e:
                 logger.error(f"[模型管理器] 启动自动训练失败: {e}")
                 self._auto_training_started = False  # 失败时重置标志
@@ -659,7 +705,7 @@ async def get_semantic_scorer(
     """
     model_path = Path(model_path)
     path_key = str(model_path.resolve())  # 使用绝对路径作为键
-    
+
     async with _instance_lock:
         # 检查是否已存在实例
         if not force_reload and path_key in _scorer_instances:
@@ -669,7 +715,7 @@ async def get_semantic_scorer(
                 return scorer
             else:
                 logger.info(f"[单例] 评分器未加载，重新加载: {model_path.name}")
-        
+
         # 创建或重新加载实例
         if path_key not in _scorer_instances:
             logger.info(f"[单例] 创建新的评分器实例: {model_path.name}")
@@ -678,13 +724,13 @@ async def get_semantic_scorer(
         else:
             scorer = _scorer_instances[path_key]
             logger.info(f"[单例] 强制重新加载评分器: {model_path.name}")
-        
+
         # 加载模型
         if use_async:
             await scorer.load_async()
         else:
             scorer.load()
-        
+
         return scorer
 
 
@@ -705,14 +751,14 @@ def get_semantic_scorer_sync(
     """
     model_path = Path(model_path)
     path_key = str(model_path.resolve())
-    
+
     # 检查是否已存在实例
     if not force_reload and path_key in _scorer_instances:
         scorer = _scorer_instances[path_key]
         if scorer.is_loaded:
             logger.debug(f"[单例] 复用已加载的评分器: {model_path.name}")
             return scorer
-    
+
     # 创建或重新加载实例
     if path_key not in _scorer_instances:
         logger.info(f"[单例] 创建新的评分器实例: {model_path.name}")
@@ -721,7 +767,7 @@ def get_semantic_scorer_sync(
     else:
         scorer = _scorer_instances[path_key]
         logger.info(f"[单例] 强制重新加载评分器: {model_path.name}")
-    
+
     # 加载模型
     scorer.load()
     return scorer
