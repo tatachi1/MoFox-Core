@@ -22,6 +22,7 @@ class MetaEventHandler:
         self.adapter = adapter
         self.plugin_config: dict[str, Any] | None = None
         self._interval_checking = False
+        self._heartbeat_task: asyncio.Task | None = None
 
     def set_plugin_config(self, config: dict[str, Any]) -> None:
         """设置插件配置"""
@@ -41,7 +42,7 @@ class MetaEventHandler:
                 self_id = raw.get("self_id")
                 if not self._interval_checking and self_id:
                     # 第一次收到心跳包时才启动心跳检查
-                    asyncio.create_task(self.check_heartbeat(self_id))
+                    self._heartbeat_task = asyncio.create_task(self.check_heartbeat(self_id))
                 self.last_heart_beat = time.time()
                 interval = raw.get("interval")
                 if interval:

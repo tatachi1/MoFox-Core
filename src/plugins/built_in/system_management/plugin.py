@@ -347,8 +347,10 @@ class SystemCommand(PlusCommand):
             return
 
         response_parts = [f"🧩 已注册的提示词组件 (共 {len(components)} 个):"]
-        for comp in components:
-            response_parts.append(f"• `{comp.name}` (来自: `{comp.plugin_name}`)")
+
+        response_parts.extend(
+            [f"• `{comp.name}` (来自: `{comp.plugin_name}`)" for comp in components]
+        )
 
         await self._send_long_message("\n".join(response_parts))
 
@@ -586,8 +588,10 @@ class SystemCommand(PlusCommand):
 
         for plugin_name, comps in by_plugin.items():
             response_parts.append(f"🔌 **{plugin_name}**:")
-            for comp in comps:
-                response_parts.append(f"  ❌ `{comp.name}` ({comp.component_type.value})")
+
+            response_parts.extend(
+                [f"  ❌ `{comp.name}` ({comp.component_type.value})" for comp in comps]
+            )
 
         await self._send_long_message("\n".join(response_parts))
 

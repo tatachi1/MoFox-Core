@@ -3,16 +3,15 @@
 统一的训练流程入口，包含数据采样、标注、训练、评估
 """
 
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import joblib
 
-from src.common.logger import get_logger
 from src.chat.semantic_interest.dataset import DatasetGenerator, generate_training_dataset
 from src.chat.semantic_interest.model_lr import train_semantic_model
+from src.common.logger import get_logger
 
 logger = get_logger("semantic_interest.trainer")
 
@@ -110,7 +109,6 @@ class SemanticInterestTrainer:
         logger.info(f"开始训练模型，数据集: {dataset_path}")
 
         # 加载数据集
-        from src.chat.semantic_interest.dataset import DatasetGenerator
         texts, labels = DatasetGenerator.load_dataset(dataset_path)
 
         # 训练模型

@@ -10,9 +10,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from src.common.logger import get_logger
-from src.config.config import global_config
 from src.chat.semantic_interest.trainer import SemanticInterestTrainer
+from src.common.logger import get_logger
 
 logger = get_logger("semantic_interest.auto_trainer")
 
@@ -64,7 +63,7 @@ class AutoTrainer:
 
         # 加载缓存的人设状态
         self._load_persona_cache()
-        
+
         # 定时任务标志（防止重复启动）
         self._scheduled_task_running = False
         self._scheduled_task = None
@@ -78,7 +77,7 @@ class AutoTrainer:
         """加载缓存的人设状态"""
         if self.persona_cache_file.exists():
             try:
-                with open(self.persona_cache_file, "r", encoding="utf-8") as f:
+                with open(self.persona_cache_file, encoding="utf-8") as f:
                     cache = json.load(f)
                     self.last_persona_hash = cache.get("persona_hash")
                     last_train_str = cache.get("last_train_time")
@@ -121,7 +120,7 @@ class AutoTrainer:
             "personality_side": persona_info.get("personality_side", ""),
             "identity": persona_info.get("identity", ""),
         }
-        
+
         # 转为JSON并计算哈希
         json_str = json.dumps(key_fields, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(json_str.encode()).hexdigest()
@@ -136,17 +135,17 @@ class AutoTrainer:
             True 如果人设发生变化
         """
         current_hash = self._calculate_persona_hash(persona_info)
-        
+
         if self.last_persona_hash is None:
             logger.info("[自动训练器] 首次检测人设")
             return True
-            
+
         if current_hash != self.last_persona_hash:
-            logger.info(f"[自动训练器] 检测到人设变化")
+            logger.info("[自动训练器] 检测到人设变化")
             logger.info(f"  - 旧哈希: {self.last_persona_hash[:8]}")
             logger.info(f"  - 新哈希: {current_hash[:8]}")
             return True
-            
+
         return False
 
     def should_train(self, persona_info: dict[str, Any], force: bool = False) -> tuple[bool, str]:
@@ -198,7 +197,7 @@ class AutoTrainer:
         """
         # 检查是否需要训练
         should_train, reason = self.should_train(persona_info, force)
-        
+
         if not should_train:
             logger.debug(f"[自动训练器] {reason}，跳过训练")
             return False, None
@@ -236,7 +235,7 @@ class AutoTrainer:
             # 创建"latest"符号链接
             self._create_latest_link(model_path)
 
-            logger.info(f"[自动训练器] 训练完成!")
+            logger.info("[自动训练器] 训练完成!")
             logger.info(f"  - 模型: {model_path.name}")
             logger.info(f"  - 准确率: {metrics.get('test_accuracy', 0):.4f}")
 
@@ -255,18 +254,18 @@ class AutoTrainer:
             model_path: 模型文件路径
         """
         latest_path = self.model_dir / "semantic_interest_latest.pkl"
-        
+
         try:
             # 删除旧链接
             if latest_path.exists() or latest_path.is_symlink():
                 latest_path.unlink()
-            
+
             # 创建新链接（Windows 需要管理员权限，使用复制代替）
             import shutil
             shutil.copy2(model_path, latest_path)
-            
-            logger.info(f"[自动训练器] 已更新 latest 模型")
-            
+
+            logger.info("[自动训练器] 已更新 latest 模型")
+
         except Exception as e:
             logger.warning(f"[自动训练器] 创建 latest 链接失败: {e}")
 
@@ -283,9 +282,9 @@ class AutoTrainer:
         """
         # 检查是否已经有任务在运行
         if self._scheduled_task_running:
-            logger.info(f"[自动训练器] 定时任务已在运行，跳过重复启动")
+            logger.info("[自动训练器] 定时任务已在运行，跳过重复启动")
             return
-        
+
         self._scheduled_task_running = True
         logger.info(f"[自动训练器] 启动定时训练任务，间隔: {interval_hours}小时")
         logger.info(f"[自动训练器] 当前人设哈希: {self._calculate_persona_hash(persona_info)[:8]}")
@@ -294,13 +293,13 @@ class AutoTrainer:
             try:
                 # 检查并训练
                 trained, model_path = await self.auto_train_if_needed(persona_info)
-                
+
                 if trained:
                     logger.info(f"[自动训练器] 定时训练完成: {model_path}")
-                
+
                 # 等待下次检查
                 await asyncio.sleep(interval_hours * 3600)
-                
+
             except Exception as e:
                 logger.error(f"[自动训练器] 定时训练出错: {e}")
                 # 出错后等待较短时间再试
@@ -316,24 +315,24 @@ class AutoTrainer:
             模型文件路径，如果不存在则返回 None
         """
         persona_hash = self._calculate_persona_hash(persona_info)
-        
+
         # 查找匹配的模型
         pattern = f"semantic_interest_auto_{persona_hash[:8]}_*.pkl"
         matching_models = list(self.model_dir.glob(pattern))
-        
+
         if matching_models:
             # 返回最新的
             latest = max(matching_models, key=lambda p: p.stat().st_mtime)
             logger.debug(f"[自动训练器] 找到人设模型: {latest.name}")
             return latest
-        
+
         # 没有找到，返回 latest
         latest_path = self.model_dir / "semantic_interest_latest.pkl"
         if latest_path.exists():
-            logger.debug(f"[自动训练器] 使用 latest 模型")
+            logger.debug("[自动训练器] 使用 latest 模型")
             return latest_path
-            
-        logger.warning(f"[自动训练器] 未找到可用模型")
+
+        logger.warning("[自动训练器] 未找到可用模型")
         return None
 
     def cleanup_old_models(self, keep_count: int = 5):
@@ -345,20 +344,20 @@ class AutoTrainer:
         try:
             # 获取所有自动训练的模型
             all_models = list(self.model_dir.glob("semantic_interest_auto_*.pkl"))
-            
+
             if len(all_models) <= keep_count:
                 return
-            
+
             # 按修改时间排序
             all_models.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            
+
             # 删除旧模型
             for old_model in all_models[keep_count:]:
                 old_model.unlink()
                 logger.info(f"[自动训练器] 清理旧模型: {old_model.name}")
-                
+
             logger.info(f"[自动训练器] 模型清理完成，保留 {keep_count} 个")
-            
+
         except Exception as e:
             logger.error(f"[自动训练器] 清理模型失败: {e}")
 

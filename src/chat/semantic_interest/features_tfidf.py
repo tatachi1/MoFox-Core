@@ -3,7 +3,6 @@
 使用字符级 n-gram 提取中文消息的 TF-IDF 特征
 """
 
-from pathlib import Path
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -70,10 +69,10 @@ class TfidfFeatureExtractor:
         logger.info(f"开始训练 TF-IDF 向量化器，样本数: {len(texts)}")
         self.vectorizer.fit(texts)
         self.is_fitted = True
-        
+
         vocab_size = len(self.vectorizer.vocabulary_)
         logger.info(f"TF-IDF 向量化器训练完成，词表大小: {vocab_size}")
-        
+
         return self
 
     def transform(self, texts: list[str]):
@@ -87,7 +86,7 @@ class TfidfFeatureExtractor:
         """
         if not self.is_fitted:
             raise ValueError("向量化器尚未训练，请先调用 fit() 方法")
-            
+
         return self.vectorizer.transform(texts)
 
     def fit_transform(self, texts: list[str]):
@@ -102,10 +101,10 @@ class TfidfFeatureExtractor:
         logger.info(f"开始训练并转换 TF-IDF 向量，样本数: {len(texts)}")
         result = self.vectorizer.fit_transform(texts)
         self.is_fitted = True
-        
+
         vocab_size = len(self.vectorizer.vocabulary_)
         logger.info(f"TF-IDF 向量化完成，词表大小: {vocab_size}")
-        
+
         return result
 
     def get_feature_names(self) -> list[str]:
@@ -116,7 +115,7 @@ class TfidfFeatureExtractor:
         """
         if not self.is_fitted:
             raise ValueError("向量化器尚未训练")
-            
+
         return self.vectorizer.get_feature_names_out().tolist()
 
     def get_vocabulary_size(self) -> int:

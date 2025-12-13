@@ -1799,7 +1799,7 @@ class DefaultReplyer:
             )
 
             if content:
-                if not global_config.response_splitter.enable or global_config.response_splitter.split_mode != 'llm':
+                if not global_config.response_splitter.enable or global_config.response_splitter.split_mode != "llm":
                     # 移除 [SPLIT] 标记，防止消息被分割
                     content = content.replace("[SPLIT]", "")
 

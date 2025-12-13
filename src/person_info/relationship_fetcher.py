@@ -182,10 +182,10 @@ class RelationshipFetcher:
                         kw_lower = kw.lower()
                         # 排除聊天互动、情感需求等不是真实兴趣的词汇
                         if not any(excluded in kw_lower for excluded in [
-                            '亲亲', '撒娇', '被宠', '被夸', '聊天', '互动', '关心', '专注', '需要'
+                            "亲亲", "撒娇", "被宠", "被夸", "聊天", "互动", "关心", "专注", "需要"
                         ]):
                             filtered_keywords.append(kw)
-                    
+
                     if filtered_keywords:
                         keywords_str = "、".join(filtered_keywords)
                         relation_parts.append(f"\n{person_name}的兴趣爱好：{keywords_str}")

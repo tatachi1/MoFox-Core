@@ -122,7 +122,7 @@ class BroadcastLogHandler(logging.Handler):
         try:
             # 导入logger元数据获取函数
             from src.common.logger import get_logger_meta
-            
+
             return get_logger_meta(logger_name)
         except Exception:
             # 如果获取失败,返回空元数据
@@ -138,7 +138,7 @@ class BroadcastLogHandler(logging.Handler):
         try:
             # 获取logger元数据（别名和颜色）
             logger_meta = self._get_logger_metadata(record.name)
-            
+
             # 转换日志记录为字典
             log_dict = {
                 "timestamp": self.format_time(record),
@@ -146,7 +146,7 @@ class BroadcastLogHandler(logging.Handler):
                 "logger_name": record.name,  # 原始logger名称
                 "event": record.getMessage(),
             }
-            
+
             # 添加别名和颜色（如果存在）
             if logger_meta["alias"]:
                 log_dict["alias"] = logger_meta["alias"]

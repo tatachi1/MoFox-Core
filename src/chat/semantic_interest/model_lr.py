@@ -4,17 +4,15 @@
 """
 
 import time
-from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 
-from src.common.logger import get_logger
 from src.chat.semantic_interest.features_tfidf import TfidfFeatureExtractor
+from src.common.logger import get_logger
 
 logger = get_logger("semantic_interest.model")
 

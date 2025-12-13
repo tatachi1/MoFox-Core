@@ -2,21 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mofox_wire import (
-    MessageBuilder,
-    SegPayload,
-)
+import orjson
+from mofox_wire import MessageBuilder, SegPayload
 
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api
 
 from ...event_models import ACCEPT_FORMAT, QQ_FACE, RealMessageType
-from ..utils import *
+from ..utils import (
+    get_forward_message,
+    get_group_info,
+    get_image_base64,
+    get_member_info,
+    get_message_detail,
+    get_record_detail,
+    get_self_info,
+)
 
 if TYPE_CHECKING:
     from ....plugin import NapcatAdapter
@@ -300,8 +307,7 @@ class MessageHandler:
         try:
             if file_path and Path(file_path).exists():
                 # 本地文件处理
-                with open(file_path, "rb") as f:
-                    video_data = f.read()
+                video_data = await asyncio.to_thread(Path(file_path).read_bytes)
                 video_base64 = base64.b64encode(video_data).decode("utf-8")
                 logger.debug(f"视频文件大小: {len(video_data) / (1024 * 1024):.2f} MB")
 

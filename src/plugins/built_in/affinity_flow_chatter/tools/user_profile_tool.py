@@ -196,12 +196,12 @@ class UserProfileTool(BaseTool):
             # 🎯 核心：使用relationship_tracker模型生成印象并决定好感度变化
             final_impression = existing_profile.get("relationship_text", "")
             affection_change = 0.0  # 好感度变化量
-            
+
             # 只有在LLM明确提供impression_hint时才更新印象（更严格）
             if impression_hint and impression_hint.strip():
                 # 获取最近的聊天记录用于上下文
                 chat_history_text = await self._get_recent_chat_history(target_user_id)
-                
+
                 impression_result = await self._generate_impression_with_affection(
                     target_user_name=target_user_name,
                     impression_hint=impression_hint,
@@ -282,7 +282,7 @@ class UserProfileTool(BaseTool):
             valid_types = ["birthday", "job", "location", "dream", "family", "pet", "other"]
             if info_type not in valid_types:
                 info_type = "other"
-            
+
             # 🎯 信息质量判断：过滤掉模糊的描述性内容
             low_quality_patterns = [
                 # 原有的模糊描述
@@ -296,7 +296,7 @@ class UserProfileTool(BaseTool):
                 "感觉", "心情", "状态", "最近", "今天", "现在"
             ]
             info_value_lower = info_value.lower().strip()
-            
+
             # 如果值太短或包含低质量模式，跳过
             if len(info_value_lower) < 2:
                 logger.warning(f"关键信息值太短，跳过: {info_value}")
@@ -640,7 +640,7 @@ class UserProfileTool(BaseTool):
                 affection_change = float(result.get("affection_change", 0))
                 result.get("change_reason", "")
                 detected_gender = result.get("gender", "unknown")
-                
+
                 # 🎯 根据当前好感度阶段限制变化范围
                 if current_score < 0.3:
                     # 陌生→初识：±0.03
@@ -657,7 +657,7 @@ class UserProfileTool(BaseTool):
                 else:
                     # 好友→挚友：±0.01
                     max_change = 0.01
-                
+
                 affection_change = max(-max_change, min(max_change, affection_change))
 
                 # 如果印象为空或太短，回退到hint

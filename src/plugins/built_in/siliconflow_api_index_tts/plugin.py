@@ -7,6 +7,7 @@ import asyncio
 import base64
 import hashlib
 from pathlib import Path
+from typing import ClassVar
 
 import aiohttp
 import toml
@@ -139,25 +140,34 @@ class SiliconFlowIndexTTSAction(BaseAction):
     action_description = "使用SiliconFlow API进行高质量的IndexTTS语音合成，支持零样本语音克隆"
 
     # 关键词配置
-    activation_keywords = ["克隆语音", "模仿声音", "语音合成", "indextts", "声音克隆", "语音生成", "仿声", "变声"]
+    activation_keywords: ClassVar[list[str]] = [
+        "克隆语音",
+        "模仿声音",
+        "语音合成",
+        "indextts",
+        "声音克隆",
+        "语音生成",
+        "仿声",
+        "变声",
+    ]
     keyword_case_sensitive = False
 
     # 动作参数定义
-    action_parameters = {
+    action_parameters: ClassVar[dict[str, str]] = {
         "text": "需要合成语音的文本内容，必填，应当清晰流畅",
-        "speed": "语速（可选），范围0.1-3.0，默认1.0"
+        "speed": "语速（可选），范围0.1-3.0，默认1.0",
     }
 
     # 动作使用场景
-    action_require = [
+    action_require: ClassVar[list[str]] = [
         "当用户要求语音克隆或模仿某个声音时使用",
         "当用户明确要求进行语音合成时使用",
         "当需要高质量语音输出时使用",
-        "当用户要求变声或仿声时使用"
+        "当用户要求变声或仿声时使用",
     ]
 
     # 关联类型 - 支持语音消息
-    associated_types = ["voice"]
+    associated_types: ClassVar[list[str]] = ["voice"]
 
     async def execute(self) -> tuple[bool, str]:
         """执行SiliconFlow IndexTTS语音合成"""
@@ -258,11 +268,11 @@ class SiliconFlowTTSCommand(BaseCommand):
 
     command_name = "sf_tts"
     command_description = "使用SiliconFlow IndexTTS进行语音合成"
-    command_aliases = ["sftts", "sf语音", "硅基语音"]
+    command_aliases: ClassVar[list[str]] = ["sftts", "sf语音", "硅基语音"]
 
-    command_parameters = {
+    command_parameters: ClassVar[dict[str, dict[str, object]]] = {
         "text": {"type": str, "required": True, "description": "要合成的文本"},
-        "speed": {"type": float, "required": False, "description": "语速 (0.1-3.0)"}
+        "speed": {"type": float, "required": False, "description": "语速 (0.1-3.0)"},
     }
 
     async def execute(self, text: str, speed: float = 1.0) -> tuple[bool, str]:
@@ -341,14 +351,14 @@ class SiliconFlowIndexTTSPlugin(BasePlugin):
 
     # 必需的抽象属性
     enable_plugin: bool = True
-    dependencies: list[str] = []
+    dependencies: ClassVar[list[str]] = []
     config_file_name: str = "config.toml"
 
     # Python依赖
-    python_dependencies = ["aiohttp>=3.8.0"]
+    python_dependencies: ClassVar[list[str]] = ["aiohttp>=3.8.0"]
 
     # 配置描述
-    config_section_descriptions = {
+    config_section_descriptions: ClassVar[dict[str, str]] = {
         "plugin": "插件基本配置",
         "components": "组件启用配置",
         "api": "SiliconFlow API配置",
@@ -356,7 +366,7 @@ class SiliconFlowIndexTTSPlugin(BasePlugin):
     }
 
     # 配置schema
-    config_schema = {
+    config_schema: ClassVar[dict[str, dict[str, ConfigField]]] = {
         "plugin": {
             "enabled": ConfigField(type=bool, default=False, description="是否启用插件"),
             "config_version": ConfigField(type=str, default="2.0.0", description="配置文件版本"),

@@ -4,7 +4,6 @@ import binascii
 import hashlib
 import io
 import json
-import json_repair
 import os
 import random
 import re
@@ -12,6 +11,7 @@ import time
 import traceback
 from typing import Any, Optional, cast
 
+import json_repair
 from PIL import Image
 from rich.traceback import install
 from sqlalchemy import select
