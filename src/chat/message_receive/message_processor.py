@@ -3,6 +3,7 @@
 基于 mofox-wire 的 TypedDict 形式构建消息数据，然后转换为 DatabaseMessages
 """
 import base64
+import re
 import time
 from typing import Any
 
@@ -19,6 +20,15 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 
 logger = get_logger("message_processor")
+
+# 预编译正则表达式
+_AT_PATTERN = re.compile(r"^([^:]+):(.+)$")
+
+# 常量定义：段类型集合
+RECURSIVE_SEGMENT_TYPES = frozenset(["seglist"])
+MEDIA_SEGMENT_TYPES = frozenset(["image", "emoji", "voice", "video"])
+METADATA_SEGMENT_TYPES = frozenset(["mention_bot", "priority_info"])
+SPECIAL_SEGMENT_TYPES = frozenset(["at", "reply", "file"])
 
 
 async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: str, platform: str) -> DatabaseMessages:
@@ -101,7 +111,7 @@ async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: st
     mentioned_value = processing_state.get("is_mentioned")
     if isinstance(mentioned_value, bool):
         is_mentioned = mentioned_value
-    elif isinstance(mentioned_value, (int, float)):
+    elif isinstance(mentioned_value, int | float):
         is_mentioned = mentioned_value != 0
 
     # 使用 TypedDict 风格的数据构建 DatabaseMessages
@@ -223,13 +233,12 @@ async def _process_single_segment(
             state["is_at"] = True
             # 处理at消息，格式为"@<昵称:QQ号>"
             if isinstance(seg_data, str):
-                if ":" in seg_data:
-                    # 标准格式: "昵称:QQ号"
-                    nickname, qq_id = seg_data.split(":", 1)
+                match = _AT_PATTERN.match(seg_data)
+                if match:
+                    nickname, qq_id = match.groups()
                     return f"@<{nickname}:{qq_id}>"
-                else:
-                    logger.warning(f"[at处理] 无法解析格式: '{seg_data}'")
-                    return f"@{seg_data}"
+                logger.warning(f"[at处理] 无法解析格式: '{seg_data}'")
+                return f"@{seg_data}"
             logger.warning(f"[at处理] 数据类型异常: {type(seg_data)}")
             return f"@{seg_data}" if isinstance(seg_data, str) else "@未知用户"
 
@@ -272,7 +281,7 @@ async def _process_single_segment(
             return "[发了一段语音，网卡了加载不出来]"
 
         elif seg_type == "mention_bot":
-            if isinstance(seg_data, (int, float)):
+            if isinstance(seg_data, int | float):
                 state["is_mentioned"] = float(seg_data)
             return ""
 
@@ -368,19 +377,18 @@ def _prepare_additional_config(
         str | None: JSON 字符串格式的 additional_config，如果为空则返回 None
     """
     try:
-        additional_config_data = {}
-
         # 首先获取adapter传递的additional_config
         additional_config_raw = message_info.get("additional_config")
-        if additional_config_raw:
-            if isinstance(additional_config_raw, dict):
-                additional_config_data = additional_config_raw.copy()
-            elif isinstance(additional_config_raw, str):
-                try:
-                    additional_config_data = orjson.loads(additional_config_raw)
-                except Exception as e:
-                    logger.warning(f"无法解析 additional_config JSON: {e}")
-                    additional_config_data = {}
+        if isinstance(additional_config_raw, dict):
+            additional_config_data = additional_config_raw.copy()
+        elif isinstance(additional_config_raw, str):
+            try:
+                additional_config_data = orjson.loads(additional_config_raw)
+            except Exception as e:
+                logger.warning(f"无法解析 additional_config JSON: {e}")
+                additional_config_data = {}
+        else:
+            additional_config_data = {}
 
         # 添加notice相关标志
         if is_notify:
