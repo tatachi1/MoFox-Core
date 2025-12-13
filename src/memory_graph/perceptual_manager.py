@@ -21,6 +21,7 @@ import numpy as np
 from src.common.logger import get_logger
 from src.memory_graph.models import MemoryBlock, PerceptualMemory
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
+from src.memory_graph.utils.similarity import _compute_similarities_sync
 
 logger = get_logger(__name__)
 
@@ -406,46 +407,8 @@ class PerceptualMemoryManager:
     ) -> np.ndarray:
         """在后台线程中向量化计算相似度，避免阻塞事件循环。"""
         return await asyncio.to_thread(
-            self._compute_similarities_sync, query_embedding, block_embeddings, block_norms
+            _compute_similarities_sync, query_embedding, block_embeddings, block_norms
         )
-
-    @staticmethod
-    def _compute_similarities_sync(
-        query_embedding: np.ndarray,
-        block_embeddings: list[np.ndarray],
-        block_norms: list[float] | None = None,
-    ) -> np.ndarray:
-        import numpy as np
-
-        if not block_embeddings:
-            return np.zeros(0, dtype=np.float32)
-
-        query = np.asarray(query_embedding, dtype=np.float32)
-        blocks = np.asarray(block_embeddings, dtype=np.float32)
-
-        if blocks.ndim == 1:
-            blocks = blocks.reshape(1, -1)
-
-        query_norm = np.linalg.norm(query)
-        if query_norm == 0.0:
-            return np.zeros(blocks.shape[0], dtype=np.float32)
-
-        if block_norms is None:
-            block_norms_array = np.linalg.norm(blocks, axis=1)
-        else:
-            block_norms_array = np.asarray(block_norms, dtype=np.float32)
-            if block_norms_array.shape[0] != blocks.shape[0]:
-                block_norms_array = np.linalg.norm(blocks, axis=1)
-
-        valid_mask = block_norms_array > 0
-        similarities = np.zeros(blocks.shape[0], dtype=np.float32)
-
-        if valid_mask.any():
-            normalized_blocks = blocks[valid_mask] / block_norms_array[valid_mask][:, None]
-            normalized_query = query / query_norm
-            similarities[valid_mask] = normalized_blocks @ normalized_query
-
-        return np.clip(similarities, 0.0, 1.0)
 
     async def recall_blocks(
         self,
