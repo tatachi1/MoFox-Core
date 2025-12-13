@@ -577,7 +577,7 @@ class ChatManager:
             dict[str, ChatStream]: 包含所有聊天流的字典，key为stream_id，value为ChatStream对象
 
         """
-        return self.streams.copy()
+        return self.streams
 
     @staticmethod
     def _build_fields_to_save(stream_data_dict: dict) -> dict:
