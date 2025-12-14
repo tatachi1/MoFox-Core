@@ -66,6 +66,13 @@ class LongTermMemoryManager:
         self._similar_memory_cache: dict[str, list[Memory]] = {}
         self._cache_max_size = 100
 
+        # 错误/重试统计与配置
+        self._max_process_retries = 2
+        self._retry_backoff = 0.5
+        self._total_processed = 0
+        self._failed_single_memory_count = 0
+        self._retry_attempts = 0
+
         logger.info(
             f"长期记忆管理器已创建 (batch_size={batch_size}, "
             f"search_top_k={search_top_k}, decay_factor={long_term_decay_factor:.2f})"
@@ -202,6 +209,10 @@ class LongTermMemoryManager:
             else:
                 result["failed_count"] += 1
 
+        # 更新全局计数
+        self._total_processed += result["processed_count"]
+        self._failed_single_memory_count += result["failed_count"]
+
         # 处理完批次后，批量生成embeddings
         await self._flush_pending_embeddings()
 
@@ -217,26 +228,45 @@ class LongTermMemoryManager:
         Returns:
             处理结果或None（如果失败）
         """
-        try:
-            # 步骤1: 在长期记忆中检索相似记忆
-            similar_memories = await self._search_similar_long_term_memories(stm)
+        # 增加重试机制以应对 LLM/执行的临时失败
+        attempt = 0
+        last_exc: Exception | None = None
+        while attempt <= self._max_process_retries:
+            try:
+                # 步骤1: 在长期记忆中检索相似记忆
+                similar_memories = await self._search_similar_long_term_memories(stm)
 
-            # 步骤2: LLM 决策如何更新图结构
-            operations = await self._decide_graph_operations(stm, similar_memories)
+                # 步骤2: LLM 决策如何更新图结构
+                operations = await self._decide_graph_operations(stm, similar_memories)
 
-            # 步骤3: 执行图操作
-            success = await self._execute_graph_operations(operations, stm)
+                # 步骤3: 执行图操作
+                success = await self._execute_graph_operations(operations, stm)
 
-            if success:
-                return {
-                    "success": True,
-                    "operations": [op.operation_type for op in operations]
-                }
-            return None
+                if success:
+                    return {
+                        "success": True,
+                        "operations": [op.operation_type for op in operations]
+                    }
 
-        except Exception as e:
-            logger.error(f"处理短期记忆 {stm.id} 失败: {e}")
-            return None
+                # 如果执行返回 False，视为一次失败，准备重试
+                last_exc = RuntimeError("_execute_graph_operations 返回 False")
+                raise last_exc
+
+            except Exception as e:
+                last_exc = e
+                attempt += 1
+                if attempt <= self._max_process_retries:
+                    self._retry_attempts += 1
+                    backoff = self._retry_backoff * attempt
+                    logger.warning(
+                        f"处理短期记忆 {stm.id} 时发生可恢复错误，重试 {attempt}/{self._max_process_retries}，等待 {backoff}s: {e}"
+                    )
+                    await asyncio.sleep(backoff)
+                    continue
+                # 超过重试次数，记录失败并返回 None
+                logger.error(f"处理短期记忆 {stm.id} 最终失败: {last_exc}")
+                self._failed_single_memory_count += 1
+                return None
 
     async def _search_similar_long_term_memories(
         self, stm: ShortTermMemory

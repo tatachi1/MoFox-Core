@@ -1,8 +1,8 @@
 import os
 import shutil
 import sys
-import typing
 import types
+import typing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, get_args, get_origin
@@ -30,8 +30,8 @@ from src.config.official_configs import (
     ExperimentalConfig,
     ExpressionConfig,
     InnerConfig,
-    LogConfig,
     KokoroFlowChatterConfig,
+    LogConfig,
     LPMMKnowledgeConfig,
     MemoryConfig,
     MessageBusConfig,
@@ -515,7 +515,7 @@ class Config(ValidatedConfigBase):
     )
 
     @property
-    def MMC_VERSION(self) -> str:  # noqa: N802
+    def MMC_VERSION(self) -> str:
         return MMC_VERSION
 
 

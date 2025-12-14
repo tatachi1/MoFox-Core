@@ -110,10 +110,10 @@ class MessageManager:
             if not (context.stream_loop_task and not context.stream_loop_task.done()):
                 # 异步启动驱动器任务；避免在高并发下阻塞消息入队
                 await stream_loop_manager.start_stream_loop(stream_id)
-                
+
             # 检查并处理消息打断
             await self._check_and_handle_interruption(chat_stream, message)
-            
+
             # 入队消息
             await chat_stream.context.add_message(message)
 
