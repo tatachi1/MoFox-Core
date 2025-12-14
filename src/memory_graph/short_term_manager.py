@@ -648,15 +648,15 @@ class ShortTermMemoryManager:
             else:
                 low_importance_memories.append(mem)
 
-        # 如果低重要性记忆数量超过了上限（说明积压严重）
-        # 我们需要清理掉一部分，而不是转移它们
-        if len(low_importance_memories) > self.max_memories:
+        # 如果总体记忆数量超过了上限，优先清理低重要性最早创建的记忆
+        if len(self.memories) > self.max_memories:
             # 目标保留数量（降至上限的 90%）
             target_keep_count = int(self.max_memories * 0.9)
-            num_to_remove = len(low_importance_memories) - target_keep_count
+            # 需要删除的数量（从当前总数降到 target_keep_count）
+            num_to_remove = len(self.memories) - target_keep_count
 
-            if num_to_remove > 0:
-                # 按创建时间排序，删除最早的
+            if num_to_remove > 0 and low_importance_memories:
+                # 按创建时间排序，删除最早的低重要性记忆
                 low_importance_memories.sort(key=lambda x: x.created_at)
                 to_remove = low_importance_memories[:num_to_remove]
 
@@ -664,7 +664,7 @@ class ShortTermMemoryManager:
                 remove_ids = {mem.id for mem in to_remove}
                 self.memories = [mem for mem in self.memories if mem.id not in remove_ids]
                 for mem_id in remove_ids:
-                    del self._memory_id_index[mem_id]
+                    self._memory_id_index.pop(mem_id, None)
                     self._similarity_cache.pop(mem_id, None)
 
                 logger.info(
@@ -674,6 +674,16 @@ class ShortTermMemoryManager:
 
                 # 触发保存
                 asyncio.create_task(self._save_to_disk())
+
+        # 优先返回高重要性候选
+        if candidates:
+            return candidates
+
+        # 如果没有高重要性候选但总体超过上限，返回按创建时间最早的低重要性记忆作为后备转移候选
+        if len(self.memories) > self.max_memories:
+            needed = len(self.memories) - self.max_memories + 1
+            low_importance_memories.sort(key=lambda x: x.created_at)
+            return low_importance_memories[:needed]
 
         return candidates
 
