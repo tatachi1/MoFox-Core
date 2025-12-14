@@ -995,6 +995,27 @@ class KokoroFlowChatterWaitingConfig(ValidatedConfigBase):
     )
 
 
+class KokoroFlowChatterPromptConfig(ValidatedConfigBase):
+    """Kokoro Flow Chatter 提示词/上下文构建配置"""
+
+    activity_stream_format: Literal["narrative", "table", "both"] = Field(
+        default="narrative",
+        description='活动流格式: "narrative"(线性叙事) / "table"(结构化表格) / "both"(两者都输出)',
+    )
+    max_activity_entries: int = Field(
+        default=30,
+        ge=0,
+        le=200,
+        description="活动流最多保留条数（越大越完整，但token越高）",
+    )
+    max_entry_length: int = Field(
+        default=500,
+        ge=0,
+        le=5000,
+        description="活动流单条最大字符数（用于裁剪，避免单条过长拖垮上下文）",
+    )
+
+
 class KokoroFlowChatterConfig(ValidatedConfigBase):
     """
     Kokoro Flow Chatter 配置类 - 私聊专用心流对话系统
@@ -1029,6 +1050,11 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
     custom_decision_prompt: str = Field(
         default="",
         description="自定义KFC决策行为指导提示词（unified影响整体，split仅影响planner）",
+    )
+
+    prompt: KokoroFlowChatterPromptConfig = Field(
+        default_factory=KokoroFlowChatterPromptConfig,
+        description="提示词/上下文构建配置（活动流格式、裁剪等）",
     )
 
     waiting: KokoroFlowChatterWaitingConfig = Field(

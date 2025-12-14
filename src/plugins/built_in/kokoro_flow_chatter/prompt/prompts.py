@@ -34,7 +34,7 @@ kfc_MAIN_PROMPT = Prompt(
 {tool_info}
 
 # 你们之间最近的活动记录
-以下是你和 {user_name} 最近的互动历史，按时间顺序记录了你们的对话和你的心理活动：
+以下是你和 {user_name} 最近的互动历史，按时间顺序记录了你们的对话和你的心理活动（可能是线性叙事或结构化表格）：
 {activity_stream}
 
 # 聊天历史总览
@@ -69,7 +69,7 @@ kfc_OUTPUT_FORMAT = Prompt(
         {{"type": "动作名称", ...动作参数}}
     ],
     "expected_reaction": "你期待对方的反应是什么",
-    - `max_wait_seconds`：预估的等待时间（秒），请根据对话节奏来判断。通常你应该设置为0避免总是等待显得聒噪，但是当你觉得你需要等待对方回复时，可以设置一个合理的等待时间。
+    "max_wait_seconds": 0
 }}
 ```
 
@@ -93,7 +93,7 @@ kfc_SITUATION_NEW_MESSAGE = Prompt(
     name="kfc_situation_new_message",
     template="""现在是 {current_time}。
 
-{user_name} 刚刚给你发了消息：「{latest_message}」
+{last_action_block}{user_name} 刚刚给你发了消息：「{latest_message}」
 
 这是一次新的对话发起（不是对你之前消息的回复）。
 
@@ -108,7 +108,7 @@ kfc_SITUATION_REPLY_IN_TIME = Prompt(
     name="kfc_situation_reply_in_time",
     template="""现在是 {current_time}。
 
-你之前发了消息后一直在等 {user_name} 的回复。
+{last_action_block}你之前发了消息后一直在等 {user_name} 的回复。
 等了大约 {elapsed_minutes:.1f} 分钟（你原本打算最多等 {max_wait_minutes:.1f} 分钟）。
 现在 {user_name} 回复了：「{latest_message}」
 
@@ -119,7 +119,7 @@ kfc_SITUATION_REPLY_LATE = Prompt(
     name="kfc_situation_reply_late",
     template="""现在是 {current_time}。
 
-你之前发了消息后在等 {user_name} 的回复。
+{last_action_block}你之前发了消息后在等 {user_name} 的回复。
 你原本打算最多等 {max_wait_minutes:.1f} 分钟，但实际等了 {elapsed_minutes:.1f} 分钟才收到回复。
 虽然有点迟，但 {user_name} 终于回复了：「{latest_message}」
 
@@ -130,7 +130,7 @@ kfc_SITUATION_TIMEOUT = Prompt(
     name="kfc_situation_timeout",
     template="""现在是 {current_time}。
 
-你之前发了消息后一直在等 {user_name} 的回复。
+{last_action_block}你之前发了消息后一直在等 {user_name} 的回复。
 你原本打算最多等 {max_wait_minutes:.1f} 分钟，现在已经等了 {elapsed_minutes:.1f} 分钟了，对方还是没回。
 你当时期待的反应是："{expected_reaction}"
 {timeout_context}
@@ -161,7 +161,7 @@ kfc_SITUATION_PROACTIVE = Prompt(
     name="kfc_situation_proactive",
     template="""现在是 {current_time}。
 
-你和 {user_name} 已经有一段时间没聊天了（沉默了 {silence_duration}）。
+{last_action_block}你和 {user_name} 已经有一段时间没聊天了（沉默了 {silence_duration}）。
 {trigger_reason}
 
 你在想要不要主动找 {user_name} 聊点什么。
@@ -251,7 +251,7 @@ kfc_PLANNER_OUTPUT_FORMAT = Prompt(
         {{"type": "动作名称", ...动作参数}}
     ],
     "expected_reaction": "你期待对方的反应是什么",
-    - `max_wait_seconds`：预估的等待时间（秒），请根据对话节奏来判断。通常你应该设置为0避免总是等待显得聒噪，但是当你觉得你需要等待对方回复时，可以设置一个合理的等待时间。
+    "max_wait_seconds": 0
 }}
 ```
 
@@ -264,6 +264,7 @@ kfc_PLANNER_OUTPUT_FORMAT = Prompt(
 
 ### 注意事项
 - 动作参数直接写在动作对象里，不需要 `action_data` 包装
+- **分离模式规则**：Planner 阶段禁止输出 `kfc_reply.content`（就算写了也会被系统忽略，回复内容由 Replyer 单独生成）
 - 即使什么都不想做，也放一个 `{{"type": "do_nothing"}}`
 - 可以组合多个动作，比如先发消息再发表情""",
 )
@@ -406,7 +407,7 @@ kfc_UNIFIED_OUTPUT_FORMAT = Prompt(
         {{"type": "kfc_reply", "content": "你的回复内容"}}
     ],
     "expected_reaction": "你期待对方的反应是什么",
-    - `max_wait_seconds`：预估的等待时间（秒），请根据对话节奏来判断。通常你应该设置为0避免总是等待显得聒噪，但是当你觉得你需要等待对方回复时，可以设置一个合理的等待时间。
+    "max_wait_seconds": 0
 }}
 ```
 

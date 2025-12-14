@@ -456,6 +456,11 @@ class ProactiveThinker:
                 # 分离模式下需要注入上下文信息
                 for action in plan_response.actions:
                     if action.type == "kfc_reply":
+                        if "content" in action.params and action.params.get("content"):
+                            logger.warning(
+                                "[KFC ProactiveThinker] Split模式下Planner输出了kfc_reply.content，已忽略（由Replyer生成）"
+                            )
+                        action.params.pop("content", None)
                         action.params["user_id"] = session.user_id
                         action.params["user_name"] = user_name
                         action.params["thought"] = plan_response.thought
@@ -495,7 +500,7 @@ class ProactiveThinker:
 
             # 执行动作（回复生成在 Action.execute() 中完成）
             for action in plan_response.actions:
-                await action_manager.execute_action(
+                result = await action_manager.execute_action(
                     action_name=action.type,
                     chat_id=session.stream_id,
                     target_message=None,
@@ -504,6 +509,10 @@ class ProactiveThinker:
                     thinking_id=None,
                     log_prefix="[KFC ProactiveThinker]",
                 )
+                if result.get("success") and action.type in ("kfc_reply", "respond"):
+                    reply_text = (result.get("reply_text") or "").strip()
+                    if reply_text:
+                        action.params["content"] = reply_text
 
             # 🎯 只有真正发送了消息才增加追问计数（do_nothing 不算追问）
             has_reply_action = any(
@@ -703,6 +712,11 @@ class ProactiveThinker:
             if self._mode == KFCMode.SPLIT:
                 for action in plan_response.actions:
                     if action.type == "kfc_reply":
+                        if "content" in action.params and action.params.get("content"):
+                            logger.warning(
+                                "[KFC ProactiveThinker] Split模式下Planner输出了kfc_reply.content，已忽略（由Replyer生成）"
+                            )
+                        action.params.pop("content", None)
                         action.params["user_id"] = session.user_id
                         action.params["user_name"] = user_name
                         action.params["thought"] = plan_response.thought
@@ -735,7 +749,7 @@ class ProactiveThinker:
 
             # 执行动作（回复生成在 Action.execute() 中完成）
             for action in plan_response.actions:
-                await action_manager.execute_action(
+                result = await action_manager.execute_action(
                     action_name=action.type,
                     chat_id=session.stream_id,
                     target_message=None,
@@ -744,6 +758,10 @@ class ProactiveThinker:
                     thinking_id=None,
                     log_prefix="[KFC ProactiveThinker]",
                 )
+                if result.get("success") and action.type in ("kfc_reply", "respond"):
+                    reply_text = (result.get("reply_text") or "").strip()
+                    if reply_text:
+                        action.params["content"] = reply_text
 
             # 记录到 mental_log
             session.add_bot_planning(

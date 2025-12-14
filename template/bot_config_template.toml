@@ -1,5 +1,5 @@
 [inner]
-version = "8.0.0"
+version = "8.0.1"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -637,6 +637,20 @@ enable_continuous_thinking = true # 是否在等待期间启用心理活动更�
 # 在split模式下：只会插入到planner提示词中，影响决策规划，不影响replyer的回复生成
 # 留空则不生效
 custom_decision_prompt = ""
+
+# --- 提示词/上下文构建配置 ---
+[kokoro_flow_chatter.prompt]
+# 活动流格式（你们之间最近发生的事）
+# - "narrative": 线性叙事（更自然，但信息密度较低，长时更容易丢细节）
+# - "table": 结构化表格（更高信息密度、更利于模型对齐字段；推荐）
+# - "both": 同时输出表格 + 叙事（对照/调试用，token 更高）
+activity_stream_format = "table"
+
+# 活动流最多保留条数（越大越完整，但 token 越高）
+max_activity_entries = 5
+
+# 表格单元格/叙事单条的最大字符数（用于裁剪，避免某条过长拖垮上下文）
+max_entry_length = 500
 
 # --- 等待策略 ---
 [kokoro_flow_chatter.waiting]

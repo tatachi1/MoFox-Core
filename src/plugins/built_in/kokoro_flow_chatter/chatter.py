@@ -223,6 +223,9 @@ class KokoroFlowChatter(BaseChatter):
                     exec_results.append(result)
                     if result.get("success") and action.type in ("kfc_reply", "respond"):
                         has_reply = True
+                        reply_text = (result.get("reply_text") or "").strip()
+                        if reply_text:
+                            action.params["content"] = reply_text
 
                 # 11. 记录 Bot 规划到 mental_log
                 session.add_bot_planning(
@@ -336,6 +339,12 @@ class KokoroFlowChatter(BaseChatter):
         # 为 kfc_reply 动作注入回复生成所需的上下文
         for action in plan_response.actions:
             if action.type == "kfc_reply":
+                # 分离模式下 Planner 不应直接生成回复内容；即使模型输出了 content，也应忽略
+                if "content" in action.params and action.params.get("content"):
+                    logger.warning(
+                        "[KFC] Split模式下Planner输出了kfc_reply.content，已忽略（由Replyer生成）"
+                    )
+                action.params.pop("content", None)
                 action.params["user_id"] = user_id
                 action.params["user_name"] = user_name
                 action.params["thought"] = plan_response.thought

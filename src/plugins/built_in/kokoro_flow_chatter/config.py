@@ -90,6 +90,12 @@ class PromptConfig:
     # 每条记录最大字符数
     max_entry_length: int = 500
 
+    # 活动流格式：narrative（线性叙事）/ table（结构化表格）/ both（两者都给）
+    # - narrative: 更自然，但信息密度较低，长时更容易丢细节
+    # - table: 更高信息密度，便于模型对齐字段、检索与对比
+    # - both: 调试/对照用，token 更高
+    activity_stream_format: str = "narrative"
+
     # 是否包含人物关系信息
     include_relation: bool = True
 
@@ -236,6 +242,11 @@ def load_config() -> KokoroFlowChatterConfig:
                 config.prompt = PromptConfig(
                     max_activity_entries=getattr(pmt_cfg, "max_activity_entries", 30),
                     max_entry_length=getattr(pmt_cfg, "max_entry_length", 500),
+                    activity_stream_format=getattr(
+                        pmt_cfg,
+                        "activity_stream_format",
+                        getattr(pmt_cfg, "activity_format", "narrative"),
+                    ),
                     include_relation=getattr(pmt_cfg, "include_relation", True),
                     include_memory=getattr(pmt_cfg, "include_memory", True),
                 )

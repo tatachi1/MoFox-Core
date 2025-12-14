@@ -284,6 +284,42 @@ class PromptBuilder:
 
         return ""
 
+    def _build_last_bot_action_block(self, session: KokoroSession | None) -> str:
+        """
+        构建“最近一次Bot动作/发言”块（用于插入到当前情况里）
+
+        目的：让模型在决策时能显式参考“我刚刚做过什么/说过什么”，降低长上下文里漏细节的概率。
+        """
+        if not session or not getattr(session, "mental_log", None):
+            return ""
+
+        last_planning_entry: MentalLogEntry | None = None
+        for entry in reversed(session.mental_log):
+            if entry.event_type == EventType.BOT_PLANNING:
+                last_planning_entry = entry
+                break
+
+        if not last_planning_entry:
+            return ""
+
+        actions_desc = self._format_actions(last_planning_entry.actions)
+
+        last_message = ""
+        for action in last_planning_entry.actions:
+            if action.get("type") == "kfc_reply":
+                content = (action.get("content") or "").strip()
+                if content:
+                    last_message = content
+
+        if last_message and len(last_message) > 80:
+            last_message = last_message[:80] + "..."
+
+        lines = [f"你最近一次执行的动作是：{actions_desc}"]
+        if last_message:
+            lines.append(f"你上一次发出的消息是：「{last_message}」")
+
+        return "\n".join(lines) + "\n\n"
+
     async def _build_context_data(
         self,
         user_name: str,
@@ -541,20 +577,134 @@ class PromptBuilder:
         构建活动流
 
         将 mental_log 中的事件按时间顺序转换为线性叙事
-        使用统一的 prompt 模板
+        支持线性叙事或结构化表格两种格式（可通过配置切换）
         """
-        entries = session.get_recent_entries(limit=30)
+        from ..config import get_config
+
+        kfc_config = get_config()
+        prompt_cfg = getattr(kfc_config, "prompt", None)
+        max_entries = getattr(prompt_cfg, "max_activity_entries", 30) if prompt_cfg else 30
+        max_entry_length = getattr(prompt_cfg, "max_entry_length", 500) if prompt_cfg else 500
+        stream_format = (
+            getattr(prompt_cfg, "activity_stream_format", "narrative") if prompt_cfg else "narrative"
+        )
+
+        entries = session.get_recent_entries(limit=max_entries)
         if not entries:
             return ""
 
-        parts = []
+        stream_format = (stream_format or "narrative").strip().lower()
+        if stream_format == "table":
+            return self._build_activity_stream_table(entries, user_name, max_entry_length)
+        if stream_format == "both":
+            table = self._build_activity_stream_table(entries, user_name, max_entry_length)
+            narrative = await self._build_activity_stream_narrative(entries, user_name)
+            return "\n\n".join([p for p in (table, narrative) if p])
 
+        return await self._build_activity_stream_narrative(entries, user_name)
+
+    async def _build_activity_stream_narrative(
+        self,
+        entries: list[MentalLogEntry],
+        user_name: str,
+    ) -> str:
+        """构建线性叙事活动流（旧格式）"""
+        parts: list[str] = []
         for entry in entries:
             part = await self._format_entry(entry, user_name)
             if part:
                 parts.append(part)
 
         return "\n\n".join(parts)
+
+    def _build_activity_stream_table(
+        self,
+        entries: list[MentalLogEntry],
+        user_name: str,
+        max_cell_length: int = 500,
+    ) -> str:
+        """
+        构建结构化表格活动流（更高信息密度）
+
+        统一列：序号 / 时间 / 事件类型 / 内容 / 想法 / 行动 / 结果
+        """
+
+        def truncate(text: str, limit: int) -> str:
+            if not text:
+                return ""
+            if limit <= 0:
+                return text
+            text = text.strip()
+            return text if len(text) <= limit else (text[: max(0, limit - 1)] + "…")
+
+        def md_cell(value: str) -> str:
+            value = (value or "").replace("\r\n", "\n").replace("\n", "<br>")
+            value = value.replace("|", "\\|")
+            return truncate(value, max_cell_length)
+
+        event_type_alias = {
+            EventType.USER_MESSAGE: "用户消息",
+            EventType.BOT_PLANNING: "你的决策",
+            EventType.WAITING_UPDATE: "等待中",
+            EventType.PROACTIVE_TRIGGER: "主动触发",
+        }
+
+        header = ["#", "时间", "类型", "内容", "想法", "行动", "结果"]
+        lines = [
+            "|" + "|".join(header) + "|",
+            "|" + "|".join(["---"] * len(header)) + "|",
+        ]
+
+        for idx, entry in enumerate(entries, 1):
+            time_str = entry.get_time_str()
+            type_str = event_type_alias.get(entry.event_type, str(entry.event_type))
+
+            content = ""
+            thought = ""
+            action = ""
+            result = ""
+
+            if entry.event_type == EventType.USER_MESSAGE:
+                content = entry.content
+                reply_status = entry.metadata.get("reply_status")
+                if reply_status in ("in_time", "late"):
+                    elapsed_min = entry.metadata.get("elapsed_seconds", 0) / 60
+                    max_wait_min = entry.metadata.get("max_wait_seconds", 0) / 60
+                    status_cn = "及时" if reply_status == "in_time" else "迟到"
+                    result = f"回复{status_cn}（等{elapsed_min:.1f}/{max_wait_min:.1f}分钟）"
+
+            elif entry.event_type == EventType.BOT_PLANNING:
+                thought = entry.thought or "（无）"
+                action = self._format_actions(entry.actions)
+                if entry.max_wait_seconds > 0:
+                    wait_min = entry.max_wait_seconds / 60
+                    expected = entry.expected_reaction or "（无）"
+                    result = f"等待≤{wait_min:.1f}分钟；期待={expected}"
+                else:
+                    result = "不等待"
+
+            elif entry.event_type == EventType.WAITING_UPDATE:
+                thought = entry.waiting_thought or "还在等…"
+                elapsed_min = entry.elapsed_seconds / 60
+                mood = (entry.mood or "").strip()
+                result = f"已等{elapsed_min:.1f}分钟" + (f"；心情={mood}" if mood else "")
+
+            elif entry.event_type == EventType.PROACTIVE_TRIGGER:
+                silence = entry.metadata.get("silence_duration", "一段时间")
+                result = f"沉默{silence}"
+
+            row = [
+                str(idx),
+                md_cell(time_str),
+                md_cell(type_str),
+                md_cell(content),
+                md_cell(thought),
+                md_cell(action),
+                md_cell(result),
+            ]
+            lines.append("|" + "|".join(row) + "|")
+
+        return "（结构化活动流表；按时间顺序）\n" + "\n".join(lines)
 
     async def _format_entry(self, entry: MentalLogEntry, user_name: str) -> str:
         """格式化单个活动日志条目"""
@@ -661,6 +811,7 @@ class PromptBuilder:
     ) -> str:
         """构建当前情况描述"""
         current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M")
+        last_action_block = self._build_last_bot_action_block(session)
 
         # 如果之前没有设置等待时间（max_wait_seconds == 0），视为 new_message
         if situation_type in ("reply_in_time", "reply_late"):
@@ -674,6 +825,7 @@ class PromptBuilder:
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_new_message"],
                 current_time=current_time,
+                last_action_block=last_action_block,
                 user_name=user_name,
                 latest_message=latest_message,
             )
@@ -685,6 +837,7 @@ class PromptBuilder:
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_reply_in_time"],
                 current_time=current_time,
+                last_action_block=last_action_block,
                 user_name=user_name,
                 elapsed_minutes=elapsed / 60,
                 max_wait_minutes=max_wait / 60,
@@ -698,6 +851,7 @@ class PromptBuilder:
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_reply_late"],
                 current_time=current_time,
+                last_action_block=last_action_block,
                 user_name=user_name,
                 elapsed_minutes=elapsed / 60,
                 max_wait_minutes=max_wait / 60,
@@ -743,6 +897,7 @@ class PromptBuilder:
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_timeout"],
                 current_time=current_time,
+                last_action_block=last_action_block,
                 user_name=user_name,
                 elapsed_minutes=elapsed / 60,
                 max_wait_minutes=max_wait / 60,
@@ -756,6 +911,7 @@ class PromptBuilder:
             return await global_prompt_manager.format_prompt(
                 PROMPT_NAMES["situation_proactive"],
                 current_time=current_time,
+                last_action_block=last_action_block,
                 user_name=user_name,
                 silence_duration=silence,
                 trigger_reason=trigger_reason,
@@ -766,6 +922,7 @@ class PromptBuilder:
             PROMPT_NAMES["situation_new_message"],
             current_time=current_time,
             user_name=user_name,
+            last_action_block=last_action_block,
         )
 
     def _build_actions_block(self, available_actions: dict | None) -> str:
@@ -926,15 +1083,17 @@ class PromptBuilder:
         """
         from datetime import datetime
         current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M")
+        last_action_block = self._build_last_bot_action_block(session)
 
         if situation_type == "new_message":
-            return f"现在是 {current_time}。{user_name} 刚给你发了消息。"
+            return f"现在是 {current_time}。\n\n{last_action_block}{user_name} 刚给你发了消息。"
 
         elif situation_type == "reply_in_time":
             elapsed = session.waiting_config.get_elapsed_seconds()
             max_wait = session.waiting_config.max_wait_seconds
             return (
-                f"现在是 {current_time}。\n"
+                f"现在是 {current_time}。\n\n"
+                f"{last_action_block}"
                 f"你之前发了消息后在等 {user_name} 的回复。"
                 f"等了大约 {elapsed / 60:.1f} 分钟（你原本打算最多等 {max_wait / 60:.1f} 分钟）。"
                 f"现在 {user_name} 回复了！"
@@ -944,7 +1103,8 @@ class PromptBuilder:
             elapsed = session.waiting_config.get_elapsed_seconds()
             max_wait = session.waiting_config.max_wait_seconds
             return (
-                f"现在是 {current_time}。\n"
+                f"现在是 {current_time}。\n\n"
+                f"{last_action_block}"
                 f"你之前发了消息后在等 {user_name} 的回复。"
                 f"你原本打算最多等 {max_wait / 60:.1f} 分钟，但实际等了 {elapsed / 60:.1f} 分钟才收到回复。"
                 f"虽然有点迟，但 {user_name} 终于回复了。"
@@ -954,7 +1114,8 @@ class PromptBuilder:
             elapsed = session.waiting_config.get_elapsed_seconds()
             max_wait = session.waiting_config.max_wait_seconds
             return (
-                f"现在是 {current_time}。\n"
+                f"现在是 {current_time}。\n\n"
+                f"{last_action_block}"
                 f"你之前发了消息后一直在等 {user_name} 的回复。"
                 f"你原本打算最多等 {max_wait / 60:.1f} 分钟，现在已经等了 {elapsed / 60:.1f} 分钟了，对方还是没回。"
                 f"你决定主动说点什么。"
@@ -963,13 +1124,14 @@ class PromptBuilder:
         elif situation_type == "proactive":
             silence = extra_context.get("silence_duration", "一段时间")
             return (
-                f"现在是 {current_time}。\n"
+                f"现在是 {current_time}。\n\n"
+                f"{last_action_block}"
                 f"你和 {user_name} 已经有一段时间没聊天了（沉默了 {silence}）。"
                 f"你决定主动找 {user_name} 聊点什么。"
             )
 
         # 默认
-        return f"现在是 {current_time}。"
+        return f"现在是 {current_time}。\n\n{last_action_block}".rstrip()
 
     async def _build_reply_context(
         self,
