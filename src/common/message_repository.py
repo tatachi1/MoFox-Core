@@ -111,7 +111,7 @@ async def find_messages(
             # 统一做上限保护，防止无限制查询导致内存暴涨
             if limit <= 0:
                 capped_limit = SAFE_FETCH_LIMIT
-                logger.warning(
+                logger.debug(
                     f"find_messages 未指定 limit，自动限制为 {capped_limit} 行以避免内存占用过高",
                 )
             else:
