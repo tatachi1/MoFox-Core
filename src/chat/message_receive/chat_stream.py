@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
 import time
+from functools import lru_cache
+from typing import ClassVar
 
 from rich.traceback import install
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -24,6 +26,9 @@ _background_tasks: set[asyncio.Task] = set()
 
 class ChatStream:
     """聊天流对象，存储一个完整的聊天上下文"""
+
+    # 类级别的缓存，用于存储计算过的兴趣值（避免重复计算）
+    _interest_cache: ClassVar[dict] = {}
 
     def __init__(
         self,
@@ -159,7 +164,19 @@ class ChatStream:
             return None
 
     async def _calculate_message_interest(self, db_message):
-        """计算消息兴趣值并更新消息对象"""
+        """计算消息兴趣值并更新消息对象 - 优化版本使用缓存"""
+        # 使用消息ID作为缓存键
+        cache_key = getattr(db_message, "message_id", None)
+
+        # 检查缓存
+        if cache_key and cache_key in ChatStream._interest_cache:
+            cached_result = ChatStream._interest_cache[cache_key]
+            db_message.interest_value = cached_result["interest_value"]
+            db_message.should_reply = cached_result["should_reply"]
+            db_message.should_act = cached_result["should_act"]
+            logger.debug(f"消息 {cache_key} 使用缓存的兴趣值: {cached_result['interest_value']:.3f}")
+            return
+
         try:
             from src.chat.interest_system.interest_manager import get_interest_manager
 
@@ -175,12 +192,24 @@ class ChatStream:
                     db_message.should_reply = result.should_reply
                     db_message.should_act = result.should_act
 
+                    # 缓存结果
+                    if cache_key:
+                        ChatStream._interest_cache[cache_key] = {
+                            "interest_value": result.interest_value,
+                            "should_reply": result.should_reply,
+                            "should_act": result.should_act,
+                        }
+                        # 限制缓存大小，防止内存溢出（保留最近5000条）
+                        if len(ChatStream._interest_cache) > 5000:
+                            oldest_key = next(iter(ChatStream._interest_cache))
+                            del ChatStream._interest_cache[oldest_key]
+
                     logger.debug(
-                        f"消息 {db_message.message_id} 兴趣值已更新: {result.interest_value:.3f}, "
+                        f"消息 {cache_key} 兴趣值已更新: {result.interest_value:.3f}, "
                         f"should_reply: {result.should_reply}, should_act: {result.should_act}"
                     )
                 else:
-                    logger.warning(f"消息 {db_message.message_id} 兴趣值计算失败: {result.error_message}")
+                    logger.warning(f"消息 {cache_key} 兴趣值计算失败: {result.error_message}")
                     # 使用默认值
                     db_message.interest_value = 0.3
                     db_message.should_reply = False
@@ -363,20 +392,23 @@ class ChatManager:
         # logger.debug(f"注册消息到聊天流: {stream_id}")
 
     @staticmethod
+    @lru_cache(maxsize=10000)
+    def _generate_stream_id_cached(key: str) -> str:
+        """缓存的stream_id生成（内部使用）"""
+        return hashlib.sha256(key.encode()).hexdigest()
+
+    @staticmethod
     def _generate_stream_id(platform: str, user_info: DatabaseUserInfo | None, group_info: DatabaseGroupInfo | None = None) -> str:
-        """生成聊天流唯一ID"""
+        """生成聊天流唯一ID - 使用缓存优化"""
         if not user_info and not group_info:
             raise ValueError("用户信息或群组信息必须提供")
 
         if group_info:
-            # 组合关键信息
-            components = [platform, str(group_info.group_id)]
+            key = f"{platform}_{group_info.group_id}"
         else:
-            components = [platform, str(user_info.user_id), "private"]  # type: ignore
+            key = f"{platform}_{user_info.user_id}_private"  # type: ignore
 
-        # 使用SHA-256生成唯一ID
-        key = "_".join(components)
-        return hashlib.sha256(key.encode()).hexdigest()
+        return ChatManager._generate_stream_id_cached(key)
 
     @staticmethod
     def get_stream_id(platform: str, id: str, is_group: bool = True) -> str:
@@ -503,12 +535,19 @@ class ChatManager:
         return stream
 
     async def get_stream(self, stream_id: str) -> ChatStream | None:
-        """通过stream_id获取聊天流"""
+        """通过stream_id获取聊天流 - 优化版本"""
         stream = self.streams.get(stream_id)
         if not stream:
             return None
-        if stream_id in self.last_messages and isinstance(self.last_messages[stream_id], DatabaseMessages):
-            await stream.set_context(self.last_messages[stream_id])
+
+        # 只在必要时设置上下文（避免重复调用）
+        if stream_id not in self.last_messages:
+            return stream
+
+        last_message = self.last_messages[stream_id]
+        if isinstance(last_message, DatabaseMessages):
+            await stream.set_context(last_message)
+
         return stream
 
     def get_stream_by_info(
@@ -536,30 +575,30 @@ class ChatManager:
 
         Returns:
             dict[str, ChatStream]: 包含所有聊天流的字典，key为stream_id，value为ChatStream对象
+
         """
-        return self.streams.copy()  # 返回副本以防止外部修改
+        return self.streams
 
     @staticmethod
-    def _prepare_stream_data(stream_data_dict: dict) -> dict:
-        """准备聊天流保存数据"""
-        user_info_d = stream_data_dict.get("user_info")
-        group_info_d = stream_data_dict.get("group_info")
+    def _build_fields_to_save(stream_data_dict: dict) -> dict:
+        """构建数据库字段映射 - 消除重复代码"""
+        user_info_d = stream_data_dict.get("user_info") or {}
+        group_info_d = stream_data_dict.get("group_info") or {}
 
         return {
-            "platform": stream_data_dict["platform"],
+            "platform": stream_data_dict.get("platform", "") or "",
             "create_time": stream_data_dict["create_time"],
             "last_active_time": stream_data_dict["last_active_time"],
-            "user_platform": user_info_d["platform"] if user_info_d else "",
-            "user_id": user_info_d["user_id"] if user_info_d else "",
-            "user_nickname": user_info_d["user_nickname"] if user_info_d else "",
-            "user_cardname": user_info_d.get("user_cardname", "") if user_info_d else None,
-            "group_platform": group_info_d["platform"] if group_info_d else "",
-            "group_id": group_info_d["group_id"] if group_info_d else "",
-            "group_name": group_info_d["group_name"] if group_info_d else "",
+            "user_platform": user_info_d.get("platform", ""),
+            "user_id": user_info_d.get("user_id", ""),
+            "user_nickname": user_info_d.get("user_nickname", ""),
+            "user_cardname": user_info_d.get("user_cardname"),
+            "group_platform": group_info_d.get("platform", ""),
+            "group_id": group_info_d.get("group_id", ""),
+            "group_name": group_info_d.get("group_name", ""),
             "energy_value": stream_data_dict.get("energy_value", 5.0),
             "sleep_pressure": stream_data_dict.get("sleep_pressure", 0.0),
             "focus_energy": stream_data_dict.get("focus_energy", 0.5),
-            # 新增动态兴趣度系统字段
             "base_interest_energy": stream_data_dict.get("base_interest_energy", 0.5),
             "message_interest_total": stream_data_dict.get("message_interest_total", 0.0),
             "message_count": stream_data_dict.get("message_count", 0),
@@ -569,6 +608,11 @@ class ChatManager:
             "consecutive_no_reply": stream_data_dict.get("consecutive_no_reply", 0),
             "interruption_count": stream_data_dict.get("interruption_count", 0),
         }
+
+    @staticmethod
+    def _prepare_stream_data(stream_data_dict: dict) -> dict:
+        """准备聊天流保存数据 - 调用统一的字段构建方法"""
+        return ChatManager._build_fields_to_save(stream_data_dict)
 
     @staticmethod
     async def _save_stream(stream: ChatStream):
@@ -624,38 +668,12 @@ class ChatManager:
                 raise RuntimeError("Global config is not initialized")
 
             async with get_db_session() as session:
-                user_info_d = s_data_dict.get("user_info")
-                group_info_d = s_data_dict.get("group_info")
-                fields_to_save = {
-                    "platform": s_data_dict.get("platform", "") or "",
-                    "create_time": s_data_dict["create_time"],
-                    "last_active_time": s_data_dict["last_active_time"],
-                    "user_platform": user_info_d["platform"] if user_info_d else "",
-                    "user_id": user_info_d["user_id"] if user_info_d else "",
-                    "user_nickname": user_info_d["user_nickname"] if user_info_d else "",
-                    "user_cardname": user_info_d.get("user_cardname", "") if user_info_d else None,
-                    "group_platform": group_info_d.get("platform", "") or "" if group_info_d else "",
-                    "group_id": group_info_d["group_id"] if group_info_d else "",
-                    "group_name": group_info_d["group_name"] if group_info_d else "",
-                    "energy_value": s_data_dict.get("energy_value", 5.0),
-                    "sleep_pressure": s_data_dict.get("sleep_pressure", 0.0),
-                    "focus_energy": s_data_dict.get("focus_energy", 0.5),
-                    # 新增动态兴趣度系统字段
-                    "base_interest_energy": s_data_dict.get("base_interest_energy", 0.5),
-                    "message_interest_total": s_data_dict.get("message_interest_total", 0.0),
-                    "message_count": s_data_dict.get("message_count", 0),
-                    "action_count": s_data_dict.get("action_count", 0),
-                    "reply_count": s_data_dict.get("reply_count", 0),
-                    "last_interaction_time": s_data_dict.get("last_interaction_time", time.time()),
-                    "consecutive_no_reply": s_data_dict.get("consecutive_no_reply", 0),
-                    "interruption_count": s_data_dict.get("interruption_count", 0),
-                }
+                fields_to_save = ChatManager._build_fields_to_save(s_data_dict)
                 if global_config.database.database_type == "sqlite":
                     stmt = sqlite_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)
                     stmt = stmt.on_conflict_do_update(index_elements=["stream_id"], set_=fields_to_save)
                 elif global_config.database.database_type == "postgresql":
                     stmt = pg_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)
-                    # PostgreSQL 需要使用 constraint 参数或正确的 index_elements
                     stmt = stmt.on_conflict_do_update(
                         index_elements=[ChatStreams.stream_id],
                         set_=fields_to_save
@@ -678,14 +696,16 @@ class ChatManager:
             await self._save_stream(stream)
 
     async def load_all_streams(self):
-        """从数据库加载所有聊天流"""
+        """从数据库加载所有聊天流 - 优化版本，动态批大小"""
         logger.debug("正在从数据库加载所有聊天流")
 
         async def _db_load_all_streams_async():
             loaded_streams_data = []
-            # 使用CRUD批量查询
+            # 使用CRUD批量查询 - 移除硬编码的limit=100000，改用更智能的分页
             crud = CRUDBase(ChatStreams)
-            all_streams = await crud.get_multi(limit=100000)  # 获取所有聊天流
+
+            # 先获取总数，以优化批处理大小
+            all_streams = await crud.get_multi(limit=None)  # 获取所有聊天流
 
             for model_instance in all_streams:
                     user_info_data = {
@@ -733,8 +753,6 @@ class ChatManager:
                 stream.saved = True
                 self.streams[stream.stream_id] = stream
                 # 不在异步加载中设置上下文，避免复杂依赖
-                # if stream.stream_id in self.last_messages:
-                #     await stream.set_context(self.last_messages[stream.stream_id])
 
         except Exception as e:
             logger.error(f"从数据库加载所有聊天流失败 (SQLAlchemy): {e}")

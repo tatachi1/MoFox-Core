@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import re
 import time
 import traceback
@@ -18,6 +19,16 @@ if TYPE_CHECKING:
     from src.chat.message_receive.chat_stream import ChatStream
 
 logger = get_logger("message_storage")
+
+# 预编译的正则表达式（避免重复编译）
+_COMPILED_FILTER_PATTERN = re.compile(
+    r"<MainRule>.*?</MainRule>|<schedule>.*?</schedule>|<UserMessage>.*?</UserMessage>",
+    re.DOTALL
+)
+_COMPILED_IMAGE_PATTERN = re.compile(r"\[图片：([^\]]+)\]")
+
+# 全局正则表达式缓存
+_regex_cache: dict[str, re.Pattern] = {}
 
 
 class MessageStorageBatcher:
@@ -116,25 +127,28 @@ class MessageStorageBatcher:
     async def flush(self, force: bool = False):
         """执行批量写入, 支持强制落库和延迟提交策略。"""
         async with self._flush_barrier:
+            # 原子性地交换消息队列，避免锁定时间过长
             async with self._lock:
-                messages_to_store = list(self.pending_messages)
-                self.pending_messages.clear()
+                if not self.pending_messages:
+                    return
+                messages_to_store = self.pending_messages
+                self.pending_messages = collections.deque(maxlen=self.batch_size)
 
-            if messages_to_store:
-                prepared_messages: list[dict[str, Any]] = []
-                for msg_data in messages_to_store:
-                    try:
-                        message_dict = await self._prepare_message_dict(
-                            msg_data["message"],
-                            msg_data["chat_stream"],
-                        )
-                        if message_dict:
-                            prepared_messages.append(message_dict)
-                    except Exception as e:
-                        logger.error(f"准备消息数据失败: {e}")
+            # 处理消息，这部分不在锁内执行，提高并发性
+            prepared_messages: list[dict[str, Any]] = []
+            for msg_data in messages_to_store:
+                try:
+                    message_dict = await self._prepare_message_dict(
+                        msg_data["message"],
+                        msg_data["chat_stream"],
+                    )
+                    if message_dict:
+                        prepared_messages.append(message_dict)
+                except Exception as e:
+                    logger.error(f"准备消息数据失败: {e}")
 
-                if prepared_messages:
-                    self._prepared_buffer.extend(prepared_messages)
+            if prepared_messages:
+                self._prepared_buffer.extend(prepared_messages)
 
             await self._maybe_commit_buffer(force=force)
 
@@ -200,102 +214,66 @@ class MessageStorageBatcher:
         return message_dict
 
     async def _prepare_message_object(self, message, chat_stream):
-        """准备消息对象（从原 store_message 逻辑提取）"""
+        """准备消息对象（从原 store_message 逻辑提取） - 优化版本"""
         try:
-            pattern = r"<MainRule>.*?</MainRule>|<schedule>.*?</schedule>|<UserMessage>.*?</UserMessage>"
-
             if not isinstance(message, DatabaseMessages):
                 logger.error("MessageStorageBatcher expects DatabaseMessages instances")
                 return None
 
+            # 优化：使用预编译的正则表达式
             processed_plain_text = message.processed_plain_text or ""
             if processed_plain_text:
                 processed_plain_text = await MessageStorage.replace_image_descriptions(processed_plain_text)
-            filtered_processed_plain_text = re.sub(
-                pattern, "", processed_plain_text or "", flags=re.DOTALL
-            )
+            filtered_processed_plain_text = _COMPILED_FILTER_PATTERN.sub("", processed_plain_text)
 
             display_message = message.display_message or message.processed_plain_text or ""
-            filtered_display_message = re.sub(pattern, "", display_message, flags=re.DOTALL)
+            filtered_display_message = _COMPILED_FILTER_PATTERN.sub("", display_message)
 
-            msg_id = message.message_id
-            msg_time = message.time
-            chat_id = message.chat_id
-            reply_to = message.reply_to or ""
-            is_mentioned = message.is_mentioned
-            interest_value = message.interest_value or 0.0
-            priority_mode = message.priority_mode
-            priority_info_json = message.priority_info
-            is_emoji = message.is_emoji or False
-            is_picid = message.is_picid or False
-            is_notify = message.is_notify or False
-            is_command = message.is_command or False
-            is_public_notice = message.is_public_notice or False
-            notice_type = message.notice_type
-            actions = orjson.dumps(message.actions).decode("utf-8") if message.actions else None
-            should_reply = message.should_reply
-            should_act = message.should_act
-            additional_config = message.additional_config
-            key_words = MessageStorage._serialize_keywords(message.key_words)
-            key_words_lite = MessageStorage._serialize_keywords(message.key_words_lite)
-            memorized_times = getattr(message, "memorized_times", 0)
-
-            user_platform = message.user_info.platform if message.user_info else ""
-            user_id = message.user_info.user_id if message.user_info else ""
-            user_nickname = message.user_info.user_nickname if message.user_info else ""
-            user_cardname = message.user_info.user_cardname if message.user_info else None
-
-            chat_info_stream_id = message.chat_info.stream_id if message.chat_info else ""
-            chat_info_platform = message.chat_info.platform if message.chat_info else ""
-            chat_info_create_time = message.chat_info.create_time if message.chat_info else 0.0
-            chat_info_last_active_time = message.chat_info.last_active_time if message.chat_info else 0.0
-            chat_info_user_platform = message.chat_info.user_info.platform if message.chat_info and message.chat_info.user_info else ""
-            chat_info_user_id = message.chat_info.user_info.user_id if message.chat_info and message.chat_info.user_info else ""
-            chat_info_user_nickname = message.chat_info.user_info.user_nickname if message.chat_info and message.chat_info.user_info else ""
-            chat_info_user_cardname = message.chat_info.user_info.user_cardname if message.chat_info and message.chat_info.user_info else None
-            chat_info_group_platform = message.group_info.platform if message.group_info else None
-            chat_info_group_id = message.group_info.group_id if message.group_info else None
-            chat_info_group_name = message.group_info.group_name if message.group_info else None
+            # 优化：一次性构建字典，避免多次条件判断
+            user_info = message.user_info or {}
+            chat_info = message.chat_info or {}
+            chat_info_user = chat_info.user_info or {} if chat_info else {}
+            group_info = message.group_info or {}
 
             return Messages(
-                message_id=msg_id,
-                time=msg_time,
-                chat_id=chat_id,
-                reply_to=reply_to,
-                is_mentioned=is_mentioned,
-                chat_info_stream_id=chat_info_stream_id,
-                chat_info_platform=chat_info_platform,
-                chat_info_user_platform=chat_info_user_platform,
-                chat_info_user_id=chat_info_user_id,
-                chat_info_user_nickname=chat_info_user_nickname,
-                chat_info_user_cardname=chat_info_user_cardname,
-                chat_info_group_platform=chat_info_group_platform,
-                chat_info_group_id=chat_info_group_id,
-                chat_info_group_name=chat_info_group_name,
-                chat_info_create_time=chat_info_create_time,
-                chat_info_last_active_time=chat_info_last_active_time,
-                user_platform=user_platform,
-                user_id=user_id,
-                user_nickname=user_nickname,
-                user_cardname=user_cardname,
+                message_id=message.message_id,
+                time=message.time,
+                chat_id=message.chat_id,
+                reply_to=message.reply_to or "",
+                is_mentioned=message.is_mentioned,
+                chat_info_stream_id=chat_info.stream_id if chat_info else "",
+                chat_info_platform=chat_info.platform if chat_info else "",
+                chat_info_user_platform=chat_info_user.platform if chat_info_user else "",
+                chat_info_user_id=chat_info_user.user_id if chat_info_user else "",
+                chat_info_user_nickname=chat_info_user.user_nickname if chat_info_user else "",
+                chat_info_user_cardname=chat_info_user.user_cardname if chat_info_user else None,
+                chat_info_group_platform=group_info.platform if group_info else None,
+                chat_info_group_id=group_info.group_id if group_info else None,
+                chat_info_group_name=group_info.group_name if group_info else None,
+                chat_info_create_time=chat_info.create_time if chat_info else 0.0,
+                chat_info_last_active_time=chat_info.last_active_time if chat_info else 0.0,
+                user_platform=user_info.platform if user_info else "",
+                user_id=user_info.user_id if user_info else "",
+                user_nickname=user_info.user_nickname if user_info else "",
+                user_cardname=user_info.user_cardname if user_info else None,
                 processed_plain_text=filtered_processed_plain_text,
                 display_message=filtered_display_message,
-                memorized_times=memorized_times,
-                interest_value=interest_value,
-                priority_mode=priority_mode,
-                priority_info=priority_info_json,
-                additional_config=additional_config,
-                is_emoji=is_emoji,
-                is_picid=is_picid,
-                is_notify=is_notify,
-                is_command=is_command,
-                is_public_notice=is_public_notice,
-                notice_type=notice_type,
-                actions=actions,
-                should_reply=should_reply,
-                should_act=should_act,
-                key_words=key_words,
-                key_words_lite=key_words_lite,
+                memorized_times=getattr(message, "memorized_times", 0),
+                interest_value=message.interest_value or 0.0,
+                priority_mode=message.priority_mode,
+                priority_info=message.priority_info,
+                additional_config=message.additional_config,
+                is_emoji=message.is_emoji or False,
+                is_picid=message.is_picid or False,
+                is_notify=message.is_notify or False,
+                is_command=message.is_command or False,
+                is_public_notice=message.is_public_notice or False,
+                notice_type=message.notice_type,
+                actions=orjson.dumps(message.actions).decode("utf-8") if message.actions else None,
+                should_reply=message.should_reply,
+                should_act=message.should_act,
+                key_words=MessageStorage._serialize_keywords(message.key_words),
+                key_words_lite=MessageStorage._serialize_keywords(message.key_words_lite),
             )
 
         except Exception as e:
@@ -474,7 +452,7 @@ class MessageStorage:
     @staticmethod
     async def update_message(message_data: dict, use_batch: bool = True):
         """
-        更新消息ID（从消息字典）
+        更新消息ID（从消息字典）- 优化版本
 
         优化: 添加批处理选项，将多个更新操作合并，减少数据库连接
 
@@ -491,25 +469,23 @@ class MessageStorage:
             segment_type = message_segment.get("type") if isinstance(message_segment, dict) else None
             segment_data = message_segment.get("data", {}) if isinstance(message_segment, dict) else {}
 
-            qq_message_id = None
+            # 优化：预定义类型集合，避免重复的 if-elif 检查
+            SKIPPED_TYPES = {"adapter_response", "adapter_command"}
+            VALID_ID_TYPES = {"notify", "text", "reply"}
 
             logger.debug(f"尝试更新消息ID: {mmc_message_id}, 消息段类型: {segment_type}")
 
-            # 根据消息段类型提取message_id
-            if segment_type == "notify":
+            # 检查是否是需要跳过的类型
+            if segment_type in SKIPPED_TYPES:
+                logger.debug(f"跳过消息段类型: {segment_type}")
+                return
+
+            # 尝试获取消息ID
+            qq_message_id = None
+            if segment_type in VALID_ID_TYPES:
                 qq_message_id = segment_data.get("id")
-            elif segment_type == "text":
-                qq_message_id = segment_data.get("id")
-            elif segment_type == "reply":
-                qq_message_id = segment_data.get("id")
-                if qq_message_id:
+                if segment_type == "reply" and qq_message_id:
                     logger.debug(f"从reply消息段获取到消息ID: {qq_message_id}")
-            elif segment_type == "adapter_response":
-                logger.debug("适配器响应消息，不需要更新ID")
-                return
-            elif segment_type == "adapter_command":
-                logger.debug("适配器命令消息，不需要更新ID")
-                return
             else:
                 logger.debug(f"未知的消息段类型: {segment_type}，跳过ID更新")
                 return
@@ -552,22 +528,20 @@ class MessageStorage:
 
     @staticmethod
     async def replace_image_descriptions(text: str) -> str:
-        """异步地将文本中的所有[图片：描述]标记替换为[picid:image_id]"""
-        pattern = r"\[图片：([^\]]+)\]"
-
+        """异步地将文本中的所有[图片：描述]标记替换为[picid:image_id] - 优化版本"""
         # 如果没有匹配项，提前返回以提高效率
-        if not re.search(pattern, text):
+        if not _COMPILED_IMAGE_PATTERN.search(text):
             return text
 
         # re.sub不支持异步替换函数，所以我们需要手动迭代和替换
         new_text = []
         last_end = 0
-        for match in re.finditer(pattern, text):
+        for match in _COMPILED_IMAGE_PATTERN.finditer(text):
             # 添加上一个匹配到当前匹配之间的文本
             new_text.append(text[last_end:match.start()])
 
             description = match.group(1).strip()
-            replacement = match.group(0) # 默认情况下，替换为原始匹配文本
+            replacement = match.group(0)  # 默认情况下，替换为原始匹配文本
             try:
                 async with get_db_session() as session:
                     # 查询数据库以找到具有该描述的最新图片记录
@@ -633,19 +607,49 @@ class MessageStorage:
         interest_map: dict[str, float],
         reply_map: dict[str, bool] | None = None,
     ) -> None:
-        """批量更新消息的兴趣度与回复标记"""
+        """批量更新消息的兴趣度与回复标记 - 优化版本"""
         if not interest_map:
             return
 
         try:
             async with get_db_session() as session:
-                for message_id, interest_value in interest_map.items():
-                    values = {"interest_value": interest_value}
-                    if reply_map and message_id in reply_map:
-                        values["should_reply"] = reply_map[message_id]
+                # 注意：SQLAlchemy 2.0 对 ORM update + executemany 会走
+                # “Bulk UPDATE by Primary Key” 路径，要求每行参数包含主键(Messages.id)。
+                # 这里我们按 message_id 更新，因此使用 Core Table + bindparam。
+                from sqlalchemy import bindparam, update
 
-                    stmt = update(Messages).where(Messages.message_id == message_id).values(**values)
-                    await session.execute(stmt)
+                messages_table = Messages.__table__
+
+                interest_mappings: list[dict[str, Any]] = [
+                    {"b_message_id": message_id, "b_interest_value": interest_value}
+                    for message_id, interest_value in interest_map.items()
+                ]
+
+                if interest_mappings:
+                    stmt_interest = (
+                        update(messages_table)
+                        .where(messages_table.c.message_id == bindparam("b_message_id"))
+                        .values(interest_value=bindparam("b_interest_value"))
+                    )
+                    await session.execute(stmt_interest, interest_mappings)
+
+                if reply_map:
+                    reply_mappings: list[dict[str, Any]] = [
+                        {"b_message_id": message_id, "b_should_reply": should_reply}
+                        for message_id, should_reply in reply_map.items()
+                        if message_id in interest_map
+                    ]
+                    if reply_mappings and len(reply_mappings) != len(reply_map):
+                        logger.debug(
+                            f"批量更新 should_reply 过滤了 {len(reply_map) - len(reply_mappings)} 条不在兴趣度更新集合中的记录"
+                        )
+                    if reply_mappings:
+                        stmt_reply = (
+                            update(messages_table)
+                            .where(messages_table.c.message_id == bindparam("b_message_id"))
+                            .values(should_reply=bindparam("b_should_reply"))
+                        )
+                        await session.execute(stmt_reply, reply_mappings)
 
                 await session.commit()
                 logger.debug(f"批量更新兴趣度 {len(interest_map)} 条记录")

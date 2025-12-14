@@ -451,7 +451,7 @@ class UnifiedMemoryManager:
             (0.3, 10.0, 0.4),
             (0.1, 15.0, 0.6),
         ]
-        
+
         for threshold, min_val, factor in occupancy_thresholds:
             if occupancy >= threshold:
                 return max(min_val, base_interval * factor)
@@ -461,24 +461,24 @@ class UnifiedMemoryManager:
     async def _transfer_blocks_to_short_term(self, blocks: list[MemoryBlock]) -> None:
         """实际转换逻辑在后台执行（优化：并行处理多个块，批量触发唤醒）"""
         logger.debug(f"正在后台处理 {len(blocks)} 个感知记忆块")
-        
+
         # 优化：使用 asyncio.gather 并行处理转移
         async def _transfer_single(block: MemoryBlock) -> tuple[MemoryBlock, bool]:
             try:
                 stm = await self.short_term_manager.add_from_block(block)
                 if not stm:
                     return block, False
-                
+
                 await self.perceptual_manager.remove_block(block.id)
                 logger.debug(f"✓ 记忆块 {block.id} 已被转移到短期记忆 {stm.id}")
                 return block, True
             except Exception as exc:
                 logger.error(f"后台转移失败，记忆块 {block.id}: {exc}")
                 return block, False
-        
+
         # 并行处理所有块
         results = await asyncio.gather(*[_transfer_single(block) for block in blocks], return_exceptions=True)
-        
+
         # 统计成功的转移
         success_count = sum(1 for result in results if isinstance(result, tuple) and result[1])
         if success_count > 0:
@@ -491,7 +491,7 @@ class UnifiedMemoryManager:
         seen = set()
         decay = 0.15
         manual_queries: list[dict[str, Any]] = []
-        
+
         for raw in queries:
             text = (raw or "").strip()
             if text and text not in seen:
@@ -517,7 +517,7 @@ class UnifiedMemoryManager:
             "top_k": self._config["long_term"]["search_top_k"],
             "use_multi_query": bool(manual_queries),
         }
-        
+
         if recent_chat_history or manual_queries:
             context: dict[str, Any] = {}
             if recent_chat_history:
@@ -541,7 +541,7 @@ class UnifiedMemoryManager:
                 mem_id = mem.get("id")
             else:
                 mem_id = getattr(mem, "id", None)
-            
+
             # 检查去重
             if mem_id and mem_id in seen_ids:
                 continue
@@ -600,7 +600,7 @@ class UnifiedMemoryManager:
                             new_memories.append(memory)
                             if mem_id:
                                 cached_ids.add(mem_id)
-                    
+
                     if new_memories:
                         transfer_cache.extend(new_memories)
                         logger.debug(
@@ -632,7 +632,7 @@ class UnifiedMemoryManager:
                         await self.short_term_manager.clear_transferred_memories(
                             result["transferred_memory_ids"]
                         )
-                        
+
                         # 优化：使用生成器表达式保留未转移的记忆
                         transfer_cache = [
                             m
