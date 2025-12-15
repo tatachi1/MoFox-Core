@@ -32,10 +32,9 @@ from src.common.database.core.models import Emoji, Images
 from src.common.database.utils.decorators import cached
 from src.common.logger import get_logger
 from src.config.config import global_config, model_config
-        logger.error(f"[错误] 清理未使用表情包文件时出错 ({emoji_dir}): {e!s}")
+from src.llm_models.utils_model import LLMRequest
 
-    return removed_count + cleaned_count
-
+logger = get_logger("emoji")
 
 class EmojiManager:
     _instance = None
