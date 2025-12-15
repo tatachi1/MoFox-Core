@@ -43,6 +43,7 @@ class ShortTermMemoryManager:
         max_memories: int = 30,
         transfer_importance_threshold: float = 0.6,
         llm_temperature: float = 0.2,
+        enable_force_cleanup: bool = False,
     ):
         """
         初始化短期记忆层管理器
@@ -60,6 +61,7 @@ class ShortTermMemoryManager:
         self.max_memories = max_memories
         self.transfer_importance_threshold = transfer_importance_threshold
         self.llm_temperature = llm_temperature
+        self.enable_force_cleanup = enable_force_cleanup
 
         # 核心数据
         self.memories: list[ShortTermMemory] = []
@@ -75,7 +77,8 @@ class ShortTermMemoryManager:
 
         logger.info(
             f"短期记忆管理器已创建 (max_memories={max_memories}, "
-            f"transfer_threshold={transfer_importance_threshold:.2f})"
+            f"transfer_threshold={transfer_importance_threshold:.2f}, "
+            f"force_cleanup={'on' if enable_force_cleanup else 'off'})"
         )
 
     async def initialize(self) -> None:
@@ -686,6 +689,41 @@ class ShortTermMemoryManager:
             return low_importance_memories[:needed]
 
         return candidates
+
+    def force_cleanup_overflow(self, keep_ratio: float = 0.9) -> int:
+        """当短期记忆超过容量时，强制删除低重要性且最早的记忆以泄压"""
+        if not self.enable_force_cleanup:
+            return 0
+
+        if self.max_memories <= 0:
+            return 0
+
+        current = len(self.memories)
+        limit = int(self.max_memories * keep_ratio)
+        if current <= self.max_memories:
+            return 0
+
+        # 先按重要性升序，再按创建时间升序删除
+        sorted_memories = sorted(self.memories, key=lambda m: (m.importance, m.created_at))
+        remove_count = max(0, current - limit)
+        to_remove = {mem.id for mem in sorted_memories[:remove_count]}
+
+        if not to_remove:
+            return 0
+
+        self.memories = [mem for mem in self.memories if mem.id not in to_remove]
+        for mem_id in to_remove:
+            self._memory_id_index.pop(mem_id, None)
+            self._similarity_cache.pop(mem_id, None)
+
+        # 异步保存即可，不阻塞主流程
+        asyncio.create_task(self._save_to_disk())
+
+        logger.warning(
+            f"短期记忆压力泄压: 移除 {len(to_remove)} 条 (当前 {len(self.memories)}/{self.max_memories})"
+        )
+
+        return len(to_remove)
 
     async def clear_transferred_memories(self, memory_ids: list[str]) -> None:
         """

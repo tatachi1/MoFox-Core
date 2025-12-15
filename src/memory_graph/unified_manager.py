@@ -44,6 +44,7 @@ class UnifiedMemoryManager:
         # 短期记忆配置
         short_term_max_memories: int = 30,
         short_term_transfer_threshold: float = 0.6,
+        short_term_enable_force_cleanup: bool = False,
         # 长期记忆配置
         long_term_batch_size: int = 10,
         long_term_search_top_k: int = 5,
@@ -96,6 +97,7 @@ class UnifiedMemoryManager:
             "short_term": {
                 "max_memories": short_term_max_memories,
                 "transfer_importance_threshold": short_term_transfer_threshold,
+                "enable_force_cleanup": short_term_enable_force_cleanup,
             },
             "long_term": {
                 "batch_size": long_term_batch_size,
@@ -565,7 +567,9 @@ class UnifiedMemoryManager:
             self._transfer_wakeup_event.clear()
 
         self._auto_transfer_task = asyncio.create_task(self._auto_transfer_loop())
-        logger.debug("自动转移任务已启动")
+        # 立即触发一次检查，避免启动初期的长时间等待
+        self._transfer_wakeup_event.set()
+        logger.debug("自动转移任务已启动并触发首次检查")
 
     async def _auto_transfer_loop(self) -> None:
         """自动转移循环（批量缓存模式，优化：更高效的缓存管理）"""
@@ -610,6 +614,13 @@ class UnifiedMemoryManager:
                 max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
                 occupancy_ratio = len(self.short_term_manager.memories) / max_memories
                 time_since_last_transfer = time.monotonic() - last_transfer_time
+
+                if occupancy_ratio >= 1.0 and not transfer_cache:
+                    removed = self.short_term_manager.force_cleanup_overflow()
+                    if removed > 0:
+                        logger.warning(
+                            f"短期记忆占用率 {occupancy_ratio:.0%}，已强制删除 {removed} 条低重要性记忆泄压"
+                        )
 
                 # 优化：优先级判断重构（早期 return）
                 should_transfer = (
