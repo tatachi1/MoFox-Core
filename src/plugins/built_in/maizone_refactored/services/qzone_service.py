@@ -83,21 +83,93 @@ class QZoneService:
         return context
 
     async def send_feed(self, topic: str, stream_id: str | None) -> dict[str, Any]:
-        """发送一条说说"""
+        """发送一条说说（支持AI配图）"""
         cross_context = await self._get_cross_context()
-        story = await self.content_service.generate_story(topic, context=cross_context)
-        if not story:
-            return {"success": False, "message": "生成说说内容失败"}
-
-        await self.image_service.generate_images_for_story(story)
+        
+        # 检查是否启用AI配图
+        ai_image_enabled = self.get_config("ai_image.enable_ai_image", False)
+        provider = self.get_config("ai_image.provider", "siliconflow")
+        
+        image_path = None
+        
+        if ai_image_enabled:
+            # 启用AI配图：文本模型生成说说+图片提示词
+            story, image_info = await self.content_service.generate_story_with_image_info(topic, context=cross_context)
+            if not story:
+                return {"success": False, "message": "生成说说内容失败"}
+            
+            # 根据provider调用对应的生图服务
+            if provider == "novelai":
+                try:
+                    from .novelai_service import MaiZoneNovelAIService
+                    novelai_service = MaiZoneNovelAIService(self.get_config)
+                    
+                    if novelai_service.is_available():
+                        # 解析画幅
+                        aspect_ratio = image_info.get("aspect_ratio", "方图")
+                        size_map = {
+                            "方图": (1024, 1024),
+                            "横图": (1216, 832),
+                            "竖图": (832, 1216),
+                        }
+                        width, height = size_map.get(aspect_ratio, (1024, 1024))
+                        
+                        logger.info(f"🎨 开始生成NovelAI配图...")
+                        success, img_path, msg = await novelai_service.generate_image_from_prompt_data(
+                            prompt=image_info.get("prompt", ""),
+                            negative_prompt=image_info.get("negative_prompt"),
+                            include_character=image_info.get("include_character", False),
+                            width=width,
+                            height=height
+                        )
+                        
+                        if success and img_path:
+                            image_path = img_path
+                            logger.info(f"✅ NovelAI配图生成成功")
+                        else:
+                            logger.warning(f"⚠️ NovelAI配图生成失败: {msg}")
+                    else:
+                        logger.warning("NovelAI服务不可用（未配置API Key）")
+                        
+                except Exception as e:
+                    logger.error(f"NovelAI配图生成出错: {e}", exc_info=True)
+                    
+            elif provider == "siliconflow":
+                try:
+                    # 调用硅基流动生成图片
+                    success, img_path = await self.image_service.generate_image_from_prompt(
+                        prompt=image_info.get("prompt", ""),
+                        save_dir=None  # 使用默认images目录
+                    )
+                    if success and img_path:
+                        image_path = img_path
+                        logger.info(f"✅ 硅基流动配图生成成功")
+                    else:
+                        logger.warning(f"⚠️ 硅基流动配图生成失败")
+                except Exception as e:
+                    logger.error(f"硅基流动配图生成出错: {e}", exc_info=True)
+        else:
+            # 不使用AI配图：只生成说说文本
+            story = await self.content_service.generate_story(topic, context=cross_context)
+            if not story:
+                return {"success": False, "message": "生成说说内容失败"}
 
         qq_account = config_api.get_global_config("bot.qq_account", "")
         api_client = await self._get_api_client(qq_account, stream_id)
         if not api_client:
             return {"success": False, "message": "获取QZone API客户端失败"}
 
-        image_dir = self.get_config("send.image_directory")
-        images_bytes = self._load_local_images(image_dir)
+        # 加载图片
+        images_bytes = []
+        
+        # 使用AI生成的图片
+        if image_path and image_path.exists():
+            try:
+                with open(image_path, "rb") as f:
+                    images_bytes.append(f.read())
+                logger.info(f"添加AI配图到说说")
+            except Exception as e:
+                logger.error(f"读取AI配图失败: {e}")
 
         try:
             success, _ = await api_client["publish"](story, images_bytes)
@@ -115,19 +187,16 @@ class QZoneService:
         if not story:
             return {"success": False, "message": "根据活动生成说说内容失败"}
 
-        await self.image_service.generate_images_for_story(story)
+        if self.get_config("send.enable_ai_image", False):
+            await self.image_service.generate_images_for_story(story)
 
         qq_account = config_api.get_global_config("bot.qq_account", "")
-        # 注意：定时任务通常在后台运行，没有特定的用户会话，因此 stream_id 为 None
         api_client = await self._get_api_client(qq_account, stream_id=None)
         if not api_client:
             return {"success": False, "message": "获取QZone API客户端失败"}
 
-        image_dir = self.get_config("send.image_directory")
-        images_bytes = self._load_local_images(image_dir)
-
         try:
-            success, _ = await api_client["publish"](story, images_bytes)
+            success, _ = await api_client["publish"](story, [])
             if success:
                 return {"success": True, "message": story}
             return {"success": False, "message": "发布说说至QQ空间失败"}
@@ -434,7 +503,12 @@ class QZoneService:
             logger.debug(f"锁定待评论说说: {comment_key}")
             self.processing_comments.add(comment_key)
             try:
-                comment_text = await self.content_service.generate_comment(content, target_name, rt_con, images)
+                # 使用content_service生成评论（相当于回复好友的说说）
+                comment_text = await self.content_service.generate_comment_reply(
+                    story_content=content or rt_con or "说说内容",
+                    comment_content="",  # 评论说说时没有评论内容
+                    commenter_name=target_name
+                )
                 if comment_text:
                     success = await api_client["comment"](target_qq, fid, comment_text)
                     if success:
@@ -464,61 +538,6 @@ class QZoneService:
             logger.debug(f"概率未命中，跳过点赞: probability={like_probability}")
 
         return result
-
-    def _load_local_images(self, image_dir: str) -> list[bytes]:
-        """随机加载本地图片（不删除文件）"""
-        images = []
-        if not image_dir or not os.path.exists(image_dir):
-            logger.warning(f"图片目录不存在或未配置: {image_dir}")
-            return images
-
-        try:
-            # 获取所有图片文件
-            all_files = [
-                f
-                for f in os.listdir(image_dir)
-                if os.path.isfile(os.path.join(image_dir, f))
-                and f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp"))
-            ]
-
-            if not all_files:
-                logger.warning(f"图片目录中没有找到图片文件: {image_dir}")
-                return images
-
-            # 检查是否启用配图
-            enable_image = bool(self.get_config("send.enable_image", False))
-            if not enable_image:
-                logger.info("说说配图功能已关闭")
-                return images
-
-            # 根据配置选择图片数量
-            config_image_number = self.get_config("send.image_number", 1)
-            try:
-                config_image_number = int(config_image_number)
-            except (ValueError, TypeError):
-                config_image_number = 1
-                logger.warning("配置项 image_number 值无效，使用默认值 1")
-
-            max_images = min(min(config_image_number, 9), len(all_files))  # 最多9张，最少1张
-            selected_count = max(1, max_images)  # 确保至少选择1张
-            selected_files = random.sample(all_files, selected_count)
-
-            logger.info(f"从 {len(all_files)} 张图片中随机选择了 {selected_count} 张配图")
-
-            for filename in selected_files:
-                full_path = os.path.join(image_dir, filename)
-                try:
-                    with open(full_path, "rb") as f:
-                        image_data = f.read()
-                        images.append(image_data)
-                        logger.info(f"加载图片: {filename} ({len(image_data)} bytes)")
-                except Exception as e:
-                    logger.error(f"加载图片 {filename} 失败: {e}")
-
-            return images
-        except Exception as e:
-            logger.error(f"加载本地图片失败: {e}")
-            return []
 
     def _generate_gtk(self, skey: str) -> str:
         hash_val = 5381
