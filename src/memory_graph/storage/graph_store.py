@@ -9,7 +9,7 @@ from collections.abc import Iterable
 import networkx as nx
 
 from src.common.logger import get_logger
-from src.memory_graph.models import Memory, MemoryEdge
+from src.memory_graph.models import EdgeType, Memory, MemoryEdge
 
 logger = get_logger(__name__)
 
@@ -159,9 +159,6 @@ class GraphStore:
             # 1.5. 注销记忆中的边的邻接索引记录
             self._unregister_memory_edges(memory)
 
-            # 1.5. 注销记忆中的边的邻接索引记录
-            self._unregister_memory_edges(memory)
-
             # 2. 添加节点到图
             if not self.graph.has_node(node_id):
                 from datetime import datetime
@@ -200,6 +197,9 @@ class GraphStore:
                     has_vector=(metadata or {}).get("has_vector", False)
                 )
                 memory.nodes.append(new_node)
+
+            # 5. 重新注册记忆中的边到邻接索引
+            self._register_memory_edges(memory)
 
             logger.debug(f"添加节点成功: {node_id} -> {memory_id}")
             return True
@@ -926,12 +926,23 @@ class GraphStore:
                     mem_edge = MemoryEdge.from_dict(edge_dict)
                 except Exception:
                     # 兼容性：直接构造对象
+                    # 确保 edge_type 是 EdgeType 枚举
+                    edge_type_value = edge_dict["edge_type"]
+                    if isinstance(edge_type_value, str):
+                        try:
+                            edge_type_enum = EdgeType(edge_type_value)
+                        except ValueError:
+                            logger.warning(f"未知的边类型: {edge_type_value}, 使用默认值")
+                            edge_type_enum = EdgeType.RELATION
+                    else:
+                        edge_type_enum = edge_type_value
+                    
                     mem_edge = MemoryEdge(
                         id=edge_dict["id"] or "",
                         source_id=edge_dict["source_id"],
                         target_id=edge_dict["target_id"],
                         relation=edge_dict["relation"],
-                        edge_type=edge_dict["edge_type"],
+                        edge_type=edge_type_enum,
                         importance=edge_dict.get("importance", 0.5),
                         metadata=edge_dict.get("metadata", {}),
                     )
