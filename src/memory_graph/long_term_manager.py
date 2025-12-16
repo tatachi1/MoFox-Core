@@ -1037,12 +1037,15 @@ class LongTermMemoryManager:
 
     async def _queue_embedding_generation(self, node_id: str, content: str) -> None:
         """将节点加入embedding生成队列"""
+        # 先在锁内写入，再在锁外触发批量处理，避免自锁
+        should_flush = False
         async with self._embedding_lock:
             self._pending_embeddings.append((node_id, content))
-
-            # 如果队列达到批次大小，立即处理
             if len(self._pending_embeddings) >= self._embedding_batch_size:
-                await self._flush_pending_embeddings()
+                should_flush = True
+
+        if should_flush:
+            await self._flush_pending_embeddings()
 
     async def _flush_pending_embeddings(self) -> None:
         """批量处理待生成的embeddings"""
