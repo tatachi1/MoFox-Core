@@ -969,7 +969,7 @@ class LongTermMemoryManager:
                 content=f"临时节点 - {source_id}",
                 metadata={"placeholder": True, "created_by": "long_term_manager_edge_creation"}
             )
-        
+
         if not self.memory_manager.graph_store.graph.has_node(target_id):
             logger.debug(f"目标节点不存在，创建占位符节点: {target_id}")
             self.memory_manager.graph_store.add_node(

@@ -936,7 +936,7 @@ class GraphStore:
                             edge_type_enum = EdgeType.RELATION
                     else:
                         edge_type_enum = edge_type_value
-                    
+
                     mem_edge = MemoryEdge(
                         id=edge_dict["id"] or "",
                         source_id=edge_dict["source_id"],

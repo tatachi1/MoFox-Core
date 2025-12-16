@@ -42,7 +42,7 @@ class ImageService:
         try:
             api_key = str(self.get_config("siliconflow.api_key", ""))
             image_num = self.get_config("ai_image.image_number", 1)
-            
+
             if not api_key:
                 logger.warning("硅基流动API未配置，跳过图片生成")
                 return False, None
@@ -237,7 +237,7 @@ class ImageService:
                                 image.save(save_path, format="PNG")
                                 logger.info(f"图片已保存至: {save_path}")
                                 success_count += 1
-                                
+
                                 # 记录第一张图片路径
                                 if first_img_path is None:
                                     first_img_path = save_path

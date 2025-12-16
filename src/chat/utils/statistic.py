@@ -348,12 +348,12 @@ class StatisticOutputTask(AsyncTask):
                                 prompt_tokens = int(record.get("prompt_tokens") or 0)
                             except (ValueError, TypeError):
                                 prompt_tokens = 0
-                            
+
                             try:
                                 completion_tokens = int(record.get("completion_tokens") or 0)
                             except (ValueError, TypeError):
                                 completion_tokens = 0
-                            
+
                             total_tokens = prompt_tokens + completion_tokens
 
                             stats[period_key][IN_TOK_BY_TYPE][request_type] += prompt_tokens
@@ -378,7 +378,7 @@ class StatisticOutputTask(AsyncTask):
                                 cost = float(cost) if cost else 0.0
                             except (ValueError, TypeError):
                                 cost = 0.0
-                            
+
                             stats[period_key][TOTAL_COST] += cost
                             stats[period_key][COST_BY_TYPE][request_type] += cost
                             stats[period_key][COST_BY_USER][user_id] += cost

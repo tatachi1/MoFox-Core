@@ -38,7 +38,7 @@ class InterestManager:
             self._calculation_queue = asyncio.Queue()
             self._worker_task = None
             self._shutdown_event = asyncio.Event()
-            
+
             # 性能优化相关字段
             self._result_cache: OrderedDict[str, InterestCalculationResult] = OrderedDict()  # LRU缓存
             self._cache_max_size = 1000  # 最大缓存数量
@@ -48,13 +48,13 @@ class InterestManager:
             self._batch_timeout = 0.1  # 批处理超时（秒）
             self._batch_task = None
             self._is_warmed_up = False  # 预热状态标记
-            
+
             # 性能统计
             self._cache_hits = 0
             self._cache_misses = 0
             self._batch_calculations = 0
             self._total_calculation_time = 0.0
-            
+
             self._initialized = True
 
     async def initialize(self):
@@ -67,7 +67,7 @@ class InterestManager:
     async def shutdown(self):
         """关闭管理器"""
         self._shutdown_event.set()
-        
+
         # 取消批处理任务
         if self._batch_task and not self._batch_task.done():
             self._batch_task.cancel()
@@ -79,7 +79,7 @@ class InterestManager:
         if self._current_calculator:
             await self._current_calculator.cleanup()
             self._current_calculator = None
-        
+
         # 清理缓存
         self._result_cache.clear()
 
@@ -142,9 +142,9 @@ class InterestManager:
                 interest_value=0.3,
                 error_message="没有可用的兴趣值计算组件",
             )
-        
+
         message_id = getattr(message, "message_id", "")
-        
+
         # 缓存查询
         if use_cache and message_id:
             cached_result = self._get_from_cache(message_id)
@@ -183,11 +183,11 @@ class InterestManager:
                     interest_value=0.3,
                     error_message=f"计算异常: {e!s}",
                 )
-        
+
         # 缓存结果
         if use_cache and result.success and message_id:
             self._put_to_cache(message_id, result)
-        
+
         return result
 
     async def _async_calculate(self, message: "DatabaseMessages") -> InterestCalculationResult:
@@ -249,36 +249,36 @@ class InterestManager:
                 break
             except Exception as e:
                 logger.error(f"计算工作线程异常: {e}")
-    
+
     def _get_from_cache(self, message_id: str) -> InterestCalculationResult | None:
         """从缓存中获取结果（LRU策略）"""
         if message_id not in self._result_cache:
             return None
-        
+
         # 检查TTL
         result = self._result_cache[message_id]
         if time.time() - result.timestamp > self._cache_ttl:
             # 过期，删除
             del self._result_cache[message_id]
             return None
-        
+
         # 更新访问顺序（LRU）
         self._result_cache.move_to_end(message_id)
         return result
-    
+
     def _put_to_cache(self, message_id: str, result: InterestCalculationResult):
         """将结果放入缓存（LRU策略）"""
         # 如果已存在，更新
         if message_id in self._result_cache:
             self._result_cache.move_to_end(message_id)
-        
+
         self._result_cache[message_id] = result
-        
+
         # 限制缓存大小
         while len(self._result_cache) > self._cache_max_size:
             # 删除最旧的项
             self._result_cache.popitem(last=False)
-    
+
     async def calculate_interest_batch(self, messages: list["DatabaseMessages"], timeout: float | None = None) -> list[InterestCalculationResult]:
         """批量计算消息兴趣值（并发优化）
         
@@ -291,11 +291,11 @@ class InterestManager:
         """
         if not messages:
             return []
-        
+
         # 并发计算所有消息
         tasks = [self.calculate_interest(msg, timeout=timeout) for msg in messages]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # 处理异常
         final_results = []
         for i, result in enumerate(results):
@@ -309,44 +309,44 @@ class InterestManager:
                 ))
             else:
                 final_results.append(result)
-        
+
         self._batch_calculations += 1
         return final_results
-    
+
     async def _batch_processing_worker(self):
         """批处理工作线程"""
         while not self._shutdown_event.is_set():
             batch = []
             deadline = time.time() + self._batch_timeout
-            
+
             try:
                 # 收集批次
                 while len(batch) < self._batch_size and time.time() < deadline:
                     remaining_time = deadline - time.time()
                     if remaining_time <= 0:
                         break
-                    
+
                     try:
                         item = await asyncio.wait_for(self._batch_queue.get(), timeout=remaining_time)
                         batch.append(item)
                     except asyncio.TimeoutError:
                         break
-                
+
                 # 处理批次
                 if batch:
                     await self._process_batch(batch)
-                    
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"批处理工作线程异常: {e}")
-    
+
     async def _process_batch(self, batch: list):
         """处理批次消息"""
         # 这里可以实现具体的批处理逻辑
         # 当前版本只是占位，实际的批处理逻辑可以根据具体需求实现
         pass
-    
+
     async def warmup(self, sample_messages: list["DatabaseMessages"] | None = None):
         """预热兴趣计算器
         
@@ -356,10 +356,10 @@ class InterestManager:
         if not self._current_calculator:
             logger.warning("无法预热：没有可用的兴趣值计算组件")
             return
-        
+
         logger.info("开始预热兴趣值计算器...")
         start_time = time.time()
-        
+
         # 如果提供了样本消息，进行预热计算
         if sample_messages:
             try:
@@ -370,15 +370,15 @@ class InterestManager:
                 logger.error(f"预热过程中出现异常: {e}")
         else:
             logger.info(f"预热完成：计算器已就绪，耗时 {time.time() - start_time:.2f}s")
-        
+
         self._is_warmed_up = True
-    
+
     def clear_cache(self):
         """清空缓存"""
         cleared_count = len(self._result_cache)
         self._result_cache.clear()
         logger.info(f"已清空 {cleared_count} 条缓存记录")
-    
+
     def set_cache_config(self, max_size: int | None = None, ttl: int | None = None):
         """设置缓存配置
         
@@ -389,11 +389,11 @@ class InterestManager:
         if max_size is not None:
             self._cache_max_size = max_size
             logger.info(f"缓存最大容量设置为: {max_size}")
-        
+
         if ttl is not None:
             self._cache_ttl = ttl
             logger.info(f"缓存TTL设置为: {ttl}秒")
-        
+
         # 如果当前缓存超过新的最大值，清理旧数据
         if max_size is not None:
             while len(self._result_cache) > self._cache_max_size:
@@ -446,14 +446,14 @@ class InterestManager:
     def has_calculator(self) -> bool:
         """检查是否有可用的计算组件"""
         return self._current_calculator is not None and self._current_calculator.is_enabled
-    
+
     async def adaptive_optimize(self):
         """自适应优化：根据性能统计自动调整参数"""
         if not self._current_calculator:
             return
-        
+
         stats = self.get_statistics()["manager_statistics"]
-        
+
         # 根据缓存命中率调整缓存大小
         cache_hit_rate = stats["cache_hit_rate"]
         if cache_hit_rate < 0.5 and self._cache_max_size < 5000:
@@ -469,7 +469,7 @@ class InterestManager:
             # 清理多余缓存
             while len(self._result_cache) > self._cache_max_size:
                 self._result_cache.popitem(last=False)
-        
+
         # 根据平均计算时间调整批处理参数
         avg_calc_time = stats["average_calculation_time"]
         if avg_calc_time > 0.5 and self._batch_size < 50:
@@ -482,11 +482,11 @@ class InterestManager:
             new_batch_size = max(self._batch_size // 2, 5)
             logger.info(f"自适应优化：平均计算时间较短 ({avg_calc_time:.3f}s)，减小批次大小 {self._batch_size} -> {new_batch_size}")
             self._batch_size = new_batch_size
-    
+
     def get_performance_report(self) -> str:
         """生成性能报告"""
         stats = self.get_statistics()["manager_statistics"]
-        
+
         report = [
             "=" * 60,
             "兴趣值管理器性能报告",
@@ -504,7 +504,7 @@ class InterestManager:
             f"当前计算器: {stats['current_calculator'] or '无'}",
             "=" * 60,
         ]
-        
+
         # 添加计算器统计
         if self._current_calculator:
             calc_stats = self.get_statistics()["calculator_statistics"]
@@ -520,7 +520,7 @@ class InterestManager:
                 f"  平均耗时: {calc_stats['average_calculation_time']:.4f}s",
                 "=" * 60,
             ])
-        
+
         return "\n".join(report)
 
 

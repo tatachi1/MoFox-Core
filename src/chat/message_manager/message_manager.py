@@ -30,7 +30,7 @@ logger = get_logger("message_manager")
 class MessageManager:
     """消息管理器"""
 
-    def __init__(self, check_interval: float = 5.0):    
+    def __init__(self, check_interval: float = 5.0):
         self.check_interval = check_interval  # 检查间隔（秒）
         self.is_running = False
         self.manager_task: asyncio.Task | None = None
