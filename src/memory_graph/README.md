@@ -114,6 +114,39 @@ to_transfer = short_term_manager.get_memories_for_transfer()
 - 🛡️ **泄压机制**：容量 100% 时删除低优先级记忆
 - ⚙️ **配置**：`short_term_max_memories = 30`
 
+**溢出策略（新增）**：
+
+当短期记忆达到容量上限时，支持两种处理策略，可通过配置选择：
+
+| 策略 | 说明 | 适用场景 | 配置值 |
+|------|------|----------|--------|
+| **一次性转移** | 容量满时，将**所有记忆**转移到长期存储，然后删除低重要性记忆（importance < 0.6） | 希望保留更多历史信息，适合记忆密集型应用 | `transfer_all`（默认） |
+| **选择性清理** | 仅转移高重要性记忆，直接删除低重要性记忆 | 希望快速释放空间，适合性能优先场景 | `selective_cleanup` |
+
+配置方式：
+```toml
+[memory]
+# 短期记忆溢出策略
+short_term_overflow_strategy = "transfer_all"  # 或 "selective_cleanup"
+```
+
+**行为差异示例**：
+```python
+# 假设短期记忆已满（30条），其中：
+# - 20条高重要性（≥0.6）
+# - 10条低重要性（<0.6）
+
+# 策略1: transfer_all（默认）
+# 1. 转移全部30条到长期记忆
+# 2. 删除10条低重要性记忆
+# 结果：短期剩余20条，长期增加30条
+
+# 策略2: selective_cleanup
+# 1. 仅转移20条高重要性到长期记忆
+# 2. 直接删除10条低重要性记忆
+# 结果：短期剩余20条，长期增加20条
+```
+
 ### 第3层：长期记忆 (Long-term Memory)
 
 **特点**：
@@ -176,6 +209,7 @@ perceptual_activation_threshold = 3     # 转移激活阈值
 # 短期记忆
 short_term_max_memories = 30                    # 容量上限
 short_term_transfer_threshold = 0.6             # 转移重要性阈值
+short_term_overflow_strategy = "transfer_all"   # 溢出策略（transfer_all/selective_cleanup）
 short_term_enable_force_cleanup = true          # 启用泄压
 short_term_cleanup_keep_ratio = 0.9             # 泄压保留比例
 

@@ -44,6 +44,7 @@ class UnifiedMemoryManager:
         # 短期记忆配置
         short_term_max_memories: int = 30,
         short_term_transfer_threshold: float = 0.6,
+        short_term_overflow_strategy: str = "transfer_all",
         short_term_enable_force_cleanup: bool = False,
         short_term_cleanup_keep_ratio: float = 0.9,
         # 长期记忆配置
@@ -98,6 +99,7 @@ class UnifiedMemoryManager:
             "short_term": {
                 "max_memories": short_term_max_memories,
                 "transfer_importance_threshold": short_term_transfer_threshold,
+                "overflow_strategy": short_term_overflow_strategy,
                 "enable_force_cleanup": short_term_enable_force_cleanup,
                 "cleanup_keep_ratio": short_term_cleanup_keep_ratio,
             },

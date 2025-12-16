@@ -45,6 +45,7 @@ class ShortTermMemoryManager:
         llm_temperature: float = 0.2,
         enable_force_cleanup: bool = False,
         cleanup_keep_ratio: float = 0.9,
+        overflow_strategy: str = "transfer_all",
     ):
         """
         初始化短期记忆层管理器
@@ -56,6 +57,9 @@ class ShortTermMemoryManager:
             llm_temperature: LLM 决策的温度参数
             enable_force_cleanup: 是否启用泄压功能
             cleanup_keep_ratio: 泄压时保留容量的比例（默认0.9表示保留90%）
+            overflow_strategy: 短期记忆溢出策略
+                - "transfer_all": 一次性转移所有记忆到长期记忆，并删除不重要的短期记忆（默认）
+                - "selective_cleanup": 选择性清理，仅转移重要记忆，直接删除低重要性记忆
         """
         self.data_dir = data_dir or Path("data/memory_graph")
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -66,6 +70,7 @@ class ShortTermMemoryManager:
         self.llm_temperature = llm_temperature
         self.enable_force_cleanup = enable_force_cleanup
         self.cleanup_keep_ratio = cleanup_keep_ratio
+        self.overflow_strategy = overflow_strategy  # 新增：溢出策略
 
         # 核心数据
         self.memories: list[ShortTermMemory] = []
@@ -82,6 +87,7 @@ class ShortTermMemoryManager:
         logger.info(
             f"短期记忆管理器已创建 (max_memories={max_memories}, "
             f"transfer_threshold={transfer_importance_threshold:.2f}, "
+            f"overflow_strategy={overflow_strategy}, "
             f"force_cleanup={'on' if enable_force_cleanup else 'off'})"
         )
 
@@ -639,15 +645,58 @@ class ShortTermMemoryManager:
 
     def get_memories_for_transfer(self) -> list[ShortTermMemory]:
         """
-        获取需要转移到长期记忆的记忆（改进版：转移优先于删除）
+        获取需要转移到长期记忆的记忆
 
-        优化的转移策略：
-        1. 优先选择重要性 >= 阈值的记忆进行转移
-        2. 如果高重要性记忆已清空但仍超过容量，则考虑转移低重要性记忆
-        3. 仅当转移不能解决容量问题时，才进行强制删除（由 force_cleanup_overflow 处理）
+        根据 overflow_strategy 选择不同的转移策略：
+        - "transfer_all": 一次性转移所有记忆（满容量时），然后删除低重要性记忆
+        - "selective_cleanup": 仅转移高重要性记忆，低重要性记忆直接删除
         
         返回：
-            需要转移的记忆列表（优先返回高重要性，次选低重要性）
+            需要转移的记忆列表
+        """
+        if self.overflow_strategy == "transfer_all":
+            return self._get_transfer_all_strategy()
+        else:  # "selective_cleanup" 或其他值默认使用选择性清理
+            return self._get_selective_cleanup_strategy()
+    
+    def _get_transfer_all_strategy(self) -> list[ShortTermMemory]:
+        """
+        "一次性转移所有"策略：当短期记忆满了以后，将所有记忆转移到长期记忆
+        
+        返回：
+            需要转移的记忆列表（满容量时返回所有记忆）
+        """
+        # 如果短期记忆已满或接近满，一次性转移所有记忆
+        if len(self.memories) >= self.max_memories:
+            logger.info(
+                f"转移策略(transfer_all): 短期记忆已满 ({len(self.memories)}/{self.max_memories})，"
+                f"将转移所有 {len(self.memories)} 条记忆到长期记忆"
+            )
+            return self.memories.copy()
+        
+        # 如果还没满，检查是否有高重要性记忆需要转移
+        high_importance_memories = [
+            mem for mem in self.memories 
+            if mem.importance >= self.transfer_importance_threshold
+        ]
+        
+        if high_importance_memories:
+            logger.debug(
+                f"转移策略(transfer_all): 发现 {len(high_importance_memories)} 条高重要性记忆待转移"
+            )
+            return high_importance_memories
+        
+        logger.debug(
+            f"转移策略(transfer_all): 无需转移 (当前容量 {len(self.memories)}/{self.max_memories})"
+        )
+        return []
+    
+    def _get_selective_cleanup_strategy(self) -> list[ShortTermMemory]:
+        """
+        "选择性清理"策略（原有策略）：优先转移重要记忆，低重要性记忆考虑直接删除
+        
+        返回：
+            需要转移的记忆列表
         """
         # 单次遍历：同时分类高重要性和低重要性记忆
         high_importance_memories = []
@@ -662,7 +711,7 @@ class ShortTermMemoryManager:
         # 策略1：优先返回高重要性记忆进行转移
         if high_importance_memories:
             logger.debug(
-                f"转移候选: 发现 {len(high_importance_memories)} 条高重要性记忆待转移"
+                f"转移策略(selective): 发现 {len(high_importance_memories)} 条高重要性记忆待转移"
             )
             return high_importance_memories
 
@@ -678,14 +727,14 @@ class ShortTermMemoryManager:
             
             if to_transfer:
                 logger.debug(
-                    f"转移候选: 发现 {len(to_transfer)} 条低重要性记忆待转移 "
+                    f"转移策略(selective): 发现 {len(to_transfer)} 条低重要性记忆待转移 "
                     f"(当前容量 {len(self.memories)}/{self.max_memories})"
                 )
                 return to_transfer
 
         # 策略3：容量充足，无需转移
         logger.debug(
-            f"转移检查: 无需转移 (当前容量 {len(self.memories)}/{self.max_memories})"
+            f"转移策略(selective): 无需转移 (当前容量 {len(self.memories)}/{self.max_memories})"
         )
         return []
 
@@ -739,6 +788,8 @@ class ShortTermMemoryManager:
     async def clear_transferred_memories(self, memory_ids: list[str]) -> None:
         """
         清除已转移到长期记忆的记忆
+        
+        在 "transfer_all" 策略下，还会删除不重要的短期记忆以释放空间
 
         Args:
             memory_ids: 已转移的记忆ID列表
@@ -753,6 +804,32 @@ class ShortTermMemoryManager:
                 self._similarity_cache.pop(mem_id, None)
 
             logger.info(f"清除 {len(memory_ids)} 条已转移的短期记忆")
+            
+            # 在 "transfer_all" 策略下，进一步删除不重要的短期记忆
+            if self.overflow_strategy == "transfer_all":
+                # 计算需要删除的低重要性记忆数量
+                low_importance_memories = [
+                    mem for mem in self.memories 
+                    if mem.importance < self.transfer_importance_threshold
+                ]
+                
+                if low_importance_memories:
+                    # 按重要性和创建时间排序，删除最不重要的
+                    low_importance_memories.sort(key=lambda m: (m.importance, m.created_at))
+                    
+                    # 删除所有低重要性记忆
+                    to_delete = {mem.id for mem in low_importance_memories}
+                    self.memories = [mem for mem in self.memories if mem.id not in to_delete]
+                    
+                    # 更新索引
+                    for mem_id in to_delete:
+                        self._memory_id_index.pop(mem_id, None)
+                        self._similarity_cache.pop(mem_id, None)
+                    
+                    logger.info(
+                        f"transfer_all 策略: 额外删除了 {len(to_delete)} 条低重要性记忆 "
+                        f"(重要性 < {self.transfer_importance_threshold:.2f})"
+                    )
 
             # 异步保存
             asyncio.create_task(self._save_to_disk())
