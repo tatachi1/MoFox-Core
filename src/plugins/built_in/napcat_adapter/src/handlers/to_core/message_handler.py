@@ -105,6 +105,11 @@ class MessageHandler:
             if seg_message:
                 seg_list.append(seg_message)
 
+        # 防御性检查：确保至少有一个消息段，避免消息为空导致构建失败
+        if not seg_list:
+            logger.warning("消息内容为空，添加占位符文本")
+            seg_list.append({"type": "text", "data": "[消息内容为空]"})
+
         msg_builder.format_info(
             content_format=[seg["type"] for seg in seg_list],
             accept_format=ACCEPT_FORMAT,
@@ -302,7 +307,7 @@ class MessageHandler:
         video_source = file_path if file_path else video_url
         if not video_source:
             logger.warning("视频消息缺少URL或文件路径信息")
-            return None
+            return {"type": "text", "data": "[视频消息]"}
 
         try:
             if file_path and Path(file_path).exists():
@@ -327,7 +332,7 @@ class MessageHandler:
 
                 if not download_result["success"]:
                     logger.warning(f"视频下载失败: {download_result.get('error', '未知错误')}")
-                    return None
+                    return {"type": "text", "data": f"[视频消息] ({download_result.get('error', '下载失败')})"}
 
                 video_base64 = base64.b64encode(download_result["data"]).decode("utf-8")
                 logger.debug(f"视频下载成功，大小: {len(download_result['data']) / (1024 * 1024):.2f} MB")
@@ -343,11 +348,11 @@ class MessageHandler:
                 }
             else:
                 logger.warning("既没有有效的本地文件路径，也没有有效的视频URL")
-                return None
+                return {"type": "text", "data": "[视频消息]"}
 
         except Exception as e:
             logger.error(f"视频消息处理失败: {e!s}")
-            return None
+            return {"type": "text", "data": "[视频消息处理出错]"}
 
     async def _handle_rps_message(self, segment: dict) -> SegPayload:
         """处理猜拳消息"""
