@@ -956,14 +956,30 @@ class LongTermMemoryManager:
             logger.warning(f"创建边失败: 缺少节点ID ({source_id} -> {target_id})")
             return
 
-        # 检查节点是否存在
-        if not self.memory_manager.graph_store or not self.memory_manager.graph_store.graph.has_node(source_id):
-            logger.warning(f"创建边失败: 源节点不存在 ({source_id})")
-            return
-        if not self.memory_manager.graph_store or not self.memory_manager.graph_store.graph.has_node(target_id):
-            logger.warning(f"创建边失败: 目标节点不存在 ({target_id})")
+        if not self.memory_manager.graph_store:
+            logger.warning("创建边失败: 图存储未初始化")
             return
 
+        # 检查和创建节点（如果不存在则创建占位符）
+        if not self.memory_manager.graph_store.graph.has_node(source_id):
+            logger.debug(f"源节点不存在，创建占位符节点: {source_id}")
+            self.memory_manager.graph_store.add_node(
+                node_id=source_id,
+                node_type="event",
+                content=f"临时节点 - {source_id}",
+                metadata={"placeholder": True, "created_by": "long_term_manager_edge_creation"}
+            )
+        
+        if not self.memory_manager.graph_store.graph.has_node(target_id):
+            logger.debug(f"目标节点不存在，创建占位符节点: {target_id}")
+            self.memory_manager.graph_store.add_node(
+                node_id=target_id,
+                node_type="event",
+                content=f"临时节点 - {target_id}",
+                metadata={"placeholder": True, "created_by": "long_term_manager_edge_creation"}
+            )
+
+        # 现在两个节点都存在，可以创建边
         edge_id = self.memory_manager.graph_store.add_edge(
             source_id=source_id,
             target_id=target_id,

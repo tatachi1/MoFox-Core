@@ -166,6 +166,8 @@ async def initialize_unified_memory_manager():
             # 短期记忆配置
             short_term_max_memories=getattr(config, "short_term_max_memories", 30),
             short_term_transfer_threshold=getattr(config, "short_term_transfer_threshold", 0.6),
+            short_term_enable_force_cleanup=getattr(config, "short_term_enable_force_cleanup", True),
+            short_term_cleanup_keep_ratio=getattr(config, "short_term_cleanup_keep_ratio", 0.9),
             # 长期记忆配置
             long_term_batch_size=getattr(config, "long_term_batch_size", 10),
             long_term_search_top_k=getattr(config, "search_top_k", 5),
