@@ -54,9 +54,10 @@ class ContentService:
                 logger.error("未配置LLM模型")
                 return ""
 
-            # 获取机器人信息
-            bot_personality = config_api.get_global_config("personality.personality_core", "一个机器人")
-            bot_expression = config_api.get_global_config("personality.reply_style", "内容积极向上")
+            # 获取机器人信息（核心人格配置）
+            bot_personality_core = config_api.get_global_config("personality.personality_core", "一个机器人")
+            bot_personality_side = config_api.get_global_config("personality.personality_side", "")
+            bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
             qq_account = config_api.get_global_config("bot.qq_account", "")
 
             # 获取当前时间信息
@@ -65,13 +66,20 @@ class ContentService:
             weekday_names = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
             weekday = weekday_names[now.weekday()]
 
+            # 构建人设描述
+            personality_desc = f"你的核心人格：{bot_personality_core}"
+            if bot_personality_side:
+                personality_desc += f"\n你的人格侧面：{bot_personality_side}"
+            personality_desc += f"\n\n你的表达方式：{bot_reply_style}"
+
             # 构建提示词
             prompt_topic = f"主题是'{topic}'" if topic else "主题不限"
             prompt = f"""
-            你是'{bot_personality}'，现在是{current_time}（{weekday}），你想写一条{prompt_topic}的说说发表在qq空间上。
-            {bot_expression}
+{personality_desc}
 
-            请严格遵守以下规则：
+现在是{current_time}（{weekday}），你想写一条{prompt_topic}的说说发表在qq空间上。
+
+请严格遵守以下规则：
             1.  **绝对禁止**在说说中直接、完整地提及当前的年月日或几点几分。
             2.  你应该将当前时间作为创作的背景，用它来判断现在是“清晨”、“傍晚”还是“深夜”。
             3.  使用自然、模糊的词语来暗示时间，例如“刚刚”、“今天下午”、“夜深啦”等。
@@ -112,7 +120,244 @@ class ContentService:
             logger.error(f"生成说说内容时发生异常: {e}")
             return ""
 
-    async def generate_comment(self, content: str, target_name: str, rt_con: str = "", images: list = []) -> str:
+    async def generate_story_with_image_info(
+        self, topic: str, context: str | None = None
+    ) -> tuple[str, dict]:
+        """
+        生成说说内容，并同时生成NovelAI图片提示词信息
+        
+        :param topic: 说说的主题
+        :param context: 可选的聊天上下文
+        :return: (说说文本, 图片信息字典)
+                图片信息字典格式: {
+                    "prompt": str,  # NovelAI提示词（英文）
+                    "negative_prompt": str,  # 负面提示词（英文）
+                    "include_character": bool,  # 画面是否包含bot自己（true时插入角色外貌提示词）
+                    "aspect_ratio": str  # 画幅（方图/横图/竖图）
+                }
+        """
+        try:
+            # 获取模型配置
+            models = llm_api.get_available_models()
+            text_model = str(self.get_config("models.text_model", "replyer"))
+            model_config = models.get(text_model)
+
+            if not model_config:
+                logger.error("未配置LLM模型")
+                return "", {"has_image": False}
+
+            # 获取机器人信息（核心人格配置）
+            bot_personality_core = config_api.get_global_config("personality.personality_core", "一个机器人")
+            bot_personality_side = config_api.get_global_config("personality.personality_side", "")
+            bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
+            qq_account = config_api.get_global_config("bot.qq_account", "")
+            
+            # 获取角色外貌描述（用于告知LLM）
+            character_prompt = self.get_config("novelai.character_prompt", "")
+
+            # 获取当前时间信息
+            now = datetime.datetime.now()
+            current_time = now.strftime("%Y年%m月%d日 %H:%M")
+            weekday_names = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+            weekday = weekday_names[now.weekday()]
+
+            # 构建提示词
+            prompt_topic = f"主题是'{topic}'" if topic else "主题不限"
+            
+            # 构建人设描述
+            personality_desc = f"你的核心人格：{bot_personality_core}"
+            if bot_personality_side:
+                personality_desc += f"\n你的人格侧面：{bot_personality_side}"
+            personality_desc += f"\n\n你的表达方式：{bot_reply_style}"
+            
+            # 检查是否启用AI配图（统一开关）
+            ai_image_enabled = self.get_config("ai_image.enable_ai_image", False)
+            provider = self.get_config("ai_image.provider", "siliconflow")
+            
+            # NovelAI配图指引（内置）
+            novelai_guide = ""
+            output_format = '{"text": "说说正文内容"}'
+            
+            if ai_image_enabled and provider == "novelai":
+                # 构建角色信息提示
+                character_info = ""
+                if character_prompt:
+                    character_info = f"""
+**角色特征锚点**（当include_character=true时会插入以下基础特征）：
+```
+{character_prompt}
+```
+📌 重要说明：
+- 这只是角色的**基础外貌特征**（发型、眼睛、耳朵等固定特征），用于锚定角色身份
+- 你可以**自由描述**：衣服、动作、表情、姿势、装饰、配饰等所有可变元素
+- 例如：可以让角色穿不同风格的衣服（casual, formal, sportswear, dress等）
+- 例如：可以设计各种动作（sitting, standing, walking, running, lying down等）
+- 例如：可以搭配各种表情（smile, laugh, serious, thinking, surprised等）
+- **鼓励创意**：根据说说内容自由发挥，让画面更丰富生动！
+"""
+                
+                novelai_guide = f"""
+**配图说明：**
+这条说说会使用NovelAI Diffusion模型（二次元风格）生成配图。
+{character_info}
+**提示词生成要求（非常重要）：**
+你需要生成一段详细的英文图片提示词，必须包含以下要素：
+
+1. **画质标签**（必需）：
+   - 开头必须加：masterpiece, best quality, detailed, high resolution
+
+2. **主体元素**（自由发挥）：
+   - 人物描述：表情、动作、姿态（**完全自由**，不受角色锚点限制）
+   - 服装搭配：casual clothing, dress, hoodie, school uniform, sportswear等（**任意选择**）
+   - 配饰装饰：hat, glasses, ribbon, jewelry, bag等（**随意添加**）
+   - 物体/场景：具体的物品、建筑、自然景观等
+
+3. **场景与环境**（必需）：
+   - 地点：indoor/outdoor, cafe, park, bedroom, street, beach, forest等
+   - 背景：描述背景的细节（sky, trees, buildings, ocean, mountains等）
+
+4. **氛围与风格**（必需）：
+   - 光线：sunlight, sunset, golden hour, soft lighting, dramatic lighting, night
+   - 天气/时间：sunny day, rainy, cloudy, starry night, dawn, dusk
+   - 整体氛围：peaceful, cozy, romantic, energetic, melancholic, playful
+
+5. **色彩与细节**（推荐）：
+   - 主色调：warm colors, cool tones, pastel colors, vibrant colors
+   - 特殊细节：falling petals, sparkles, lens flare, depth of field, bokeh
+
+6. **include_character字段**：
+   - true：画面中包含"你自己"（自拍、你在画面中的场景）
+   - false：画面中不包含你（风景、物品、他人）
+
+7. **negative_prompt（负面提示词）**：
+   - **严格禁止**以下内容：nsfw, nude, explicit, sexual content, violence, gore, blood
+   - 排除质量问题：lowres, bad anatomy, bad hands, deformed, mutilated, ugly
+   - 排除瑕疵：blurry, poorly drawn, worst quality, low quality, jpeg artifacts
+   - 可以自行补充其他不需要的元素
+
+8. **aspect_ratio（画幅）**：
+   - 方图：适合头像、特写、正方形构图
+   - 横图：适合风景、全景、宽幅场景
+   - 竖图：适合人物全身、纵向构图
+
+**内容审核规则（必须遵守）**：
+- 🚫 严禁生成NSFW、色情、裸露、性暗示内容
+- 🚫 严禁生成暴力、血腥、恐怖、惊悚内容
+- 🚫 严禁生成肢体畸形、器官变异、恶心画面
+- ✅ 提示词必须符合健康、积极、美好的审美标准
+- ✅ 专注于日常生活、自然风景、温馨场景等正面内容
+
+**创意自由度**：
+- 💡 **衣服搭配**：可以自由设计各种服装风格（休闲、正式、运动、可爱、时尚等）
+- 💡 **动作姿势**：站、坐、躺、走、跑、跳、伸展等任意动作
+- 💡 **表情情绪**：微笑、大笑、思考、惊讶、温柔、调皮等丰富表情
+- 💡 **场景创意**：根据说说内容自由发挥，让画面更贴合心情和主题
+
+**示例提示词（展示多样性）**：
+- 休闲风："masterpiece, best quality, 1girl, casual clothing, white t-shirt, jeans, sitting on bench, outdoor park, reading book, afternoon sunlight, relaxed atmosphere"
+- 运动风："masterpiece, best quality, 1girl, sportswear, running in park, energetic, morning light, trees background, dynamic pose, healthy lifestyle"
+- 咖啡馆："masterpiece, best quality, 1girl, sitting in cozy cafe, holding coffee cup, warm lighting, wooden table, books beside, peaceful atmosphere"
+"""
+                output_format = '''{"text": "说说正文内容", "image": {"prompt": "详细的英文提示词（包含画质+主体+场景+氛围+光线+色彩）", "negative_prompt": "负面词", "include_character": true/false, "aspect_ratio": "方图/横图/竖图"}}'''
+            elif ai_image_enabled and provider == "siliconflow":
+                novelai_guide = """
+**配图说明：**
+这条说说会使用AI生成配图。
+
+**提示词生成要求（非常重要）：**
+你需要生成一段详细的英文图片描述，必须包含以下要素：
+
+1. **主体内容**：画面的核心元素（人物/物体/场景）
+2. **具体场景**：地点、环境、背景细节
+3. **氛围与风格**：整体感觉、光线、天气、色调
+4. **细节描述**：补充的视觉细节（动作、表情、装饰等）
+
+**示例提示词**：
+- "a girl sitting in a modern cafe, warm afternoon lighting, wooden furniture, coffee cup on table, books beside her, cozy and peaceful atmosphere, soft focus background"
+- "sunset over the calm ocean, golden hour, orange and purple sky, gentle waves, peaceful and serene mood, wide angle view"
+- "cherry blossoms in spring, soft pink petals falling, blue sky, sunlight filtering through branches, peaceful park scene, gentle breeze"
+"""
+                output_format = '''{"text": "说说正文内容", "image": {"prompt": "详细的英文描述（主体+场景+氛围+光线+细节）"}}'''
+            
+            prompt = f"""
+{personality_desc}
+
+现在是{current_time}（{weekday}），你想写一条{prompt_topic}的说说发表在qq空间上。
+
+**说说文本规则：**
+1. **绝对禁止**在说说中直接、完整地提及当前的年月日或几点几分。
+2. 你应该将当前时间作为创作的背景，用它来判断现在是"清晨"、"傍晚"还是"深夜"。
+3. 使用自然、模糊的词语来暗示时间，例如"刚刚"、"今天下午"、"夜深啦"等。
+4. **内容简短**：总长度严格控制在100字以内。
+5. **禁止表情**：严禁使用任何Emoji表情符号。
+6. **严禁重复**：下方会提供你最近发过的说说历史，你必须创作一条全新的、与历史记录内容和主题都不同的说说。
+7. 不要刻意突出自身学科背景，不要浮夸，不要夸张修辞。
+
+{novelai_guide}
+
+**输出格式（JSON）：**
+{output_format}
+
+只输出JSON格式，不要有其他内容。
+            """
+
+            # 如果有上下文，则加入到prompt中
+            if context:
+                prompt += f"\n\n作为参考，这里有一些最近的聊天记录：\n---\n{context}\n---"
+
+            # 添加历史记录以避免重复
+            prompt += "\n\n---历史说说记录---\n"
+            history_block = await get_send_history(qq_account)
+            if history_block:
+                prompt += history_block
+
+            # 调用LLM生成内容
+            success, response, _, _ = await llm_api.generate_with_model(
+                prompt=prompt,
+                model_config=model_config,
+                request_type="story.generate_with_image",
+                temperature=0.3,
+                max_tokens=1500,
+            )
+
+            if success:
+                # 解析JSON响应
+                import json5
+                try:
+                    # 提取JSON部分（去除可能的markdown代码块标记）
+                    json_text = response.strip()
+                    if json_text.startswith("```json"):
+                        json_text = json_text[7:]
+                    if json_text.startswith("```"):
+                        json_text = json_text[3:]
+                    if json_text.endswith("```"):
+                        json_text = json_text[:-3]
+                    json_text = json_text.strip()
+                    
+                    data = json5.loads(json_text)
+                    story_text = data.get("text", "")
+                    image_info = data.get("image", {})
+                    
+                    # 确保图片信息完整
+                    if not isinstance(image_info, dict):
+                        image_info = {}
+                    
+                    logger.info(f"成功生成说说：'{story_text}'")
+                    logger.info(f"配图信息: {image_info}")
+                    
+                    return story_text, image_info
+                    
+                except Exception as e:
+                    logger.error(f"解析JSON失败: {e}, 原始响应: {response[:200]}")
+                    # 降级处理：只返回文本，空配图信息
+                    return response, {}
+            else:
+                logger.error("生成说说内容失败")
+                return "", {}
+
+        except Exception as e:
+            logger.error(f"生成说说内容时发生异常: {e}")
+            return "", {}
         """
         针对一条具体的说说内容生成评论。
         """
