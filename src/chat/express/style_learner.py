@@ -4,6 +4,7 @@
 支持多聊天室独立建模和在线学习
 """
 import os
+import pickle
 import time
 
 from src.common.logger import get_logger
@@ -16,11 +17,12 @@ logger = get_logger("expressor.style_learner")
 class StyleLearner:
     """单个聊天室的表达风格学习器"""
 
-    def __init__(self, chat_id: str, model_config: dict | None = None):
+    def __init__(self, chat_id: str, model_config: dict | None = None, resource_limit_enabled: bool = True):
         """
         Args:
             chat_id: 聊天室ID
             model_config: 模型配置
+            resource_limit_enabled: 是否启用资源上限控制（默认关闭）
         """
         self.chat_id = chat_id
         self.model_config = model_config or {
@@ -33,6 +35,9 @@ class StyleLearner:
 
         # 初始化表达模型
         self.expressor = ExpressorModel(**self.model_config)
+
+        # 资源上限控制开关（默认开启，可按需关闭）
+        self.resource_limit_enabled = resource_limit_enabled
 
         # 动态风格管理
         self.max_styles = 2000  # 每个chat_id最多2000个风格
@@ -67,18 +72,15 @@ class StyleLearner:
             if style in self.style_to_id:
                 return True
 
-            # 检查是否需要清理
-            current_count = len(self.style_to_id)
-            cleanup_trigger = int(self.max_styles * self.cleanup_threshold)
-
-            if current_count >= cleanup_trigger:
-                if current_count >= self.max_styles:
-                    # 已经达到最大限制，必须清理
-                    logger.warning(f"已达到最大风格数量限制 ({self.max_styles})，开始清理")
-                    self._cleanup_styles()
-                elif current_count >= cleanup_trigger:
-                    # 接近限制，提前清理
-                    logger.info(f"风格数量达到 {current_count}/{self.max_styles}，触发预防性清理")
+            # 检查是否需要清理（仅计算一次阈值）
+            if self.resource_limit_enabled:
+                current_count = len(self.style_to_id)
+                cleanup_trigger = int(self.max_styles * self.cleanup_threshold)
+                if current_count >= cleanup_trigger:
+                    if current_count >= self.max_styles:
+                        logger.warning(f"已达到最大风格数量限制 ({self.max_styles})，开始清理")
+                    else:
+                        logger.info(f"风格数量达到 {current_count}/{self.max_styles}，触发预防性清理")
                     self._cleanup_styles()
 
             # 生成新的style_id
@@ -95,7 +97,8 @@ class StyleLearner:
             self.expressor.add_candidate(style_id, style, situation)
 
             # 初始化统计
-            self.learning_stats["style_counts"][style_id] = 0
+            self.learning_stats.setdefault("style_counts", {})[style_id] = 0
+            self.learning_stats.setdefault("style_last_used", {})
 
             logger.debug(f"添加风格成功: {style_id} -> {style}")
             return True
@@ -114,64 +117,64 @@ class StyleLearner:
         3. 默认清理 cleanup_ratio (20%) 的风格
         """
         try:
+            total_styles = len(self.style_to_id)
+            if total_styles == 0:
+                return
+
+            # 只有在达到阈值时才执行昂贵的排序
+            cleanup_count = max(1, int(total_styles * self.cleanup_ratio))
+            if cleanup_count <= 0:
+                return
+
             current_time = time.time()
-            cleanup_count = max(1, int(len(self.style_to_id) * self.cleanup_ratio))
+            # 局部引用加速频繁调用的函数
+            from math import exp, log1p
 
             # 计算每个风格的价值分数
             style_scores = []
             for style_id in self.style_to_id.values():
-                # 使用次数
                 usage_count = self.learning_stats["style_counts"].get(style_id, 0)
-
-                # 最后使用时间（越近越好）
                 last_used = self.learning_stats["style_last_used"].get(style_id, 0)
+
                 time_since_used = current_time - last_used if last_used > 0 else float("inf")
+                usage_score = log1p(usage_count)
+                days_unused = time_since_used / 86400
+                time_score = exp(-days_unused / 30)
 
-                # 综合分数：使用次数越多越好，距离上次使用时间越短越好
-                # 使用对数来平滑使用次数的影响
-                import math
-                usage_score = math.log1p(usage_count)  # log(1 + count)
-
-                # 时间分数：转换为天数，使用指数衰减
-                days_unused = time_since_used / 86400  # 转换为天
-                time_score = math.exp(-days_unused / 30)  # 30天衰减因子
-
-                # 综合分数：80%使用频率 + 20%时间新鲜度
                 total_score = 0.8 * usage_score + 0.2 * time_score
-
                 style_scores.append((style_id, total_score, usage_count, days_unused))
+
+            if not style_scores:
+                return
 
             # 按分数排序，分数低的先删除
             style_scores.sort(key=lambda x: x[1])
 
-            # 删除分数最低的风格
             deleted_styles = []
             for style_id, score, usage, days in style_scores[:cleanup_count]:
                 style_text = self.id_to_style.get(style_id)
-                if style_text:
-                    # 从映射中删除
-                    del self.style_to_id[style_text]
-                    del self.id_to_style[style_id]
-                    if style_id in self.id_to_situation:
-                        del self.id_to_situation[style_id]
+                if not style_text:
+                    continue
 
-                    # 从统计中删除
-                    if style_id in self.learning_stats["style_counts"]:
-                        del self.learning_stats["style_counts"][style_id]
-                    if style_id in self.learning_stats["style_last_used"]:
-                        del self.learning_stats["style_last_used"][style_id]
+                # 从映射中删除
+                self.style_to_id.pop(style_text, None)
+                self.id_to_style.pop(style_id, None)
+                self.id_to_situation.pop(style_id, None)
 
-                    # 从expressor模型中删除
-                    self.expressor.remove_candidate(style_id)
+                # 从统计中删除
+                self.learning_stats["style_counts"].pop(style_id, None)
+                self.learning_stats["style_last_used"].pop(style_id, None)
 
-                    deleted_styles.append((style_text[:30], usage, f"{days:.1f}天"))
+                # 从expressor模型中删除
+                self.expressor.remove_candidate(style_id)
+
+                deleted_styles.append((style_text[:30], usage, f"{days:.1f}天"))
 
             logger.info(
                 f"风格清理完成: 删除了 {len(deleted_styles)}/{len(style_scores)} 个风格，"
                 f"剩余 {len(self.style_to_id)} 个风格"
             )
 
-            # 记录前5个被删除的风格（用于调试）
             if deleted_styles:
                 logger.debug(f"被删除的风格样例(前5): {deleted_styles[:5]}")
 
@@ -204,7 +207,9 @@ class StyleLearner:
             # 更新统计
             current_time = time.time()
             self.learning_stats["total_samples"] += 1
-            self.learning_stats["style_counts"][style_id] += 1
+            self.learning_stats.setdefault("style_counts", {})
+            self.learning_stats.setdefault("style_last_used", {})
+            self.learning_stats["style_counts"][style_id] = self.learning_stats["style_counts"].get(style_id, 0) + 1
             self.learning_stats["style_last_used"][style_id] = current_time  # 更新最后使用时间
             self.learning_stats["last_update"] = current_time
 
@@ -349,11 +354,11 @@ class StyleLearner:
 
             # 保存expressor模型
             model_path = os.path.join(save_dir, "expressor_model.pkl")
-            self.expressor.save(model_path)
+            tmp_model_path = f"{model_path}.tmp"
+            self.expressor.save(tmp_model_path)
+            os.replace(tmp_model_path, model_path)
 
-            # 保存映射关系和统计信息
-            import pickle
-
+            # 保存映射关系和统计信息（原子写）
             meta_path = os.path.join(save_dir, "meta.pkl")
 
             # 确保 learning_stats 包含所有必要字段
@@ -368,8 +373,13 @@ class StyleLearner:
                 "learning_stats": self.learning_stats,
             }
 
-            with open(meta_path, "wb") as f:
-                pickle.dump(meta_data, f)
+            tmp_meta_path = f"{meta_path}.tmp"
+            with open(tmp_meta_path, "wb") as f:
+                pickle.dump(meta_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+                f.flush()
+                os.fsync(f.fileno())
+
+            os.replace(tmp_meta_path, meta_path)
 
             return True
 
@@ -401,8 +411,6 @@ class StyleLearner:
                 self.expressor.load(model_path)
 
             # 加载映射关系和统计信息
-            import pickle
-
             meta_path = os.path.join(save_dir, "meta.pkl")
             if os.path.exists(meta_path):
                 with open(meta_path, "rb") as f:
@@ -445,14 +453,16 @@ class StyleLearnerManager:
     # 🔧 最大活跃 learner 数量
     MAX_ACTIVE_LEARNERS = 50
 
-    def __init__(self, model_save_path: str = "data/expression/style_models"):
+    def __init__(self, model_save_path: str = "data/expression/style_models", resource_limit_enabled: bool = True):
         """
         Args:
             model_save_path: 模型保存路径
+            resource_limit_enabled: 是否启用资源上限控制（默认开启）
         """
         self.learners: dict[str, StyleLearner] = {}
         self.learner_last_used: dict[str, float] = {}  # 🔧 记录最后使用时间
         self.model_save_path = model_save_path
+        self.resource_limit_enabled = resource_limit_enabled
 
         # 确保保存目录存在
         os.makedirs(model_save_path, exist_ok=True)
@@ -475,7 +485,10 @@ class StyleLearnerManager:
         for chat_id, last_used in sorted_by_time[:evict_count]:
             if chat_id in self.learners:
                 # 先保存再淘汰
-                self.learners[chat_id].save(self.model_save_path)
+                try:
+                    self.learners[chat_id].save(self.model_save_path)
+                except Exception as e:
+                    logger.error(f"LRU淘汰时保存学习器失败: chat_id={chat_id}, error={e}")
                 del self.learners[chat_id]
                 del self.learner_last_used[chat_id]
                 evicted.append(chat_id)
@@ -502,7 +515,11 @@ class StyleLearnerManager:
             self._evict_if_needed()
 
             # 创建新的学习器
-            learner = StyleLearner(chat_id, model_config)
+            learner = StyleLearner(
+                chat_id,
+                model_config,
+                resource_limit_enabled=self.resource_limit_enabled,
+            )
 
             # 尝试加载已保存的模型
             learner.load(self.model_save_path)
@@ -510,6 +527,12 @@ class StyleLearnerManager:
             self.learners[chat_id] = learner
 
         return self.learners[chat_id]
+
+    def set_resource_limit(self, enabled: bool) -> None:
+        """动态开启/关闭资源上限控制（默认关闭）。"""
+        self.resource_limit_enabled = enabled
+        for learner in self.learners.values():
+            learner.resource_limit_enabled = enabled
 
     def learn_mapping(self, chat_id: str, up_content: str, style: str) -> bool:
         """
