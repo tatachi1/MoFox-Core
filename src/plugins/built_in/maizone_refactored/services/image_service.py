@@ -31,18 +31,48 @@ class ImageService:
         """
         self.get_config = get_config
 
+    async def generate_image_from_prompt(self, prompt: str, save_dir: str | None = None) -> tuple[bool, Path | None]:
+        """
+        直接使用提示词生成图片（硅基流动）
+
+        :param prompt: 图片提示词（英文）
+        :param save_dir: 图片保存目录（None使用默认）
+        :return: (是否成功, 图片路径)
+        """
+        try:
+            api_key = str(self.get_config("siliconflow.api_key", ""))
+            image_num = self.get_config("ai_image.image_number", 1)
+            
+            if not api_key:
+                logger.warning("硅基流动API未配置，跳过图片生成")
+                return False, None
+
+            # 图片目录
+            if save_dir:
+                image_dir = Path(save_dir)
+            else:
+                plugin_dir = Path(__file__).parent.parent
+                image_dir = plugin_dir / "images"
+            image_dir.mkdir(parents=True, exist_ok=True)
+
+            logger.info(f"正在生成 {image_num} 张AI配图...")
+            success, img_path = await self._call_siliconflow_api(api_key, prompt, str(image_dir), image_num)
+            return success, img_path
+
+        except Exception as e:
+            logger.error(f"生成AI配图时发生异常: {e}")
+            return False, None
+
     async def generate_images_for_story(self, story: str) -> bool:
         """
-        根据说说内容，判断是否需要生成AI配图，并执行生成任务。
+        根据说说内容，判断是否需要生成AI配图，并执行生成任务（硅基流动）。
 
         :param story: 说说内容。
         :return: 图片是否成功生成（或不需要生成）。
         """
         try:
-            enable_ai_image = bool(self.get_config("send.enable_ai_image", False))
-            api_key = str(self.get_config("models.siliconflow_apikey", ""))
-            image_dir = str(self.get_config("send.image_directory", "./data/plugins/maizone_refactored/images"))
-            image_num_raw = self.get_config("send.ai_image_number", 1)
+            api_key = str(self.get_config("siliconflow.api_key", ""))
+            image_num_raw = self.get_config("ai_image.image_number", 1)
 
             # 安全地处理图片数量配置，并限制在API允许的范围内
             try:
@@ -52,15 +82,14 @@ class ImageService:
                 logger.warning(f"无效的图片数量配置: {image_num_raw}，使用默认值1")
                 image_num = 1
 
-            if not enable_ai_image:
-                return True  # 未启用AI配图，视为成功
-
             if not api_key:
-                logger.error("启用了AI配图但未填写SiliconFlow API密钥")
-                return False
+                logger.warning("硅基流动API未配置，跳过图片生成")
+                return True
 
-            # 确保图片目录存在
-            Path(image_dir).mkdir(parents=True, exist_ok=True)
+            # 图片目录（使用统一配置）
+            plugin_dir = Path(__file__).parent.parent
+            image_dir = plugin_dir / "images"
+            image_dir.mkdir(parents=True, exist_ok=True)
 
             # 生成图片提示词
             image_prompt = await self._generate_image_prompt(story)
@@ -69,7 +98,8 @@ class ImageService:
                 return False
 
             logger.info(f"正在为说说生成 {image_num} 张AI配图...")
-            return await self._call_siliconflow_api(api_key, image_prompt, image_dir, image_num)
+            success, _ = await self._call_siliconflow_api(api_key, image_prompt, str(image_dir), image_num)
+            return success
 
         except Exception as e:
             logger.error(f"处理AI配图时发生异常: {e}")
@@ -127,7 +157,7 @@ class ImageService:
             logger.error(f"生成图片提示词时发生异常: {e}")
             return ""
 
-    async def _call_siliconflow_api(self, api_key: str, image_prompt: str, image_dir: str, batch_size: int) -> bool:
+    async def _call_siliconflow_api(self, api_key: str, image_prompt: str, image_dir: str, batch_size: int) -> tuple[bool, Path | None]:
         """
         调用硅基流动（SiliconFlow）的API来生成图片。
 
@@ -135,7 +165,7 @@ class ImageService:
         :param image_prompt: 用于生成图片的提示词。
         :param image_dir: 图片保存目录。
         :param batch_size: 生成图片的数量（1-4）。
-        :return: API调用是否成功。
+        :return: (API调用是否成功, 第一张图片路径)
         """
         url = "https://api.siliconflow.cn/v1/images/generations"
         headers = {
@@ -175,12 +205,13 @@ class ImageService:
                         error_text = await response.text()
                         logger.error(f"生成图片出错，错误码[{response.status}]")
                         logger.error(f"错误响应: {error_text}")
-                        return False
+                        return False, None
 
                     json_data = await response.json()
                     image_urls = [img["url"] for img in json_data["images"]]
 
                     success_count = 0
+                    first_img_path = None
                     # 下载并保存图片
                     for i, img_url in enumerate(image_urls):
                         try:
@@ -194,7 +225,7 @@ class ImageService:
                                 image = Image.open(BytesIO(img_data))
 
                                 # 保存图片为PNG格式（确保兼容性）
-                                filename = f"image_{i}.png"
+                                filename = f"siliconflow_{i}.png"
                                 save_path = Path(image_dir) / filename
 
                                 # 转换为RGB模式如果必要（避免RGBA等模式的问题）
@@ -206,21 +237,25 @@ class ImageService:
                                 image.save(save_path, format="PNG")
                                 logger.info(f"图片已保存至: {save_path}")
                                 success_count += 1
+                                
+                                # 记录第一张图片路径
+                                if first_img_path is None:
+                                    first_img_path = save_path
 
                             except Exception as e:
                                 logger.error(f"处理图片失败: {e!s}")
                                 continue
 
                         except Exception as e:
-                            logger.error(f"下载第{i+1}张图片失败: {e!s}")
+                            logger.error(f"下载图片失败: {e!s}")
                             continue
 
-                    # 只要至少有一张图片成功就返回True
-                    return success_count > 0
+                    # 至少有一张图片成功就返回True
+                    return success_count > 0, first_img_path
 
         except Exception as e:
             logger.error(f"调用AI生图API时发生异常: {e}")
-            return False
+            return False, None
 
     def _encode_image_to_base64(self, img: Image.Image) -> str:
         """

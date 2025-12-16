@@ -45,6 +45,7 @@ class UnifiedMemoryManager:
         short_term_max_memories: int = 30,
         short_term_transfer_threshold: float = 0.6,
         short_term_enable_force_cleanup: bool = False,
+        short_term_cleanup_keep_ratio: float = 0.9,
         # 长期记忆配置
         long_term_batch_size: int = 10,
         long_term_search_top_k: int = 5,
@@ -98,6 +99,7 @@ class UnifiedMemoryManager:
                 "max_memories": short_term_max_memories,
                 "transfer_importance_threshold": short_term_transfer_threshold,
                 "enable_force_cleanup": short_term_enable_force_cleanup,
+                "cleanup_keep_ratio": short_term_cleanup_keep_ratio,
             },
             "long_term": {
                 "batch_size": long_term_batch_size,

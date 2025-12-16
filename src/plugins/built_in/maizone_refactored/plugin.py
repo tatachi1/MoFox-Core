@@ -43,19 +43,26 @@ class MaiZoneRefactoredPlugin(BasePlugin):
         "plugin": {"enable": ConfigField(type=bool, default=True, description="是否启用插件")},
         "models": {
             "text_model": ConfigField(type=str, default="maizone", description="生成文本的模型名称"),
-            "siliconflow_apikey": ConfigField(type=str, default="", description="硅基流动AI生图API密钥"),
+        },
+        "ai_image": {
+            "enable_ai_image": ConfigField(type=bool, default=False, description="是否启用AI生成配图"),
+            "provider": ConfigField(type=str, default="siliconflow", description="AI生图服务提供商（siliconflow/novelai）"),
+            "image_number": ConfigField(type=int, default=1, description="生成图片数量（1-4张）"),
+        },
+        "siliconflow": {
+            "api_key": ConfigField(type=str, default="", description="硅基流动API密钥"),
+        },
+        "novelai": {
+            "api_key": ConfigField(type=str, default="", description="NovelAI官方API密钥"),
+            "character_prompt": ConfigField(type=str, default="", description="Bot角色外貌描述（AI判断需要bot出镜时插入）"),
+            "base_negative_prompt": ConfigField(type=str, default="nsfw, nude, explicit, sexual content, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality", description="基础负面提示词（禁止不良内容）"),
+            "proxy_host": ConfigField(type=str, default="", description="代理服务器地址（如：127.0.0.1）"),
+            "proxy_port": ConfigField(type=int, default=0, description="代理服务器端口（如：7890）"),
         },
         "send": {
             "permission": ConfigField(type=list, default=[], description="发送权限QQ号列表"),
             "permission_type": ConfigField(type=str, default="whitelist", description="权限类型"),
-            "enable_image": ConfigField(type=bool, default=False, description="是否启用说说配图"),
-            "enable_ai_image": ConfigField(type=bool, default=False, description="是否启用AI生成配图"),
             "enable_reply": ConfigField(type=bool, default=True, description="完成后是否回复"),
-            "ai_image_number": ConfigField(type=int, default=1, description="AI生成图片数量（1-4张）"),
-            "image_number": ConfigField(type=int, default=1, description="本地配图数量（1-9张）"),
-            "image_directory": ConfigField(
-                type=str, default=(Path(__file__).parent / "images").as_posix(), description="图片存储目录"
-            ),
         },
         "read": {
             "permission": ConfigField(type=list, default=[], description="阅读权限QQ号列表"),

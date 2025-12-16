@@ -1,5 +1,5 @@
 [inner]
-version = "8.0.1"
+version = "8.0.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -309,6 +309,7 @@ perceptual_activation_threshold = 3 # 激活阈值（召回次数→短期）
 # 短期记忆层配置
 short_term_max_memories = 30 # 短期记忆最大数量
 short_term_transfer_threshold = 0.6 # 转移到长期记忆的重要性阈值
+short_term_enable_force_cleanup = true # 开启压力泄压（建议高频场景开启）
 short_term_search_top_k = 5 # 搜索时返回的最大数量
 short_term_decay_factor = 0.98 # 衰减因子
 

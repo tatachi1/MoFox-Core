@@ -414,7 +414,22 @@ class NapcatAdapterPlugin(BasePlugin):
             "enable_emoji_like": ConfigField(type=bool, default=True, description="是否启用群聊表情回复处理"),
             "enable_reply_at": ConfigField(type=bool, default=True, description="是否在回复时自动@原消息发送者"),
             "reply_at_rate": ConfigField(type=float, default=0.5, description="回复时@的概率（0.0-1.0）"),
-            "enable_video_processing": ConfigField(type=bool, default=True, description="是否启用视频消息处理（下载和解析）"),
+            # ========== 视频消息处理配置 ==========
+            "enable_video_processing": ConfigField(
+                type=bool, 
+                default=True, 
+                description="是否启用视频消息处理（下载和解析）。关闭后视频消息将显示为 [视频消息] 占位符，不会进行下载"
+            ),
+            "video_max_size_mb": ConfigField(
+                type=int, 
+                default=100, 
+                description="允许下载的视频文件最大大小（MB），超过此大小的视频将被跳过"
+            ),
+            "video_download_timeout": ConfigField(
+                type=int, 
+                default=60, 
+                description="视频下载超时时间（秒），若超时将中止下载"
+            ),
         },
     }
 
