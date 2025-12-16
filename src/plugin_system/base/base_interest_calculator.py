@@ -117,10 +117,17 @@ class BaseInterestCalculator(ABC):
         """
         try:
             self._enabled = True
+            # 子类可以重写此方法执行自定义初始化
+            await self.on_initialize()
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"初始化兴趣计算器失败: {e}")
             self._enabled = False
             return False
+    
+    async def on_initialize(self):
+        """子类可重写的初始化钩子"""
+        pass
 
     async def cleanup(self) -> bool:
         """清理组件资源
@@ -129,10 +136,17 @@ class BaseInterestCalculator(ABC):
             bool: 清理是否成功
         """
         try:
+            # 子类可以重写此方法执行自定义清理
+            await self.on_cleanup()
             self._enabled = False
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"清理兴趣计算器失败: {e}")
             return False
+    
+    async def on_cleanup(self):
+        """子类可重写的清理钩子"""
+        pass
 
     @property
     def is_enabled(self) -> bool:
