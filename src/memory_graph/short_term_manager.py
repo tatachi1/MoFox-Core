@@ -639,54 +639,17 @@ class ShortTermMemoryManager:
 
     def get_memories_for_transfer(self) -> list[ShortTermMemory]:
         """
-        获取需要转移到长期记忆的记忆（改进版：转移优先于删除）
+        获取需要转移到长期记忆的记忆（简化版：满额整批转移）
 
-        优化的转移策略：
-        1. 优先选择重要性 >= 阈值的记忆进行转移
-        2. 如果高重要性记忆已清空但仍超过容量，则考虑转移低重要性记忆
-        3. 仅当转移不能解决容量问题时，才进行强制删除（由 force_cleanup_overflow 处理）
-        
-        返回：
-            需要转移的记忆列表（优先返回高重要性，次选低重要性）
+        策略：
+        - 当短期记忆数量达到上限（>= max_memories）时，返回当前全部短期记忆；
+        - 没满则返回空列表，不触发转移。
         """
-        # 单次遍历：同时分类高重要性和低重要性记忆
-        high_importance_memories = []
-        low_importance_memories = []
-
-        for mem in self.memories:
-            if mem.importance >= self.transfer_importance_threshold:
-                high_importance_memories.append(mem)
-            else:
-                low_importance_memories.append(mem)
-
-        # 策略1：优先返回高重要性记忆进行转移
-        if high_importance_memories:
-            logger.debug(
-                f"转移候选: 发现 {len(high_importance_memories)} 条高重要性记忆待转移"
-            )
-            return high_importance_memories
-
-        # 策略2：如果没有高重要性记忆但总体超过容量上限，
-        # 返回一部分低重要性记忆用于转移（而非删除）
-        if len(self.memories) > self.max_memories:
-            # 计算需要转移的数量（目标：降到上限）
-            num_to_transfer = len(self.memories) - self.max_memories
-            
-            # 按创建时间排序低重要性记忆，优先转移最早的（可能包含过时信息）
-            low_importance_memories.sort(key=lambda x: x.created_at)
-            to_transfer = low_importance_memories[:num_to_transfer]
-            
-            if to_transfer:
-                logger.debug(
-                    f"转移候选: 发现 {len(to_transfer)} 条低重要性记忆待转移 "
-                    f"(当前容量 {len(self.memories)}/{self.max_memories})"
-                )
-                return to_transfer
-
-        # 策略3：容量充足，无需转移
-        logger.debug(
-            f"转移检查: 无需转移 (当前容量 {len(self.memories)}/{self.max_memories})"
-        )
+        if self.max_memories <= 0:
+            return []
+        if len(self.memories) >= self.max_memories:
+            logger.debug(f"转移候选: 短期记忆已满，准备整批转移 {len(self.memories)} 条")
+            return list(self.memories)
         return []
 
     def force_cleanup_overflow(self, keep_ratio: float | None = None) -> int:

@@ -112,8 +112,6 @@ class UnifiedMemoryManager:
         self._initialized = False
         self._auto_transfer_task: asyncio.Task | None = None
         self._auto_transfer_interval = max(10.0, float(long_term_auto_transfer_interval))
-        # 优化：降低最大延迟时间，加快转移节奏 (原为 300.0)
-        self._max_transfer_delay = min(max(30.0, self._auto_transfer_interval), 60.0)
         self._transfer_wakeup_event: asyncio.Event | None = None
 
         logger.info("统一记忆管理器已创建")
@@ -574,11 +572,7 @@ class UnifiedMemoryManager:
         logger.debug("自动转移任务已启动并触发首次检查")
 
     async def _auto_transfer_loop(self) -> None:
-        """自动转移循环（批量缓存模式，优化：更高效的缓存管理）"""
-        transfer_cache: list[ShortTermMemory] = []
-        cached_ids: set[str] = set()
-        cache_size_threshold = max(1, self._config["long_term"].get("batch_size", 1))
-        last_transfer_time = time.monotonic()
+        """自动转移循环（简化版：短期记忆满额时整批转移）"""
 
         while True:
             try:
@@ -595,67 +589,25 @@ class UnifiedMemoryManager:
                 else:
                     await asyncio.sleep(sleep_interval)
 
-                memories_to_transfer = self.short_term_manager.get_memories_for_transfer()
-
-                if memories_to_transfer:
-                    # 优化：批量构建缓存而不是逐条添加
-                    new_memories = []
-                    for memory in memories_to_transfer:
-                        mem_id = getattr(memory, "id", None)
-                        if not (mem_id and mem_id in cached_ids):
-                            new_memories.append(memory)
-                            if mem_id:
-                                cached_ids.add(mem_id)
-
-                    if new_memories:
-                        transfer_cache.extend(new_memories)
-                        logger.debug(
-                            f"自动转移缓存: 新增{len(new_memories)}条, 当前缓存{len(transfer_cache)}/{cache_size_threshold}"
-                        )
-
+                # 最简单策略：仅当短期记忆满额时，直接整批转移全部短期记忆；没满则不处理
                 max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
-                occupancy_ratio = len(self.short_term_manager.memories) / max_memories
-                time_since_last_transfer = time.monotonic() - last_transfer_time
+                if len(self.short_term_manager.memories) < max_memories:
+                    continue
 
-                if occupancy_ratio >= 1.0 and not transfer_cache:
-                    removed = self.short_term_manager.force_cleanup_overflow()
-                    if removed > 0:
-                        logger.warning(
-                            f"短期记忆占用率 {occupancy_ratio:.0%}，已强制删除 {removed} 条低重要性记忆泄压"
-                        )
+                batch = list(self.short_term_manager.memories)
+                if not batch:
+                    continue
 
-                # 优化：优先级判断重构（早期 return）
-                should_transfer = (
-                    len(transfer_cache) >= cache_size_threshold
-                    or occupancy_ratio >= 0.5
-                    or (transfer_cache and time_since_last_transfer >= self._max_transfer_delay)
-                    or len(self.short_term_manager.memories) >= self.short_term_manager.max_memories
+                logger.info(
+                    f"短期记忆已满({len(batch)}/{max_memories})，开始整批转移到长期记忆"
                 )
+                result = await self.long_term_manager.transfer_from_short_term(batch)
 
-                if should_transfer and transfer_cache:
-                    logger.debug(
-                        f"准备批量转移: {len(transfer_cache)}条短期记忆到长期记忆 (占用率 {occupancy_ratio:.0%})"
+                if result.get("transferred_memory_ids"):
+                    await self.short_term_manager.clear_transferred_memories(
+                        result["transferred_memory_ids"]
                     )
-
-                    # 优化：直接传递列表而不再复制
-                    result = await self.long_term_manager.transfer_from_short_term(transfer_cache)
-
-                    if result.get("transferred_memory_ids"):
-                        transferred_ids = set(result["transferred_memory_ids"])
-                        await self.short_term_manager.clear_transferred_memories(
-                            result["transferred_memory_ids"]
-                        )
-
-                        # 优化：使用生成器表达式保留未转移的记忆
-                        transfer_cache = [
-                            m
-                            for m in transfer_cache
-                            if getattr(m, "id", None) not in transferred_ids
-                        ]
-                        cached_ids.difference_update(transferred_ids)
-
-                    last_transfer_time = time.monotonic()
-                    logger.debug(f"✅ 批量转移完成: {result}")
+                logger.debug(f"✅ 整批转移完成: {result}")
 
             except asyncio.CancelledError:
                 logger.debug("自动转移循环被取消")
@@ -674,10 +626,16 @@ class UnifiedMemoryManager:
             await self.initialize()
 
         try:
-            memories_to_transfer = self.short_term_manager.get_memories_for_transfer()
+            max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
+            if len(self.short_term_manager.memories) < max_memories:
+                return {
+                    "message": f"短期记忆未满({len(self.short_term_manager.memories)}/{max_memories})，不触发转移",
+                    "transferred_count": 0,
+                }
 
+            memories_to_transfer = list(self.short_term_manager.memories)
             if not memories_to_transfer:
-                return {"message": "没有需要转移的记忆", "transferred_count": 0}
+                return {"message": "短期记忆为空，无需转移", "transferred_count": 0}
 
             # 执行转移
             result = await self.long_term_manager.transfer_from_short_term(memories_to_transfer)
