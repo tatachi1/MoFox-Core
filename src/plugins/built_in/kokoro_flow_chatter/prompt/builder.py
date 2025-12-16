@@ -75,12 +75,12 @@ class PromptBuilder:
         # 1.6. 构建自定义决策提示词块
         custom_decision_block = self._build_custom_decision_block()
 
-        # 2. 使用 context_builder 获取关系、记忆、工具、表达习惯等
-        context_data = await self._build_context_data(user_name, chat_stream, user_id)
-        relation_block = context_data.get("relation_info", f"你与 {user_name} 还不太熟悉，这是早期的交流阶段。")
-        memory_block = context_data.get("memory_block", "")
-        tool_info = context_data.get("tool_info", "")
-        expression_habits = self._build_combined_expression_block(context_data.get("expression_habits", ""))
+        # 2. Planner（分离模式）不做重型上下文构建：记忆检索/工具信息/表达习惯检索等会显著拖慢处理
+        #    这些信息留给 Replyer（生成最终回复文本）阶段再获取。
+        relation_block = ""
+        memory_block = ""
+        tool_info = ""
+        expression_habits = ""
 
         # 3. 构建活动流
         activity_stream = await self._build_activity_stream(session, user_name)
