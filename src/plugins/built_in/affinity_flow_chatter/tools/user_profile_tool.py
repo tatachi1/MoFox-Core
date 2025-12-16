@@ -85,7 +85,7 @@ class UserProfileTool(BaseTool):
         ("key_info_value", ToolParamType.STRING, "具体信息内容（必须是具体值如'11月23日'、'上海'）", False, None),
     ]
     available_for_llm = True
-    history_ttl = 1
+    history_ttl = 0
 
     async def execute(self, function_args: dict[str, Any]) -> dict[str, Any]:
         """执行用户画像更新（异步后台执行，不阻塞回复）

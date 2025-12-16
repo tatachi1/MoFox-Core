@@ -39,7 +39,7 @@ class UserFactTool(BaseTool):
         ("info_value", ToolParamType.STRING, "具体内容，如'11月23日'、'程序员'、'想开咖啡店'", True, None),
     ]
     available_for_llm = True
-    history_ttl = 5
+    history_ttl = 0
 
     async def execute(self, function_args: dict[str, Any]) -> dict[str, Any]:
         """执行关键信息记录

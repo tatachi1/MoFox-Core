@@ -37,10 +37,21 @@ class MessageHandler:
     def __init__(self, adapter: "NapcatAdapter"):
         self.adapter = adapter
         self.plugin_config: dict[str, Any] | None = None
+        self._video_downloader = None
 
     def set_plugin_config(self, config: dict[str, Any]) -> None:
-        """设置插件配置"""
+        """设置插件配置，并根据配置初始化视频下载器"""
         self.plugin_config = config
+        
+        # 如果启用了视频处理，根据配置初始化视频下载器
+        if config_api.get_plugin_config(config, "features.enable_video_processing", True):
+            from ..video_handler import VideoDownloader
+            
+            max_size = config_api.get_plugin_config(config, "features.video_max_size_mb", 100)
+            timeout = config_api.get_plugin_config(config, "features.video_download_timeout", 60)
+            
+            self._video_downloader = VideoDownloader(max_size_mb=max_size, download_timeout=timeout)
+            logger.debug(f"视频下载器已初始化: max_size={max_size}MB, timeout={timeout}s")
 
     async def handle_raw_message(self, raw: dict[str, Any]):
         """
@@ -104,6 +115,11 @@ class MessageHandler:
             seg_message = await self.handle_single_segment(segment, raw)
             if seg_message:
                 seg_list.append(seg_message)
+
+        # 防御性检查：确保至少有一个消息段，避免消息为空导致构建失败
+        if not seg_list:
+            logger.warning("消息内容为空，添加占位符文本")
+            seg_list.append({"type": "text", "data": "[消息内容为空]"})
 
         msg_builder.format_info(
             content_format=[seg["type"] for seg in seg_list],
@@ -302,7 +318,7 @@ class MessageHandler:
         video_source = file_path if file_path else video_url
         if not video_source:
             logger.warning("视频消息缺少URL或文件路径信息")
-            return None
+            return {"type": "text", "data": "[视频消息]"}
 
         try:
             if file_path and Path(file_path).exists():
@@ -320,14 +336,17 @@ class MessageHandler:
                     },
                 }
             elif video_url:
-                # URL下载处理
-                from ..video_handler import get_video_downloader
-                video_downloader = get_video_downloader()
-                download_result = await video_downloader.download_video(video_url)
+                # URL下载处理 - 使用配置中的下载器实例
+                downloader = self._video_downloader
+                if not downloader:
+                    from ..video_handler import get_video_downloader
+                    downloader = get_video_downloader()
+                
+                download_result = await downloader.download_video(video_url)
 
                 if not download_result["success"]:
                     logger.warning(f"视频下载失败: {download_result.get('error', '未知错误')}")
-                    return None
+                    return {"type": "text", "data": f"[视频消息] ({download_result.get('error', '下载失败')})"}
 
                 video_base64 = base64.b64encode(download_result["data"]).decode("utf-8")
                 logger.debug(f"视频下载成功，大小: {len(download_result['data']) / (1024 * 1024):.2f} MB")
@@ -343,11 +362,11 @@ class MessageHandler:
                 }
             else:
                 logger.warning("既没有有效的本地文件路径，也没有有效的视频URL")
-                return None
+                return {"type": "text", "data": "[视频消息]"}
 
         except Exception as e:
             logger.error(f"视频消息处理失败: {e!s}")
-            return None
+            return {"type": "text", "data": "[视频消息处理出错]"}
 
     async def _handle_rps_message(self, segment: dict) -> SegPayload:
         """处理猜拳消息"""

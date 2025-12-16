@@ -95,10 +95,39 @@ components：基本插件组件管理
             mcp_tool_manager.py：MCP工具管理器
         permission_manager.py：权限管理器
         plugin_manager.py：插件管理器
+        prompt_component_manager.py：Prompt组件管理器
         tool_manager：工具相关管理
+            __init__.py：导出
             tool_histoty.py：工具调用历史记录
             tool_use.py：实际工具调用器
     types.py：组件类型
     registry.py：组件注册管理
     state_manager.py：组件状态管理
-
+prompt：提示词管理系统
+    __init__.py：导出
+    prompt.py：Prompt基类
+    manager.py：全局prompt管理器
+    params.py：Prompt参数系统
+perception：感知学习系统
+    __init__.py：导出
+    memory：常规记忆
+        ...
+    knowledge：知识库
+        ...
+    meme：黑话库
+        ...
+    express：表达学习
+        ...
+transport：通讯传输系统
+    __init__.py：导出
+    message_receive：消息接收
+        ...
+    message_send：消息发送
+        ...
+    router：api路由
+        ...
+    sink：针对适配器的core sink和ws接收器
+        ...
+models：基本模型
+    __init__.py：导出
+    
