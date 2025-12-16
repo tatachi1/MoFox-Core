@@ -979,7 +979,7 @@ class LLMRequest:
     def _resolve_system_prompt(self, model_set: TaskConfig) -> str | None:
         """确定是否需要附加统一的system prompt."""
         try:
-            if model_config and model_set is model_config.model_task_config.replyer:
+            if model_config and (model_set is model_config.model_task_config.replyer or model_set is model_config.model_task_config.replyer_private):
                 return SYSTEM_PROMPT
         except AttributeError:
             logger.debug("模型配置缺少replyer定义，无法注入系统提示词")
