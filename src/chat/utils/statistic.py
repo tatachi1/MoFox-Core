@@ -343,8 +343,17 @@ class StatisticOutputTask(AsyncTask):
                             stats[period_key][REQ_CNT_BY_MODULE][module_name] += 1
                             stats[period_key][REQ_CNT_BY_PROVIDER][provider_name] += 1
 
-                            prompt_tokens = record.get("prompt_tokens") or 0
-                            completion_tokens = record.get("completion_tokens") or 0
+                            # 确保 tokens 是 int 类型
+                            try:
+                                prompt_tokens = int(record.get("prompt_tokens") or 0)
+                            except (ValueError, TypeError):
+                                prompt_tokens = 0
+                            
+                            try:
+                                completion_tokens = int(record.get("completion_tokens") or 0)
+                            except (ValueError, TypeError):
+                                completion_tokens = 0
+                            
                             total_tokens = prompt_tokens + completion_tokens
 
                             stats[period_key][IN_TOK_BY_TYPE][request_type] += prompt_tokens
@@ -363,7 +372,13 @@ class StatisticOutputTask(AsyncTask):
                             stats[period_key][TOTAL_TOK_BY_MODULE][module_name] += total_tokens
                             stats[period_key][TOTAL_TOK_BY_PROVIDER][provider_name] += total_tokens
 
+                            # 确保 cost 是 float 类型
                             cost = record.get("cost") or 0.0
+                            try:
+                                cost = float(cost) if cost else 0.0
+                            except (ValueError, TypeError):
+                                cost = 0.0
+                            
                             stats[period_key][TOTAL_COST] += cost
                             stats[period_key][COST_BY_TYPE][request_type] += cost
                             stats[period_key][COST_BY_USER][user_id] += cost
@@ -371,8 +386,12 @@ class StatisticOutputTask(AsyncTask):
                             stats[period_key][COST_BY_MODULE][module_name] += cost
                             stats[period_key][COST_BY_PROVIDER][provider_name] += cost
 
-                            # 收集time_cost数据
+                            # 收集time_cost数据，确保 time_cost 是 float 类型
                             time_cost = record.get("time_cost") or 0.0
+                            try:
+                                time_cost = float(time_cost) if time_cost else 0.0
+                            except (ValueError, TypeError):
+                                time_cost = 0.0
                             if time_cost > 0:  # 只记录有效的time_cost
                                 stats[period_key][TIME_COST_BY_TYPE][request_type].append(time_cost)
                                 stats[period_key][TIME_COST_BY_USER][user_id].append(time_cost)

@@ -44,6 +44,7 @@ class ShortTermMemoryManager:
         transfer_importance_threshold: float = 0.6,
         llm_temperature: float = 0.2,
         enable_force_cleanup: bool = False,
+        cleanup_keep_ratio: float = 0.9,
     ):
         """
         初始化短期记忆层管理器
@@ -53,6 +54,8 @@ class ShortTermMemoryManager:
             max_memories: 最大短期记忆数量
             transfer_importance_threshold: 转移到长期记忆的重要性阈值
             llm_temperature: LLM 决策的温度参数
+            enable_force_cleanup: 是否启用泄压功能
+            cleanup_keep_ratio: 泄压时保留容量的比例（默认0.9表示保留90%）
         """
         self.data_dir = data_dir or Path("data/memory_graph")
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -62,6 +65,7 @@ class ShortTermMemoryManager:
         self.transfer_importance_threshold = transfer_importance_threshold
         self.llm_temperature = llm_temperature
         self.enable_force_cleanup = enable_force_cleanup
+        self.cleanup_keep_ratio = cleanup_keep_ratio
 
         # 核心数据
         self.memories: list[ShortTermMemory] = []
@@ -635,69 +639,76 @@ class ShortTermMemoryManager:
 
     def get_memories_for_transfer(self) -> list[ShortTermMemory]:
         """
-        获取需要转移到长期记忆的记忆（优化版：单次遍历）
+        获取需要转移到长期记忆的记忆（改进版：转移优先于删除）
 
-        逻辑：
-        1. 优先选择重要性 >= 阈值的记忆
-        2. 如果剩余记忆数量仍超过 max_memories，直接清理最早的低重要性记忆直到低于上限
+        优化的转移策略：
+        1. 优先选择重要性 >= 阈值的记忆进行转移
+        2. 如果高重要性记忆已清空但仍超过容量，则考虑转移低重要性记忆
+        3. 仅当转移不能解决容量问题时，才进行强制删除（由 force_cleanup_overflow 处理）
+        
+        返回：
+            需要转移的记忆列表（优先返回高重要性，次选低重要性）
         """
         # 单次遍历：同时分类高重要性和低重要性记忆
-        candidates = []
+        high_importance_memories = []
         low_importance_memories = []
 
         for mem in self.memories:
             if mem.importance >= self.transfer_importance_threshold:
-                candidates.append(mem)
+                high_importance_memories.append(mem)
             else:
                 low_importance_memories.append(mem)
 
-        # 如果总体记忆数量超过了上限，优先清理低重要性最早创建的记忆
+        # 策略1：优先返回高重要性记忆进行转移
+        if high_importance_memories:
+            logger.debug(
+                f"转移候选: 发现 {len(high_importance_memories)} 条高重要性记忆待转移"
+            )
+            return high_importance_memories
+
+        # 策略2：如果没有高重要性记忆但总体超过容量上限，
+        # 返回一部分低重要性记忆用于转移（而非删除）
         if len(self.memories) > self.max_memories:
-            # 目标保留数量（降至上限的 90%）
-            target_keep_count = int(self.max_memories * 0.9)
-            # 需要删除的数量（从当前总数降到 target_keep_count）
-            num_to_remove = len(self.memories) - target_keep_count
-
-            if num_to_remove > 0 and low_importance_memories:
-                # 按创建时间排序，删除最早的低重要性记忆
-                low_importance_memories.sort(key=lambda x: x.created_at)
-                to_remove = low_importance_memories[:num_to_remove]
-
-                # 批量删除并更新索引
-                remove_ids = {mem.id for mem in to_remove}
-                self.memories = [mem for mem in self.memories if mem.id not in remove_ids]
-                for mem_id in remove_ids:
-                    self._memory_id_index.pop(mem_id, None)
-                    self._similarity_cache.pop(mem_id, None)
-
-                logger.info(
-                    f"短期记忆清理: 移除了 {len(to_remove)} 条低重要性记忆 "
-                    f"(保留 {len(self.memories)} 条)"
-                )
-
-                # 触发保存
-                asyncio.create_task(self._save_to_disk())
-
-        # 优先返回高重要性候选
-        if candidates:
-            return candidates
-
-        # 如果没有高重要性候选但总体超过上限，返回按创建时间最早的低重要性记忆作为后备转移候选
-        if len(self.memories) > self.max_memories:
-            needed = len(self.memories) - self.max_memories + 1
+            # 计算需要转移的数量（目标：降到上限）
+            num_to_transfer = len(self.memories) - self.max_memories
+            
+            # 按创建时间排序低重要性记忆，优先转移最早的（可能包含过时信息）
             low_importance_memories.sort(key=lambda x: x.created_at)
-            return low_importance_memories[:needed]
+            to_transfer = low_importance_memories[:num_to_transfer]
+            
+            if to_transfer:
+                logger.debug(
+                    f"转移候选: 发现 {len(to_transfer)} 条低重要性记忆待转移 "
+                    f"(当前容量 {len(self.memories)}/{self.max_memories})"
+                )
+                return to_transfer
 
-        return candidates
+        # 策略3：容量充足，无需转移
+        logger.debug(
+            f"转移检查: 无需转移 (当前容量 {len(self.memories)}/{self.max_memories})"
+        )
+        return []
 
-    def force_cleanup_overflow(self, keep_ratio: float = 0.9) -> int:
-        """当短期记忆超过容量时，强制删除低重要性且最早的记忆以泄压"""
+    def force_cleanup_overflow(self, keep_ratio: float | None = None) -> int:
+        """
+        当短期记忆超过容量时，强制删除低重要性且最早的记忆以泄压
+        
+        Args:
+            keep_ratio: 保留容量的比例（默认使用配置中的 cleanup_keep_ratio）
+        
+        Returns:
+            删除的记忆数量
+        """
         if not self.enable_force_cleanup:
             return 0
 
         if self.max_memories <= 0:
             return 0
 
+        # 使用实例配置或传入参数
+        if keep_ratio is None:
+            keep_ratio = self.cleanup_keep_ratio
+        
         current = len(self.memories)
         limit = int(self.max_memories * keep_ratio)
         if current <= self.max_memories:
