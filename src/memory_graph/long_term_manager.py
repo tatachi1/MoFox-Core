@@ -969,7 +969,7 @@ class LongTermMemoryManager:
                 content=f"临时节点 - {source_id}",
                 metadata={"placeholder": True, "created_by": "long_term_manager_edge_creation"}
             )
-        
+
         if not self.memory_manager.graph_store.graph.has_node(target_id):
             logger.debug(f"目标节点不存在，创建占位符节点: {target_id}")
             self.memory_manager.graph_store.add_node(
@@ -1037,12 +1037,15 @@ class LongTermMemoryManager:
 
     async def _queue_embedding_generation(self, node_id: str, content: str) -> None:
         """将节点加入embedding生成队列"""
+        # 先在锁内写入，再在锁外触发批量处理，避免自锁
+        should_flush = False
         async with self._embedding_lock:
             self._pending_embeddings.append((node_id, content))
-
-            # 如果队列达到批次大小，立即处理
             if len(self._pending_embeddings) >= self._embedding_batch_size:
-                await self._flush_pending_embeddings()
+                should_flush = True
+
+        if should_flush:
+            await self._flush_pending_embeddings()
 
     async def _flush_pending_embeddings(self) -> None:
         """批量处理待生成的embeddings"""

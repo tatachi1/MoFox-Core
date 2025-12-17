@@ -3,7 +3,6 @@ MaiZone（麦麦空间）- 重构版
 """
 
 import asyncio
-from pathlib import Path
 
 from src.common.logger import get_logger
 from src.plugin_system import BasePlugin, ComponentInfo, register_plugin

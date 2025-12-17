@@ -12,17 +12,16 @@ from typing import Any, Optional, cast
 
 import json_repair
 from PIL import Image
-from rich.traceback import install
 from sqlalchemy import select
 
 from src.chat.emoji_system.emoji_constants import EMOJI_DIR, EMOJI_REGISTERED_DIR, MAX_EMOJI_FOR_PROMPT
 from src.chat.emoji_system.emoji_entities import MaiEmoji
 from src.chat.emoji_system.emoji_utils import (
     _emoji_objects_to_readable_list,
-    _to_emoji_objects,
     _ensure_emoji_dir,
-    clear_temp_emoji,
+    _to_emoji_objects,
     clean_unused_emojis,
+    clear_temp_emoji,
     list_image_files,
 )
 from src.chat.utils.utils_image import get_image_manager, image_path_to_base64

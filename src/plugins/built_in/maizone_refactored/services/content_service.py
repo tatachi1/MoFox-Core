@@ -151,7 +151,7 @@ class ContentService:
             bot_personality_side = config_api.get_global_config("personality.personality_side", "")
             bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
             qq_account = config_api.get_global_config("bot.qq_account", "")
-            
+
             # 获取角色外貌描述（用于告知LLM）
             character_prompt = self.get_config("novelai.character_prompt", "")
 
@@ -163,21 +163,21 @@ class ContentService:
 
             # 构建提示词
             prompt_topic = f"主题是'{topic}'" if topic else "主题不限"
-            
+
             # 构建人设描述
             personality_desc = f"你的核心人格：{bot_personality_core}"
             if bot_personality_side:
                 personality_desc += f"\n你的人格侧面：{bot_personality_side}"
             personality_desc += f"\n\n你的表达方式：{bot_reply_style}"
-            
+
             # 检查是否启用AI配图（统一开关）
             ai_image_enabled = self.get_config("ai_image.enable_ai_image", False)
             provider = self.get_config("ai_image.provider", "siliconflow")
-            
+
             # NovelAI配图指引（内置）
             novelai_guide = ""
             output_format = '{"text": "说说正文内容"}'
-            
+
             if ai_image_enabled and provider == "novelai":
                 # 构建角色信息提示
                 character_info = ""
@@ -195,7 +195,7 @@ class ContentService:
 - 例如：可以搭配各种表情（smile, laugh, serious, thinking, surprised等）
 - **鼓励创意**：根据说说内容自由发挥，让画面更丰富生动！
 """
-                
+
                 novelai_guide = f"""
 **配图说明：**
 这条说说会使用NovelAI Diffusion模型（二次元风格）生成配图。
@@ -258,7 +258,7 @@ class ContentService:
 - 运动风："masterpiece, best quality, 1girl, sportswear, running in park, energetic, morning light, trees background, dynamic pose, healthy lifestyle"
 - 咖啡馆："masterpiece, best quality, 1girl, sitting in cozy cafe, holding coffee cup, warm lighting, wooden table, books beside, peaceful atmosphere"
 """
-                output_format = '''{"text": "说说正文内容", "image": {"prompt": "详细的英文提示词（包含画质+主体+场景+氛围+光线+色彩）", "negative_prompt": "负面词", "include_character": true/false, "aspect_ratio": "方图/横图/竖图"}}'''
+                output_format = """{"text": "说说正文内容", "image": {"prompt": "详细的英文提示词（包含画质+主体+场景+氛围+光线+色彩）", "negative_prompt": "负面词", "include_character": true/false, "aspect_ratio": "方图/横图/竖图"}}"""
             elif ai_image_enabled and provider == "siliconflow":
                 novelai_guide = """
 **配图说明：**
@@ -277,8 +277,8 @@ class ContentService:
 - "sunset over the calm ocean, golden hour, orange and purple sky, gentle waves, peaceful and serene mood, wide angle view"
 - "cherry blossoms in spring, soft pink petals falling, blue sky, sunlight filtering through branches, peaceful park scene, gentle breeze"
 """
-                output_format = '''{"text": "说说正文内容", "image": {"prompt": "详细的英文描述（主体+场景+氛围+光线+细节）"}}'''
-            
+                output_format = """{"text": "说说正文内容", "image": {"prompt": "详细的英文描述（主体+场景+氛围+光线+细节）"}}"""
+
             prompt = f"""
 {personality_desc}
 
@@ -333,20 +333,20 @@ class ContentService:
                     if json_text.endswith("```"):
                         json_text = json_text[:-3]
                     json_text = json_text.strip()
-                    
+
                     data = json5.loads(json_text)
                     story_text = data.get("text", "")
                     image_info = data.get("image", {})
-                    
+
                     # 确保图片信息完整
                     if not isinstance(image_info, dict):
                         image_info = {}
-                    
+
                     logger.info(f"成功生成说说：'{story_text}'")
                     logger.info(f"配图信息: {image_info}")
-                    
+
                     return story_text, image_info
-                    
+
                 except Exception as e:
                     logger.error(f"解析JSON失败: {e}, 原始响应: {response[:200]}")
                     # 降级处理：只返回文本，空配图信息

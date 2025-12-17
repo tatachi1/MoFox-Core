@@ -1,4 +1,3 @@
-# ruff: noqa: G004, BLE001
 # pylint: disable=logging-fstring-interpolation,broad-except,unused-argument
 # pyright: reportOptionalMemberAccess=false
 """

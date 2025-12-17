@@ -42,14 +42,14 @@ class MessageHandler:
     def set_plugin_config(self, config: dict[str, Any]) -> None:
         """设置插件配置，并根据配置初始化视频下载器"""
         self.plugin_config = config
-        
+
         # 如果启用了视频处理，根据配置初始化视频下载器
         if config_api.get_plugin_config(config, "features.enable_video_processing", True):
             from ..video_handler import VideoDownloader
-            
+
             max_size = config_api.get_plugin_config(config, "features.video_max_size_mb", 100)
             timeout = config_api.get_plugin_config(config, "features.video_download_timeout", 60)
-            
+
             self._video_downloader = VideoDownloader(max_size_mb=max_size, download_timeout=timeout)
             logger.debug(f"视频下载器已初始化: max_size={max_size}MB, timeout={timeout}s")
 
@@ -341,7 +341,7 @@ class MessageHandler:
                 if not downloader:
                     from ..video_handler import get_video_downloader
                     downloader = get_video_downloader()
-                
+
                 download_result = await downloader.download_video(video_url)
 
                 if not download_result["success"]:

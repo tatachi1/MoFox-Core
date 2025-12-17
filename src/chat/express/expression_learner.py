@@ -415,20 +415,20 @@ class ExpressionLearner:
                         .offset(offset)
                     )
                     batch_expressions = list(batch_result.scalars())
-                    
+
                     if not batch_expressions:
                         break  # 没有更多数据
-                    
+
                     # 批量处理当前批次
                     to_delete = []
                     for expr in batch_expressions:
                         # 计算时间差
                         time_diff_days = (current_time - expr.last_active_time) / (24 * 3600)
-                        
+
                         # 计算衰减值
                         decay_value = self.calculate_decay_factor(time_diff_days)
                         new_count = max(0.01, expr.count - decay_value)
-                        
+
                         if new_count <= 0.01:
                             # 标记删除
                             to_delete.append(expr)
@@ -436,22 +436,22 @@ class ExpressionLearner:
                             # 更新count
                             expr.count = new_count
                             updated_count += 1
-                    
+
                     # 批量删除
                     if to_delete:
                         for expr in to_delete:
                             await session.delete(expr)
                         deleted_count += len(to_delete)
-                    
+
                     # 提交当前批次
                     await session.commit()
-                    
+
                     # 如果批次不满，说明已经处理完所有数据
                     if len(batch_expressions) < BATCH_SIZE:
                         break
-                    
+
                     offset += BATCH_SIZE
-            
+
             if updated_count > 0 or deleted_count > 0:
                 logger.info(f"全局衰减完成：更新了 {updated_count} 个表达方式，删除了 {deleted_count} 个表达方式")
 
@@ -544,12 +544,12 @@ class ExpressionLearner:
                     )
                 )
                 existing_exprs = list(existing_exprs_result.scalars())
-                
+
                 # 构建快速查找索引
                 exact_match_map = {}  # (situation, style) -> Expression
                 situation_map = {}    # situation -> Expression
                 style_map = {}        # style -> Expression
-                
+
                 for expr in existing_exprs:
                     key = (expr.situation, expr.style)
                     exact_match_map[key] = expr
@@ -558,13 +558,13 @@ class ExpressionLearner:
                         situation_map[expr.situation] = expr
                     if expr.style not in style_map:
                         style_map[expr.style] = expr
-                
+
                 # 批量处理所有新表达方式
                 for new_expr in expr_list:
                     situation = new_expr["situation"]
                     style_val = new_expr["style"]
                     exact_key = (situation, style_val)
-                    
+
                     # 优先处理完全匹配的情况
                     if exact_key in exact_match_map:
                         # 完全相同：增加count，更新时间
@@ -578,8 +578,7 @@ class ExpressionLearner:
                         logger.info(f"相同情景覆盖：'{same_situation_expr.situation}' 的表达从 '{same_situation_expr.style}' 更新为 '{style_val}'")
                         # 更新映射
                         old_key = (same_situation_expr.situation, same_situation_expr.style)
-                        if old_key in exact_match_map:
-                            del exact_match_map[old_key]
+                        exact_match_map.pop(old_key, None)
                         same_situation_expr.style = style_val
                         same_situation_expr.count = same_situation_expr.count + 1
                         same_situation_expr.last_active_time = current_time
@@ -591,8 +590,7 @@ class ExpressionLearner:
                         logger.info(f"相同表达覆盖：'{same_style_expr.style}' 的情景从 '{same_style_expr.situation}' 更新为 '{situation}'")
                         # 更新映射
                         old_key = (same_style_expr.situation, same_style_expr.style)
-                        if old_key in exact_match_map:
-                            del exact_match_map[old_key]
+                        exact_match_map.pop(old_key, None)
                         same_style_expr.situation = situation
                         same_style_expr.count = same_style_expr.count + 1
                         same_style_expr.last_active_time = current_time
@@ -627,8 +625,7 @@ class ExpressionLearner:
                         await session.delete(expr)
                         # 从映射中移除
                         key = (expr.situation, expr.style)
-                        if key in exact_match_map:
-                            del exact_match_map[key]
+                        exact_match_map.pop(key, None)
                     logger.debug(f"已删除 {len(all_current_exprs) - MAX_EXPRESSION_COUNT} 个低频表达方式")
 
                 # 提交数据库更改
@@ -658,31 +655,31 @@ class ExpressionLearner:
                 # 为每个共享组内的 chat_id 训练其 StyleLearner
                 for target_chat_id in related_chat_ids:
                     learner = style_learner_manager.get_learner(target_chat_id)
-                    
+
                     # 收集该 target_chat_id 对应的所有表达方式
                     # 如果是源 chat_id，使用 chat_dict 中的数据；否则也要训练（共享组特性）
                     total_success = 0
                     total_samples = 0
-                    
+
                     for source_chat_id, expr_list in chat_dict.items():
                         # 为每个学习到的表达方式训练模型
                         # 使用 situation 作为输入，style 作为目标
                         for expr in expr_list:
                             situation = expr["situation"]
                             style = expr["style"]
-                            
+
                             # 训练映射关系: situation -> style
                             if learner.learn_mapping(situation, style):
                                 total_success += 1
                             total_samples += 1
-                    
+
                     # 保存模型
                     if total_samples > 0:
                         if learner.save(style_learner_manager.model_save_path):
                             logger.debug(f"StyleLearner 模型保存成功: {target_chat_id}")
                         else:
                             logger.error(f"StyleLearner 模型保存失败: {target_chat_id}")
-                        
+
                         if target_chat_id == self.chat_id:
                             # 只为当前 chat_id 记录详细日志
                             logger.info(

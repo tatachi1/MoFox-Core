@@ -124,7 +124,7 @@ class BaseInterestCalculator(ABC):
             logger.error(f"初始化兴趣计算器失败: {e}")
             self._enabled = False
             return False
-    
+
     async def on_initialize(self):
         """子类可重写的初始化钩子"""
         pass
@@ -143,7 +143,7 @@ class BaseInterestCalculator(ABC):
         except Exception as e:
             logger.error(f"清理兴趣计算器失败: {e}")
             return False
-    
+
     async def on_cleanup(self):
         """子类可重写的清理钩子"""
         pass

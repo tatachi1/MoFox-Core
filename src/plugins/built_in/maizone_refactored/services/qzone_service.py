@@ -5,7 +5,6 @@ QQ空间服务模块
 
 import asyncio
 import base64
-import os
 import random
 import time
 from collections.abc import Callable
@@ -85,25 +84,25 @@ class QZoneService:
     async def send_feed(self, topic: str, stream_id: str | None) -> dict[str, Any]:
         """发送一条说说（支持AI配图）"""
         cross_context = await self._get_cross_context()
-        
+
         # 检查是否启用AI配图
         ai_image_enabled = self.get_config("ai_image.enable_ai_image", False)
         provider = self.get_config("ai_image.provider", "siliconflow")
-        
+
         image_path = None
-        
+
         if ai_image_enabled:
             # 启用AI配图：文本模型生成说说+图片提示词
             story, image_info = await self.content_service.generate_story_with_image_info(topic, context=cross_context)
             if not story:
                 return {"success": False, "message": "生成说说内容失败"}
-            
+
             # 根据provider调用对应的生图服务
             if provider == "novelai":
                 try:
                     from .novelai_service import MaiZoneNovelAIService
                     novelai_service = MaiZoneNovelAIService(self.get_config)
-                    
+
                     if novelai_service.is_available():
                         # 解析画幅
                         aspect_ratio = image_info.get("aspect_ratio", "方图")
@@ -113,8 +112,8 @@ class QZoneService:
                             "竖图": (832, 1216),
                         }
                         width, height = size_map.get(aspect_ratio, (1024, 1024))
-                        
-                        logger.info(f"🎨 开始生成NovelAI配图...")
+
+                        logger.info("🎨 开始生成NovelAI配图...")
                         success, img_path, msg = await novelai_service.generate_image_from_prompt_data(
                             prompt=image_info.get("prompt", ""),
                             negative_prompt=image_info.get("negative_prompt"),
@@ -122,18 +121,18 @@ class QZoneService:
                             width=width,
                             height=height
                         )
-                        
+
                         if success and img_path:
                             image_path = img_path
-                            logger.info(f"✅ NovelAI配图生成成功")
+                            logger.info("✅ NovelAI配图生成成功")
                         else:
                             logger.warning(f"⚠️ NovelAI配图生成失败: {msg}")
                     else:
                         logger.warning("NovelAI服务不可用（未配置API Key）")
-                        
+
                 except Exception as e:
                     logger.error(f"NovelAI配图生成出错: {e}", exc_info=True)
-                    
+
             elif provider == "siliconflow":
                 try:
                     # 调用硅基流动生成图片
@@ -143,9 +142,9 @@ class QZoneService:
                     )
                     if success and img_path:
                         image_path = img_path
-                        logger.info(f"✅ 硅基流动配图生成成功")
+                        logger.info("✅ 硅基流动配图生成成功")
                     else:
-                        logger.warning(f"⚠️ 硅基流动配图生成失败")
+                        logger.warning("⚠️ 硅基流动配图生成失败")
                 except Exception as e:
                     logger.error(f"硅基流动配图生成出错: {e}", exc_info=True)
         else:
@@ -161,13 +160,13 @@ class QZoneService:
 
         # 加载图片
         images_bytes = []
-        
+
         # 使用AI生成的图片
         if image_path and image_path.exists():
             try:
                 with open(image_path, "rb") as f:
                     images_bytes.append(f.read())
-                logger.info(f"添加AI配图到说说")
+                logger.info("添加AI配图到说说")
             except Exception as e:
                 logger.error(f"读取AI配图失败: {e}")
 

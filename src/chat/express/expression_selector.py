@@ -218,7 +218,7 @@ class ExpressionSelector:
                     "type": expr_type,
                     "create_date": expr.create_date if expr.create_date is not None else expr.last_active_time,
                 }
-            
+
             style_exprs = [expr_to_dict(expr, "style") for expr in style_query.scalars()]
             grammar_exprs = [expr_to_dict(expr, "grammar") for expr in grammar_query.scalars()]
 
@@ -246,7 +246,7 @@ class ExpressionSelector:
         """
         if not expressions_to_update:
             return
-        
+
         # 去重处理
         updates_by_key = {}
         affected_chat_ids = set()
@@ -524,7 +524,7 @@ class ExpressionSelector:
 
             # 预处理：提前计算所有预测 style 的小写版本，避免重复计算
             predicted_styles_lower = [(s.lower(), score) for s, score in predicted_styles[:20]]
-            
+
             matched_expressions = []
             for expr in all_expressions:
                 db_style = expr.style or ""
@@ -539,7 +539,7 @@ class ExpressionSelector:
                         max_similarity = 1.0
                         best_predicted = predicted_style_lower
                         break
-                    
+
                     # 快速检查：子串匹配
                     if len(predicted_style_lower) >= 2 and len(db_style_lower) >= 2:
                         if predicted_style_lower in db_style_lower or db_style_lower in predicted_style_lower:
@@ -548,7 +548,7 @@ class ExpressionSelector:
                                 max_similarity = similarity
                                 best_predicted = predicted_style_lower
                             continue
-                    
+
                     # 计算字符串相似度（较慢，只在必要时使用）
                     similarity = SequenceMatcher(None, predicted_style_lower, db_style_lower).ratio()
                     if similarity > max_similarity:
