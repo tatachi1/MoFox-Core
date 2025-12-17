@@ -263,6 +263,35 @@ class MainSystem:
             logger.info("正在停止数据库服务...")
             await asyncio.wait_for(stop_database(), timeout=15.0)
             logger.info("🛑 数据库服务已停止")
+            
+            # 输出数据库性能统计和慢查询报告
+            try:
+                from src.common.database.utils.monitoring import print_stats, get_slow_query_report
+                from src.common.database.utils.slow_query_analyzer import SlowQueryAnalyzer
+                
+                logger.info("")  # 空行
+                print_stats()  # 打印数据库性能统计
+                
+                # 如果有慢查询，尝试生成报告
+                slow_report = get_slow_query_report()
+                if slow_report.get("total", 0) > 0:
+                    logger.info("")  # 空行
+                    logger.info("正在生成慢查询详细报告...")
+                    try:
+                        # 生成文本报告
+                        text_report = SlowQueryAnalyzer.generate_text_report()
+                        logger.info("")  # 空行
+                        logger.info(text_report)
+                        
+                        # 尝试生成HTML报告
+                        html_file = "logs/slow_query_report.html"
+                        SlowQueryAnalyzer.generate_html_report(html_file)
+                        logger.info(f"💡 HTML慢查询报告已生成: {html_file}")
+                    except Exception as e:
+                        logger.warning(f"生成慢查询报告失败: {e}")
+            except Exception as e:
+                logger.warning(f"无法输出数据库统计信息: {e}")
+                
         except asyncio.TimeoutError:
             logger.error("停止数据库服务超时")
         except Exception as e:
@@ -290,6 +319,25 @@ class MainSystem:
             raise ValueError("Bot配置不完整")
 
         logger.debug(f"正在唤醒{global_config.bot.nickname}......")
+        
+        # 配置数据库慢查询监控
+        try:
+            from src.common.database.utils.monitoring import set_slow_query_config
+            
+            if global_config.database:
+                db_config = global_config.database
+                if db_config.enable_slow_query_logging:
+                    set_slow_query_config(
+                        threshold=db_config.slow_query_threshold,
+                        buffer_size=db_config.slow_query_buffer_size,
+                    )
+                    logger.info(
+                        f"✅ 数据库慢查询监控已启用 "
+                        f"(阈值: {db_config.slow_query_threshold}s, "
+                        f"缓冲: {db_config.slow_query_buffer_size})"
+                    )
+        except Exception as e:
+            logger.warning(f"配置数据库监控时出错: {e}")
 
         # 初始化 CoreSinkManager（包含 MessageRuntime）
         logger.debug("正在初始化 CoreSinkManager...")

@@ -75,6 +75,13 @@ class DatabaseConfig(ValidatedConfigBase):
     redis_socket_timeout: float = Field(default=5.0, ge=1.0, le=30.0, description="Redis socket超时时间（秒）")
     redis_ssl: bool = Field(default=False, description="是否启用Redis SSL连接")
 
+    # 慢查询监控配置
+    enable_slow_query_logging: bool = Field(default=False, description="是否启用慢查询日志（默认关闭，设置为 true 启用）")
+    slow_query_threshold: float = Field(default=0.5, ge=0.1, le=10.0, description="慢查询阈值（秒）")
+    query_timeout: int = Field(default=30, ge=5, le=300, description="查询超时时间（秒）")
+    collect_slow_queries: bool = Field(default=True, description="是否收集慢查询统计（用于生成报告）")
+    slow_query_buffer_size: int = Field(default=100, ge=10, le=1000, description="慢查询缓冲大小（最近N条）")
+
 
 class BotConfig(ValidatedConfigBase):
     """QQ机器人配置类"""
