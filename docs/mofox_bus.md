@@ -34,11 +34,11 @@ MoFox Bus 是 MoFox Bot 自研的统一消息中台，替换第三方 `maim_mess
 
 ## 3. 消息模型
 
-### 3.1 Envelope TypedDict��`types.py`��
+### 3.1 Envelope TypedDict（`types.py`）
 
-- `MessageEnvelope` ��ȫ��Ƶ� maim_message �ṹ�����ĵ������� `message_info` + `message_segment` (SegPayload)��`direction`��`schema_version` �� raw �����ֶβ��������ˣ���Ժ����� `channel`��`sender`��`content` �� v0 �ֶΪ��ѡ��
-- `SegPayload` / `MessageInfoPayload` / `UserInfoPayload` / `GroupInfoPayload` / `FormatInfoPayload` / `TemplateInfoPayload` �� maim_message dataclass �Դ�TypedDict ��Ӧ���ʺ�ֱ�� JSON ����
-- `Content` / `SenderInfo` / `ChannelInfo` �Ȳ�Ȼ�����ڣ����ܻ��� IDE ע�⣬Ҳ�Ƕ� v0 content ģ�͵Ļ�֧
+- `MessageEnvelope`：完全对齐原 maim_message 结构，核心字段包括 `message_info` + `message_segment` (SegPayload)、`direction`、`schema_version`，同时保留 raw 相关字段；新增 `channel`、`sender`、`content` 字段并将 v0 字段标记为可选。
+- `SegPayload` / `MessageInfoPayload` / `UserInfoPayload` / `GroupInfoPayload` / `FormatInfoPayload` / `TemplateInfoPayload`：与 maim_message dataclass 一一对应的 TypedDict，方便直接做 JSON 序列化。
+- `Content` / `SenderInfo` / `ChannelInfo`：仍在迭代中，可能出现 IDE 提示；同时兼容 v0 content 模型。
 
 ### 3.2 dataclass 消息段（`message_models.py`）
 
