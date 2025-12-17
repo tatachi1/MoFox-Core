@@ -38,11 +38,44 @@ class ExampleAction(BaseAction):
         执行Action的主要逻辑
         
         Returns:
-            Tuple[bool, str]: (是否成功, 执行结果描述)
+            Tuple[bool, str]: 两个元素的元组
+                - bool: 是否执行成功 (True=成功, False=失败)
+                - str: 执行结果的简短描述（用于日志记录）
+        
+        注意：
+            - 使用 self.send_text() 等方法发送消息给用户
+            - 返回值中的描述仅用于内部日志，不会发送给用户
         """
-        # ---- 执行动作的逻辑 ----
+        # 发送消息给用户
+        await self.send_text("这是发给用户的消息")
+        
+        # 返回执行结果（用于日志）
         return True, "执行成功"
 ```
+
+#### execute() 返回值 vs Command 返回值
+
+⚠️ **重要：Action 和 Command 的返回值不同！**
+
+| 组件类型 | 返回值 | 说明 |
+|----------|----------|------|
+| **Action** | `Tuple[bool, str]` | 2个元素：成功标志、日志描述 |
+| **Command** | `Tuple[bool, Optional[str], bool]` | 3个元素：成功标志、日志描述、拦截标志 |
+
+```python
+# Action 返回值
+async def execute(self) -> Tuple[bool, str]:
+    await self.send_text("给用户的消息")
+    return True, "日志：执行了XX动作"  # 2个元素
+
+# Command 返回值
+async def execute(self, args: CommandArgs) -> Tuple[bool, Optional[str], bool]:
+    await self.send_text("给用户的消息")
+    return True, "日志：执行了XX命令", True  # 3个元素
+```
+
+---
+
 #### associated_types: 该Action会发送的消息类型，例如文本、表情等。
 
 这部分由Adapter传递给处理器。
@@ -65,6 +98,65 @@ class ExampleAction(BaseAction):
 
 #### action_parameters: 该Action的参数说明。
 这是一个字典，键为参数名，值为参数说明。这个字段可以帮助LLM理解如何使用这个Action，并由LLM返回对应的参数，最后传递到 Action 的 **`action_data`** 属性中。其格式与你定义的格式完全相同 **（除非LLM哈气了，返回了错误的内容）**。
+
+---
+
+## 组件信息注册说明
+
+### 自动生成 ComponentInfo（推荐）
+
+大多数情况下，你不需要手动创建 `ActionInfo` 对象。系统提供了 `get_action_info()` 方法来自动生成：
+
+```python
+# 推荐的方式 - 自动生成
+class HelloAction(BaseAction):
+    action_name = "hello"
+    action_description = "问候动作"
+    # ... 其他配置 ...
+
+# 在插件中注册
+def get_plugin_components(self):
+    return [
+        (HelloAction.get_action_info(), HelloAction),  # 自动生成 ActionInfo
+    ]
+```
+
+### 手动创建 ActionInfo（高级用法）
+
+⚠️ **重要：如果手动创建 ActionInfo，必须指定 `component_type` 参数！**
+
+当你需要自定义 `ActionInfo` 时（例如动态生成组件），必须手动指定 `component_type`：
+
+```python
+from src.plugin_system import ActionInfo, ComponentType
+
+# ❌ 错误 - 缺少 component_type
+action_info = ActionInfo(
+    name="hello",
+    description="问候动作"
+    # 错误：会报错 "missing required argument: 'component_type'"
+)
+
+# ✅ 正确 - 必须指定 component_type
+action_info = ActionInfo(
+    name="hello",
+    description="问候动作",
+    component_type=ComponentType.ACTION  # 必须指定！
+)
+```
+
+**为什么需要手动指定？**
+
+- `get_action_info()` 方法会自动设置 `component_type`
+- 但手动创建时，系统无法自动推断类型，必须明确指定
+
+**什么时候需要手动创建？**
+
+- 动态生成组件
+- 自定义 `get_handler_info()` 方法
+- 需要特殊的 ComponentInfo 配置
+
+大多数情况下，直接使用 `get_action_info()` 即可，无需手动创建。
 
 ---
 
