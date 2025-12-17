@@ -198,6 +198,7 @@ venv.bak/
 
 # Spyder project settings
 .spyderproject
+src/plugins/built_in/maizone_refactored/images/
 .spyproject
 
 # Rope project settings
