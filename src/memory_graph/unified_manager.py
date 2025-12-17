@@ -10,7 +10,6 @@
 """
 
 import asyncio
-import time
 from pathlib import Path
 from typing import Any
 
@@ -114,8 +113,6 @@ class UnifiedMemoryManager:
         self._initialized = False
         self._auto_transfer_task: asyncio.Task | None = None
         self._auto_transfer_interval = max(10.0, float(long_term_auto_transfer_interval))
-        # 优化：降低最大延迟时间，加快转移节奏 (原为 300.0)
-        self._max_transfer_delay = min(max(30.0, self._auto_transfer_interval), 60.0)
         self._transfer_wakeup_event: asyncio.Event | None = None
 
         logger.info("统一记忆管理器已创建")
@@ -330,41 +327,41 @@ class UnifiedMemoryManager:
 
 """
 
-            prompt = f"""你是一个记忆检索评估专家。你的任务是判断当前检索到的“感知记忆”（即时对话）和“短期记忆”（结构化信息）是否足以支撑一次有深度、有上下文的回复。
+            prompt = f"""你是“记忆判官”（记忆检索评估专家）。你的任务是：基于给定的历史消息、当前消息，以及我们已经检索到的“感知记忆”和“短期记忆”，判断是否还需要检索“长期记忆”（LTM）来支撑一次准确、完整、上下文一致的回复。
 
-**核心原则：**
-- **适当检索长期记忆有助于提升回复质量。** 当对话涉及到特定话题、人物、事件或需要回忆过去的经历时，应该检索长期记忆。
-- **判断标准：** 只有当现有记忆无法理解用户意图，或无法形成基本、连贯的回复时，才认为“不充足”。检索长期记忆耗时。除非有需要，否则不要检索。
-- **如果用户在讨论某个具体话题，即使现有记忆有一些相关信息，也可以检索长期记忆来补充更多背景。**
+**总体偏好（重要）：**
+- 我们宁可多花一点资源去检索长期记忆，也不要在本该检索时漏检索。
+- 因此：只要存在明显不确定、信息缺口、或需要更精确细节的情况，就倾向于判定“现有记忆不充足”（`is_sufficient: false`）。
 
-**用户查询：**
+**输入：**
+**当前用户消息：**
 {query}
 
-{chat_history_block}**检索到的感知记忆（即时对话，格式：【时间 (聊天流)】消息列表）：**
+{chat_history_block}**已检索到的感知记忆（即时对话，格式：【时间 (聊天流)】消息列表）：**
 {perceptual_desc or '（无）'}
 
-**检索到的短期记忆（结构化信息，自然语言描述）：**
+**已检索到的短期记忆（结构化信息，自然语言描述）：**
 {short_term_desc or '（无）'}
 
-**评估指南：**
-1.  **分析用户意图**：用户在聊什么？是简单闲聊还是有具体话题？
-2.  **检查现有记忆**：
-    -   对于闲聊、打招呼、无特定主题的互动 → 现有记忆充足 (`is_sufficient: true`)。
-    -   如果涉及具体话题（人物、事件、知识），但现有记忆能提供基本信息 → 现有记忆充足 (`is_sufficient: true`)。
-    -   仅当用户明确问及过去的特定事件，或当前信息完全无法理解用户意图时 → 现有记忆不充足 (`is_sufficient: false`)。
+**什么时候必须检索长期记忆（满足任一条 → `is_sufficient: false`）：**
+1. **用户明确要求回忆/找回过去信息**：例如“你还记得…？”“上次我们说到…？”“帮我回忆一下…/之前…/那天…/某次…”
+2. **你对答案没有把握或存在不确定性**：例如无法确定人物/事件/时间/地点/偏好/承诺/任务细节，或只能给出模糊猜测。
+3. **现有记忆不足以给出精确回答**：要给出具体结论、细节、步骤、承诺、时间线、决定依据，但感知/短期记忆缺少关键事实。
+4. **对话依赖用户个体历史**：涉及用户的个人信息、偏好、长期目标、过往经历、已约定事项、持续进行的项目/任务，需要更早的上下文才能回答。
+5. **指代不清或背景缺失**：出现“那个/那件事/他/她/它/之前说的/你知道的”等省略指代，现有记忆不足以唯一指向。
+6. **记忆冲突或碎片化**：感知/短期记忆之间存在矛盾、时间线断裂、或信息片段无法拼成完整图景。
 
-**输出格式（JSON）：**
-```json
-{{
-  "is_sufficient": true/false,
-  "confidence": 0.85,
-  "reasoning": "在这里解释你的判断理由。例如：‘用户只是在打招呼，现有记忆已足够，无需检索长期记忆。’或‘用户问到了一个具体的历史事件，现有记忆完全没有相关信息，必须检索长期记忆。’",
-  "missing_aspects": ["缺失的信息1", "缺失的信息2"],
-  "additional_queries": ["补充query1", "补充query2"]
-}}
-```
+**什么时候可以不检索（同时满足全部条件 → `is_sufficient: true`）：**
+- 用户只是闲聊/打招呼/情绪表达/泛化问题（不依赖用户个人历史），且现有记忆已足以给出可靠且一致的回复；
+- 你能在不猜测的情况下回答，且不需要更早的细节来保证准确性。
 
-请输出JSON："""
+**输出要求（JSON）：**
+- `is_sufficient`: `true` 表示“无需检索长期记忆”；`false` 表示“需要检索长期记忆”
+- `confidence`: 0~1，表示你对该判断的把握；若你偏向检索但仍不确定，也应输出较低/中等置信度并保持 `is_sufficient: false`
+- `missing_aspects`: 列出阻碍精确回答的缺失点（可为空数组）
+- `additional_queries`: 给出 1~5 条用于检索长期记忆的补充 query（尽量短、可检索、包含关键实体/事件/时间线线索；可为空数组）
+
+请仅输出 JSON（可以用 ```json 包裹，也可以直接输出纯 JSON）："""
 
             # 调用记忆裁判模型
             if not model_config.model_task_config:
@@ -576,11 +573,7 @@ class UnifiedMemoryManager:
         logger.debug("自动转移任务已启动并触发首次检查")
 
     async def _auto_transfer_loop(self) -> None:
-        """自动转移循环（批量缓存模式，优化：更高效的缓存管理）"""
-        transfer_cache: list[ShortTermMemory] = []
-        cached_ids: set[str] = set()
-        cache_size_threshold = max(1, self._config["long_term"].get("batch_size", 1))
-        last_transfer_time = time.monotonic()
+        """自动转移循环（简化版：短期记忆满额时整批转移）"""
 
         while True:
             try:
@@ -597,67 +590,25 @@ class UnifiedMemoryManager:
                 else:
                     await asyncio.sleep(sleep_interval)
 
-                memories_to_transfer = self.short_term_manager.get_memories_for_transfer()
-
-                if memories_to_transfer:
-                    # 优化：批量构建缓存而不是逐条添加
-                    new_memories = []
-                    for memory in memories_to_transfer:
-                        mem_id = getattr(memory, "id", None)
-                        if not (mem_id and mem_id in cached_ids):
-                            new_memories.append(memory)
-                            if mem_id:
-                                cached_ids.add(mem_id)
-
-                    if new_memories:
-                        transfer_cache.extend(new_memories)
-                        logger.debug(
-                            f"自动转移缓存: 新增{len(new_memories)}条, 当前缓存{len(transfer_cache)}/{cache_size_threshold}"
-                        )
-
+                # 最简单策略：仅当短期记忆满额时，直接整批转移全部短期记忆；没满则不处理
                 max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
-                occupancy_ratio = len(self.short_term_manager.memories) / max_memories
-                time_since_last_transfer = time.monotonic() - last_transfer_time
+                if len(self.short_term_manager.memories) < max_memories:
+                    continue
 
-                if occupancy_ratio >= 1.0 and not transfer_cache:
-                    removed = self.short_term_manager.force_cleanup_overflow()
-                    if removed > 0:
-                        logger.warning(
-                            f"短期记忆占用率 {occupancy_ratio:.0%}，已强制删除 {removed} 条低重要性记忆泄压"
-                        )
+                batch = list(self.short_term_manager.memories)
+                if not batch:
+                    continue
 
-                # 优化：优先级判断重构（早期 return）
-                should_transfer = (
-                    len(transfer_cache) >= cache_size_threshold
-                    or occupancy_ratio >= 0.5
-                    or (transfer_cache and time_since_last_transfer >= self._max_transfer_delay)
-                    or len(self.short_term_manager.memories) >= self.short_term_manager.max_memories
+                logger.info(
+                    f"短期记忆已满({len(batch)}/{max_memories})，开始整批转移到长期记忆"
                 )
+                result = await self.long_term_manager.transfer_from_short_term(batch)
 
-                if should_transfer and transfer_cache:
-                    logger.debug(
-                        f"准备批量转移: {len(transfer_cache)}条短期记忆到长期记忆 (占用率 {occupancy_ratio:.0%})"
+                if result.get("transferred_memory_ids"):
+                    await self.short_term_manager.clear_transferred_memories(
+                        result["transferred_memory_ids"]
                     )
-
-                    # 优化：直接传递列表而不再复制
-                    result = await self.long_term_manager.transfer_from_short_term(transfer_cache)
-
-                    if result.get("transferred_memory_ids"):
-                        transferred_ids = set(result["transferred_memory_ids"])
-                        await self.short_term_manager.clear_transferred_memories(
-                            result["transferred_memory_ids"]
-                        )
-
-                        # 优化：使用生成器表达式保留未转移的记忆
-                        transfer_cache = [
-                            m
-                            for m in transfer_cache
-                            if getattr(m, "id", None) not in transferred_ids
-                        ]
-                        cached_ids.difference_update(transferred_ids)
-
-                    last_transfer_time = time.monotonic()
-                    logger.debug(f"✅ 批量转移完成: {result}")
+                logger.debug(f"✅ 整批转移完成: {result}")
 
             except asyncio.CancelledError:
                 logger.debug("自动转移循环被取消")
@@ -676,10 +627,16 @@ class UnifiedMemoryManager:
             await self.initialize()
 
         try:
-            memories_to_transfer = self.short_term_manager.get_memories_for_transfer()
+            max_memories = max(1, getattr(self.short_term_manager, "max_memories", 1))
+            if len(self.short_term_manager.memories) < max_memories:
+                return {
+                    "message": f"短期记忆未满({len(self.short_term_manager.memories)}/{max_memories})，不触发转移",
+                    "transferred_count": 0,
+                }
 
+            memories_to_transfer = list(self.short_term_manager.memories)
             if not memories_to_transfer:
-                return {"message": "没有需要转移的记忆", "transferred_count": 0}
+                return {"message": "短期记忆为空，无需转移", "transferred_count": 0}
 
             # 执行转移
             result = await self.long_term_manager.transfer_from_short_term(memories_to_transfer)

@@ -1,5 +1,12 @@
 # 增强命令系统使用指南
 
+> ⚠️ **重要：插件命令必须使用 PlusCommand！**
+> 
+> - ✅ **推荐**：`PlusCommand` - 插件开发的标准基类
+> - ❌ **禁止**：`BaseCommand` - 仅供框架内部使用
+> 
+> 如果你直接使用 `BaseCommand`，将需要手动处理参数解析、正则匹配等复杂逻辑，并且 `execute()` 方法签名也不同。
+
 ## 概述
 
 增强命令系统是MoFox-Bot插件系统的一个扩展，让命令的定义和使用变得更加简单直观。你不再需要编写复杂的正则表达式，只需要定义命令名、别名和参数处理逻辑即可。
@@ -224,24 +231,95 @@ class ConfigurableCommand(PlusCommand):
 
 ## 返回值说明
 
-`execute`方法需要返回一个三元组：
+`execute`方法必须返回一个三元组：
 
 ```python
-return (执行成功标志, 可选消息, 是否拦截后续处理)
+async def execute(self, args: CommandArgs) -> Tuple[bool, Optional[str], bool]:
+    # ... 你的逻辑 ...
+    return (执行成功标志, 日志描述, 是否拦截消息)
 ```
 
-- **执行成功标志** (bool): True表示命令执行成功，False表示失败
-- **可选消息** (Optional[str]): 用于日志记录的消息
-- **是否拦截后续处理** (bool): True表示拦截消息，不进行后续处理
+### 返回值详解
+
+| 位置 | 类型 | 名称 | 说明 |
+|------|------|------|------|
+| 1 | `bool` | 执行成功标志 | `True` = 命令执行成功<br>`False` = 命令执行失败 |
+| 2 | `Optional[str]` | 日志描述 | 用于内部日志记录的描述性文本<br>⚠️ **不是发给用户的消息！** |
+| 3 | `bool` | 是否拦截消息 | `True` = 拦截，阻止后续处理（推荐）<br>`False` = 不拦截，继续后续处理 |
+
+### 重要：消息发送 vs 日志描述
+
+⚠️ **常见错误：在返回值中返回用户消息**
+
+```python
+# ❌ 错误做法 - 不要这样做！
+async def execute(self, args: CommandArgs):
+    message = "你好，这是给用户的消息"
+    return True, message, True  # 这个消息不会发给用户！
+
+# ✅ 正确做法 - 使用 self.send_text()
+async def execute(self, args: CommandArgs):
+    await self.send_text("你好，这是给用户的消息")  # 发送给用户
+    return True, "执行了问候命令", True  # 日志描述
+```
+
+### 完整示例
+
+```python
+async def execute(self, args: CommandArgs) -> Tuple[bool, Optional[str], bool]:
+    """execute 方法的完整示例"""
+    
+    # 1. 参数验证
+    if args.is_empty():
+        await self.send_text("⚠️ 请提供参数")
+        return True, "缺少参数", True
+    
+    # 2. 执行逻辑
+    user_input = args.get_raw()
+    result = process_input(user_input)
+    
+    # 3. 发送消息给用户
+    await self.send_text(f"✅ 处理结果：{result}")
+    
+    # 4. 返回：成功、日志描述、拦截消息
+    return True, f"处理了用户输入: {user_input[:20]}", True
+```
+
+### 拦截标志使用指导
+
+- **返回 `True`**（推荐）：命令已完成处理，不需要后续处理（如 LLM 回复）
+- **返回 `False`**：允许系统继续处理（例如让 LLM 也回复）
 
 ## 最佳实践
 
-1. **命令命名**：使用简短、直观的命令名
-2. **别名设置**：为常用命令提供简短别名
-3. **参数验证**：总是检查参数的有效性
-4. **错误处理**：提供清晰的错误提示和使用说明
-5. **配置支持**：重要设置应该可配置
-6. **聊天类型**：根据命令功能选择合适的聊天类型限制
+### 1. 命令设计
+- ✅ **命令命名**：使用简短、直观的命令名（如 `time`、`help`、`status`）
+- ✅ **别名设置**：为常用命令提供简短别名（如 `echo` -> `e`、`say`）
+- ✅ **聊天类型**：根据命令功能选择 `ChatType.ALL`/`GROUP`/`PRIVATE`
+
+### 2. 参数处理
+- ✅ **总是验证**：使用 `args.is_empty()`、`args.count()` 检查参数
+- ✅ **友好提示**：参数错误时提供清晰的用法说明
+- ✅ **默认值**：为可选参数提供合理的默认值
+
+### 3. 消息发送
+- ✅ **使用 `self.send_text()`**：发送消息给用户
+- ❌ **不要在返回值中返回用户消息**：返回值是日志描述
+- ✅ **拦截消息**：大多数情况返回 `True` 作为第三个参数
+
+### 4. 错误处理
+- ✅ **Try-Catch**：捕获并处理可能的异常
+- ✅ **清晰反馈**：告诉用户发生了什么问题
+- ✅ **记录日志**：在返回值中提供有用的调试信息
+
+### 5. 配置管理
+- ✅ **可配置化**：重要设置应该通过 `self.get_config()` 读取
+- ✅ **提供默认值**：即使配置缺失也能正常工作
+
+### 6. 代码质量
+- ✅ **类型注解**：使用完整的类型提示
+- ✅ **文档字符串**：为 `execute()` 方法添加文档说明
+- ✅ **代码注释**：为复杂逻辑添加必要的注释
 
 ## 完整示例
 

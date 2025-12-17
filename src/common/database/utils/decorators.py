@@ -213,37 +213,68 @@ def cached(
     return decorator
 
 
-def measure_time(log_slow: float | None = None):
+def measure_time(log_slow: float | None = None, operation_name: str | None = None):
     """性能测量装饰器
 
-    测量函数执行时间，可选择性记录慢查询
+    测量函数执行时间，可选择性记录慢查询并集成到监控系统
 
     Args:
-        log_slow: 慢查询阈值（秒），超过此时间会记录warning日志
+        log_slow: 慢查询阈值（秒），None 表示使用配置中的阈值，0 表示禁用
+        operation_name: 操作名称，用于监控统计，None 表示使用函数名
 
     Example:
         @measure_time(log_slow=1.0)
         async def complex_query():
+            return await session.execute(stmt)
+        
+        @measure_time()  # 使用配置的阈值
+        async def database_query():
             return await session.execute(stmt)
     """
 
     def decorator(func: Callable[P, Coroutine[Any, Any, R]]) -> Callable[P, Coroutine[Any, Any, R]]:
         @functools.wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            from src.common.database.utils.monitoring import get_monitor
+            
+            # 确定操作名称
+            op_name = operation_name or func.__name__
+            
             start_time = time.perf_counter()
+            success = False
 
             try:
                 result = await func(*args, **kwargs)
+                success = True
                 return result
             finally:
                 elapsed = time.perf_counter() - start_time
 
-                if log_slow and elapsed > log_slow:
-                    logger.warning(
-                        f"{func.__name__} 执行缓慢: {elapsed:.3f}s (阈值: {log_slow}s)"
-                    )
+                # 获取监控器
+                monitor = get_monitor()
+                
+                # 记录到监控系统
+                if success:
+                    monitor.record_operation(op_name, elapsed, success=True)
+                    
+                    # 只在监控启用时检查慢查询
+                    if monitor.is_enabled():
+                        # 判断是否为慢查询
+                        threshold = log_slow
+                        if threshold is None:
+                            # 使用配置中的阈值
+                            threshold = monitor.get_metrics().slow_query_threshold
+                        
+                        if threshold > 0 and elapsed > threshold:
+                            logger.warning(
+                                f"🐢 {func.__name__} 执行缓慢: {elapsed:.3f}s (阈值: {threshold:.3f}s)"
+                            )
+                        else:
+                            logger.debug(f"{func.__name__} 执行时间: {elapsed:.3f}s")
+                    else:
+                        logger.debug(f"{func.__name__} 执行时间: {elapsed:.3f}s")
                 else:
-                    logger.debug(f"{func.__name__} 执行时间: {elapsed:.3f}s")
+                    monitor.record_operation(op_name, elapsed, success=False)
 
         return wrapper
 
