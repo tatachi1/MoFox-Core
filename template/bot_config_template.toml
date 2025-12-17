@@ -312,9 +312,6 @@ short_term_transfer_threshold = 0.6 # 转移到长期记忆的重要性阈值
 short_term_enable_force_cleanup = true # 开启压力泄压（建议高频场景开启）
 short_term_search_top_k = 5 # 搜索时返回的最大数量
 short_term_decay_factor = 0.98 # 衰减因子
-short_term_overflow_strategy = "transfer_all" # 短期记忆溢出策略
-# "transfer_all": 一次性转移所有记忆到长期记忆，然后删除低重要性记忆（默认推荐）
-# "selective_cleanup": 选择性清理，仅转移高重要性记忆，直接删除低重要性记忆
 
 # 长期记忆层配置
 use_judge = true # 使用评判模型决定是否检索长期记忆

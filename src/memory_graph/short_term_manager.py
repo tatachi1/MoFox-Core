@@ -645,97 +645,17 @@ class ShortTermMemoryManager:
 
     def get_memories_for_transfer(self) -> list[ShortTermMemory]:
         """
-        获取需要转移到长期记忆的记忆
+        获取需要转移到长期记忆的记忆（简化版：满额整批转移）
 
-        根据 overflow_strategy 选择不同的转移策略：
-        - "transfer_all": 一次性转移所有记忆（满容量时），然后删除低重要性记忆
-        - "selective_cleanup": 仅转移高重要性记忆，低重要性记忆直接删除
-        
-        返回：
-            需要转移的记忆列表
+        策略：
+        - 当短期记忆数量达到上限（>= max_memories）时，返回当前全部短期记忆；
+        - 没满则返回空列表，不触发转移。
         """
-        if self.overflow_strategy == "transfer_all":
-            return self._get_transfer_all_strategy()
-        else:  # "selective_cleanup" 或其他值默认使用选择性清理
-            return self._get_selective_cleanup_strategy()
-
-    def _get_transfer_all_strategy(self) -> list[ShortTermMemory]:
-        """
-        "一次性转移所有"策略：当短期记忆满了以后，将所有记忆转移到长期记忆
-        
-        返回：
-            需要转移的记忆列表（满容量时返回所有记忆）
-        """
-        # 如果短期记忆已满或接近满，一次性转移所有记忆
+        if self.max_memories <= 0:
+            return []
         if len(self.memories) >= self.max_memories:
-            logger.info(
-                f"转移策略(transfer_all): 短期记忆已满 ({len(self.memories)}/{self.max_memories})，"
-                f"将转移所有 {len(self.memories)} 条记忆到长期记忆"
-            )
-            return self.memories.copy()
-
-        # 如果还没满，检查是否有高重要性记忆需要转移
-        high_importance_memories = [
-            mem for mem in self.memories
-            if mem.importance >= self.transfer_importance_threshold
-        ]
-
-        if high_importance_memories:
-            logger.debug(
-                f"转移策略(transfer_all): 发现 {len(high_importance_memories)} 条高重要性记忆待转移"
-            )
-            return high_importance_memories
-
-        logger.debug(
-            f"转移策略(transfer_all): 无需转移 (当前容量 {len(self.memories)}/{self.max_memories})"
-        )
-        return []
-
-    def _get_selective_cleanup_strategy(self) -> list[ShortTermMemory]:
-        """
-        "选择性清理"策略（原有策略）：优先转移重要记忆，低重要性记忆考虑直接删除
-        
-        返回：
-            需要转移的记忆列表
-        """
-        # 单次遍历：同时分类高重要性和低重要性记忆
-        high_importance_memories = []
-        low_importance_memories = []
-
-        for mem in self.memories:
-            if mem.importance >= self.transfer_importance_threshold:
-                high_importance_memories.append(mem)
-            else:
-                low_importance_memories.append(mem)
-
-        # 策略1：优先返回高重要性记忆进行转移
-        if high_importance_memories:
-            logger.debug(
-                f"转移策略(selective): 发现 {len(high_importance_memories)} 条高重要性记忆待转移"
-            )
-            return high_importance_memories
-
-        # 策略2：如果没有高重要性记忆但总体超过容量上限，
-        # 返回一部分低重要性记忆用于转移（而非删除）
-        if len(self.memories) > self.max_memories:
-            # 计算需要转移的数量（目标：降到上限）
-            num_to_transfer = len(self.memories) - self.max_memories
-
-            # 按创建时间排序低重要性记忆，优先转移最早的（可能包含过时信息）
-            low_importance_memories.sort(key=lambda x: x.created_at)
-            to_transfer = low_importance_memories[:num_to_transfer]
-
-            if to_transfer:
-                logger.debug(
-                    f"转移策略(selective): 发现 {len(to_transfer)} 条低重要性记忆待转移 "
-                    f"(当前容量 {len(self.memories)}/{self.max_memories})"
-                )
-                return to_transfer
-
-        # 策略3：容量充足，无需转移
-        logger.debug(
-            f"转移策略(selective): 无需转移 (当前容量 {len(self.memories)}/{self.max_memories})"
-        )
+            logger.debug(f"转移候选: 短期记忆已满，准备整批转移 {len(self.memories)} 条")
+            return list(self.memories)
         return []
 
     def force_cleanup_overflow(self, keep_ratio: float | None = None) -> int:
