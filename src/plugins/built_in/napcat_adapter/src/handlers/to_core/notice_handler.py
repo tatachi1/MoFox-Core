@@ -168,7 +168,9 @@ class NoticeHandler:
                 return None
 
         if not handled_segment or not user_info:
-            logger.warning("notice处理失败或不支持")
+            logger.debug(
+                f"忽略 notice：type={notice_type}（无有效段/用户信息，可能为被禁用、过滤或自回声）"
+            )
             return None
 
         # 使用 MessageBuilder 构建消息

@@ -294,10 +294,16 @@ async def _send_to_target(
             if anchor_message:
                 reply_to_platform_id = f"{anchor_message.chat_info.platform}:{anchor_message.user_info.user_id}"
 
+        # 如果引用的是 notice 虚拟消息，避免构造引用段，防止误用
+        effective_set_reply = set_reply
+        if anchor_message and getattr(anchor_message, "message_id", None) == "notice":
+            logger.debug("[SendAPI] 检测到对 notice 虚拟消息的引用，已忽略引用并直接发送内容")
+            effective_set_reply = False
+
         base_segment: dict[str, Any] = {"type": message_type, "data": content}
         message_segment: dict[str, Any]
 
-        if set_reply and anchor_message and anchor_message.message_id:
+        if effective_set_reply and anchor_message and anchor_message.message_id:
             message_segment = {
                 "type": "seglist",
                 "data": [
