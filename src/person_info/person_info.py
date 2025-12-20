@@ -56,6 +56,7 @@ class PersonInfoManager:
     def __init__(self):
         """初始化PersonInfoManager"""
         # 移除self.person_name_list缓存，统一使用数据库缓存系统
+        assert model_config is not None
         self.qv_name_llm = LLMRequest(model_set=model_config.model_task_config.utils, request_type="relation.qv_name")
         # try:
         #     async with get_db_session() as session:
