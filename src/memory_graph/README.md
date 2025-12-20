@@ -210,8 +210,8 @@ perceptual_activation_threshold = 3     # 转移激活阈值
 short_term_max_memories = 30                    # 容量上限
 short_term_transfer_threshold = 0.6             # 转移重要性阈值
 short_term_overflow_strategy = "transfer_all"   # 溢出策略（transfer_all/selective_cleanup）
-short_term_enable_force_cleanup = true          # 启用泄压
-short_term_cleanup_keep_ratio = 0.9             # 泄压保留比例
+short_term_enable_force_cleanup = true          # 启用泄压（已弃用）
+short_term_cleanup_keep_ratio = 0.9             # 泄压保留比例（已弃用）
 
 # 长期记忆
 long_term_batch_size = 10                       # 批量转移大小
