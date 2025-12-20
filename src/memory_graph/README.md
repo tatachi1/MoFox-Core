@@ -91,7 +91,7 @@ similar = await short_term_manager.search_memories(
     top_k=5
 )
 
-# 获取待转移记忆
+# 查询可转移记忆（用于统计）
 to_transfer = short_term_manager.get_memories_for_transfer()
 ```
 
@@ -105,13 +105,14 @@ to_transfer = short_term_manager.get_memories_for_transfer()
 
 **重要性评分**：
 ```
-高重要性 (≥0.6) → 优先转移到长期层
-低重要性 (<0.6) → 保留或在容量溢出时删除
+重要性评分用于转移后清理，不影响转移触发
+高重要性 (≥0.6) → 在转移后保留
+低重要性 (<0.6) → 在转移后清理以释放空间
 ```
 
 **容量管理**：
-- ✅ **自动转移**：占用率 ≥ 50% 时开始批量转移
-- 🛡️ **泄压机制**：容量 100% 时删除低优先级记忆
+- ✅ **自动转移**：容量满额 (100%) 时触发转移
+- 🛡️ **泄压机制**：转移后根据 `overflow_strategy` 处理低优先级记忆
 - ⚙️ **配置**：`short_term_max_memories = 30`
 
 **溢出策略（新增）**：
@@ -310,10 +311,10 @@ print(f"转移了 {result['transferred_memory_ids']} 条记忆到长期层")
 ```python
 stats = manager.get_statistics()
 
-print(f"感知记忆块数：{stats['perceptual_blocks']}")
-print(f"短期记忆数：{stats['short_term_memories']}")
-print(f"长期记忆节点数：{stats['long_term_nodes']}")
-print(f"图边数：{stats['long_term_edges']}")
+print(f"感知记忆块数：{stats['perceptual']['total_blocks']}")
+print(f"短期记忆数：{stats['short_term']['total_memories']}")
+print(f"长期记忆节点数：{stats['long_term']['total_memories']}")
+print(f"系统总记忆数：{stats['total_system_memories']}")
 ```
 
 ---
@@ -333,11 +334,8 @@ print(f"图边数：{stats['long_term_edges']}")
   5. 从短期层清除已转移记忆
 ```
 
-**触发条件**（任一满足）：
-- 短期记忆占用率 ≥ 50%
-- 缓存记忆数 ≥ 批量大小
-- 距上次转移超过最大延迟
-- 短期记忆达到容量上限
+**自动转移触发条件**：
+- 短期记忆容量达到 100% (满额)
 
 **代码位置**：`src/memory_graph/unified_manager.py` 第 576-650 行
 
@@ -468,6 +466,10 @@ path_expansion_damping_factor = 0.85
 
 ## 🐛 故障排查
 
+> **详细故障排查步骤请参考 [故障排查手册](./docs/TROUBLESHOOTING.md)**
+
+以下是常见问题的快速检查：
+
 ### 问题1：短期记忆快速堆积
 
 **症状**：短期层记忆数快速增长，转移缓慢
@@ -476,7 +478,8 @@ path_expansion_damping_factor = 0.85
 ```python
 # 查看统计信息
 stats = manager.get_statistics()
-print(f"短期记忆占用率: {stats['short_term_occupancy']:.0%}")
+occupancy = stats['short_term']['total_memories'] / stats['short_term']['max_memories']
+print(f"短期记忆占用率: {occupancy:.0%}")
 print(f"待转移记忆: {len(manager.short_term_manager.get_memories_for_transfer())}")
 ```
 
@@ -555,9 +558,10 @@ short_term_cleanup_keep_ratio = 0.85  # 更激进的清理
 # 在定时任务中检查
 async def monitor_memory():
     stats = manager.get_statistics()
-    if stats['short_term_occupancy'] > 0.8:
+    occupancy = stats['short_term']['total_memories'] / stats['short_term']['max_memories']
+    if occupancy > 0.8:
         logger.warning("短期记忆压力高，考虑扩容")
-    if stats['long_term_nodes'] > 10000:
+    if stats['long_term'].get('total_memories', 0) > 10000:
         logger.warning("长期图规模大，检索可能变慢")
 ```
 
@@ -580,6 +584,7 @@ result = await manager.retrieve_memories(
 - [短期记忆压力泄压补丁](./short_term_pressure_patch.md)
 - [转移算法分析](../../docs/memory_transfer_algorithm_analysis.md)
 - [统一调度器指南](../../docs/unified_scheduler_guide.md)
+- [故障排查手册](./docs/TROUBLESHOOTING.md) 🆕
 
 ---
 

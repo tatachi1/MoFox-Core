@@ -9,6 +9,7 @@
 
 import asyncio
 import json
+import json_repair
 import re
 from datetime import datetime
 from typing import Any
@@ -561,40 +562,72 @@ class LongTermMemoryManager:
     def _parse_graph_operations(self, response: str) -> list[GraphOperation]:
         """解析 LLM 生成的图操作指令"""
         try:
-            # 提取 JSON
+            # 优先提取带 json 标注的代码块
             json_match = re.search(r"```json\s*(.*?)\s*```", response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
             else:
-                json_str = response.strip()
+                # 兼容未标注语言的三引号代码块
+                any_block = re.search(r"```\s*(.*?)\s*```", response, re.DOTALL)
+                if any_block:
+                    json_str = any_block.group(1)
+                else:
+                    # 直接使用原文
+                    json_str = response.strip()
 
-            # 移除注释
+            # 移除可能的注释
             json_str = re.sub(r"//.*", "", json_str)
             json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
 
-            # 解析
-            data = json.loads(json_str)
+            data: list[dict] | dict
+            try:
+                data = json.loads(json_str)
+            except Exception:
+                # 回退：尝试使用 json_repair 修复
+                try:
+                    data = json_repair.loads(json_str)
+                except Exception:
+                    # 再回退：截取首个 JSON 片段 [] 或 {}
+                    start_arr, end_arr = json_str.find("["), json_str.rfind("]")
+                    start_obj, end_obj = json_str.find("{"), json_str.rfind("}")
+                    segment = None
+                    if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
+                        segment = json_str[start_arr : end_arr + 1]
+                    elif start_obj != -1 and end_obj != -1 and end_obj > start_obj:
+                        segment = json_str[start_obj : end_obj + 1]
+                    if segment is None:
+                        raise
+                    data = json_repair.loads(segment)
 
-            # 转换为 GraphOperation 对象
-            operations = []
+            # 统一为列表
+            if isinstance(data, dict):
+                data = [data]
+            if not isinstance(data, list):
+                logger.warning("图操作解析结果非列表，返回空列表")
+                return []
+
+            operations: list[GraphOperation] = []
             for item in data:
+                if not isinstance(item, dict):
+                    continue
+                op_type_raw = item.get("operation_type", "CREATE_MEMORY")
                 try:
                     op = GraphOperation(
-                        operation_type=GraphOperationType(item["operation_type"]),
+                        operation_type=GraphOperationType(op_type_raw),
                         target_id=item.get("target_id"),
                         parameters=item.get("parameters", {}),
                         reason=item.get("reason", ""),
                         confidence=item.get("confidence", 1.0),
                     )
                     operations.append(op)
-                except (KeyError, ValueError) as e:
+                except Exception as e:
                     logger.warning(f"解析图操作失败: {e}, 项目: {item}")
                     continue
 
             return operations
 
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON 解析失败: {e}, 响应: {response[:200]}")
+        except Exception as e:
+            logger.error(f"图操作解析异常: {e}, 响应: {response[:200]}")
             return []
 
     async def _execute_graph_operations(

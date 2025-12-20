@@ -344,11 +344,16 @@ class ShortTermMemoryManager:
                 )
 
             # 创建决策对象
-            # 将 LLM 返回的大写操作名转换为小写（适配枚举定义）
-            operation_str = data.get("operation", "CREATE_NEW").lower()
+            # 规范化操作名，兼容连字符与大小写差异
+            op_raw = data.get("operation", "create_new")
+            operation_str = op_raw.strip().lower().replace("-", "_")
+            try:
+                op_enum = ShortTermOperation(operation_str)
+            except Exception:
+                op_enum = ShortTermOperation.CREATE_NEW
 
             decision = ShortTermDecision(
-                operation=ShortTermOperation(operation_str),
+                operation=op_enum,
                 target_memory_id=data.get("target_memory_id"),
                 merged_content=data.get("merged_content"),
                 reasoning=data.get("reasoning", ""),
@@ -397,6 +402,7 @@ class ShortTermMemoryManager:
                     logger.warning(f"目标记忆不存在，改为创建新记忆: {decision.target_memory_id}")
                     self.memories.append(new_memory)
                     self._memory_id_index[new_memory.id] = new_memory
+                    self._invalidate_matrix_cache()
                     return new_memory
 
                 # 更新内容
@@ -425,6 +431,7 @@ class ShortTermMemoryManager:
                     logger.warning(f"目标记忆不存在，改为创建新记忆: {decision.target_memory_id}")
                     self.memories.append(new_memory)
                     self._memory_id_index[new_memory.id] = new_memory
+                    self._invalidate_matrix_cache()
                     return new_memory
 
                 # 更新内容
@@ -463,6 +470,7 @@ class ShortTermMemoryManager:
                 logger.warning(f"未知操作类型: {decision.operation}，默认创建新记忆")
                 self.memories.append(new_memory)
                 self._memory_id_index[new_memory.id] = new_memory
+                self._invalidate_matrix_cache()
                 return new_memory
 
         except Exception as e:
@@ -574,17 +582,31 @@ class ShortTermMemoryManager:
             if json_match:
                 json_str = json_match.group(1)
             else:
-                # 尝试直接解析
-                json_str = response.strip()
+                # 兼容未标注语言的代码块
+                any_block = re.search(r"```\s*(.*?)\s*```", response, re.DOTALL)
+                if any_block:
+                    json_str = any_block.group(1)
+                else:
+                    # 尝试直接解析原文
+                    json_str = response.strip()
 
             # 移除可能的注释
             json_str = re.sub(r"//.*", "", json_str)
             json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
 
-            data = json_repair.loads(json_str)
+            try:
+                data = json_repair.loads(json_str)
+            except Exception:
+                # 回退：提取第一个花括号包围的 JSON 片段
+                start = json_str.find("{")
+                end = json_str.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    data = json_repair.loads(json_str[start : end + 1])
+                else:
+                    raise
             return data
 
-        except json.JSONDecodeError as e:
+        except Exception as e:
             logger.warning(f"JSON 解析失败: {e}, 响应: {response[:200]}")
             return None
 
