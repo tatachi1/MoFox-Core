@@ -165,7 +165,7 @@ class DatabaseMonitor:
         metrics = self._metrics.get_operation_metrics(operation_name)
         if success:
             metrics.record_success(execution_time)
-            
+
             # 只在启用时检查是否为慢查询
             if self._enabled and execution_time > self._metrics.slow_query_threshold:
                 self.record_slow_query(operation_name, execution_time, sql)
@@ -183,7 +183,7 @@ class DatabaseMonitor:
         """记录慢查询"""
         self._metrics.slow_query_count += 1
         self._metrics.get_operation_metrics(operation_name).record_slow_query()
-        
+
         record = SlowQueryRecord(
             operation_name=operation_name,
             execution_time=execution_time,
@@ -193,7 +193,7 @@ class DatabaseMonitor:
             stack_trace=stack_trace,
         )
         self._slow_queries.append(record)
-        
+
         # 立即记录到日志（实时告警）
         logger.warning(f"🐢 慢查询: {record}")
 
@@ -254,7 +254,7 @@ class DatabaseMonitor:
     def get_slow_query_report(self) -> dict[str, Any]:
         """获取慢查询报告"""
         slow_queries = list(self._slow_queries)
-        
+
         if not slow_queries:
             return {
                 "total": 0,
@@ -262,7 +262,7 @@ class DatabaseMonitor:
                 "top_operations": [],
                 "recent_queries": [],
             }
-        
+
         # 按操作分组统计
         operation_stats = {}
         for record in slow_queries:
@@ -278,14 +278,14 @@ class DatabaseMonitor:
             stats["total_time"] += record.execution_time
             stats["max_time"] = max(stats["max_time"], record.execution_time)
             stats["min_time"] = min(stats["min_time"], record.execution_time)
-        
+
         # 按慢查询数排序
         top_operations = sorted(
             operation_stats.items(),
             key=lambda x: x[1]["count"],
             reverse=True,
         )[:10]
-        
+
         return {
             "total": len(slow_queries),
             "threshold": f"{self._metrics.slow_query_threshold:.3f}s",
@@ -417,7 +417,7 @@ class DatabaseMonitor:
         if overall["slow_query_count"] > 0:
             logger.info("\n🐢 慢查询报告:")
             slow_report = self.get_slow_query_report()
-            
+
             if slow_report["top_operations"]:
                 logger.info("  按操作排名（Top 10）:")
                 for idx, op in enumerate(slow_report["top_operations"], 1):

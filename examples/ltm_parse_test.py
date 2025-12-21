@@ -42,7 +42,7 @@ def main() -> None:
     dump_ops("case2", ops2)
 
     # Case 3: Bare JSON embedded in text
-    resp3 = "Some notes: before {\"operation_type\": \"MERGE_MEMORIES\", \"parameters\": {\"source_memory_ids\": [\"A\", \"B\"], \"merged_importance\": 0.7}} after"
+    resp3 = 'Some notes: before {"operation_type": "MERGE_MEMORIES", "parameters": {"source_memory_ids": ["A", "B"], "merged_importance": 0.7}} after'
     ops3 = ltm._parse_graph_operations(resp3)
     dump_ops("case3", ops3)
 

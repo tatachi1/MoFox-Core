@@ -9,10 +9,11 @@
 
 import asyncio
 import json
-import json_repair
 import re
 from datetime import datetime
 from typing import Any
+
+import json_repair
 
 from src.common.logger import get_logger
 from src.memory_graph.manager import MemoryManager

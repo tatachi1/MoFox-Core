@@ -236,10 +236,10 @@ def measure_time(log_slow: float | None = None, operation_name: str | None = Non
         @functools.wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             from src.common.database.utils.monitoring import get_monitor
-            
+
             # 确定操作名称
             op_name = operation_name or func.__name__
-            
+
             start_time = time.perf_counter()
             success = False
 
@@ -252,11 +252,11 @@ def measure_time(log_slow: float | None = None, operation_name: str | None = Non
 
                 # 获取监控器
                 monitor = get_monitor()
-                
+
                 # 记录到监控系统
                 if success:
                     monitor.record_operation(op_name, elapsed, success=True)
-                    
+
                     # 只在监控启用时检查慢查询
                     if monitor.is_enabled():
                         # 判断是否为慢查询
@@ -264,7 +264,7 @@ def measure_time(log_slow: float | None = None, operation_name: str | None = Non
                         if threshold is None:
                             # 使用配置中的阈值
                             threshold = monitor.get_metrics().slow_query_threshold
-                        
+
                         if threshold > 0 and elapsed > threshold:
                             logger.warning(
                                 f"🐢 {func.__name__} 执行缓慢: {elapsed:.3f}s (阈值: {threshold:.3f}s)"

@@ -3,8 +3,6 @@
 提供慢查询的详细分析和报告生成功能
 """
 
-import time
-from collections import defaultdict
 from datetime import datetime
 from typing import Any
 

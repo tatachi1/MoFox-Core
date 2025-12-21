@@ -8,7 +8,6 @@
 """
 
 import asyncio
-import json
 import re
 import uuid
 from pathlib import Path
@@ -25,7 +24,6 @@ from src.memory_graph.models import (
     ShortTermOperation,
 )
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity_async
 
 logger = get_logger(__name__)
 
