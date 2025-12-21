@@ -11,16 +11,19 @@ from collections.abc import Callable
 import aiohttp
 import filetype
 
-from src.chat.message_receive.chat_stream import get_chat_manager
-from src.common.data_models.database_data_model import DatabaseUserInfo
 from src.common.logger import get_logger
 from src.llm_models.utils_model import LLMRequest
-from src.plugin_system.apis import config_api, generator_api, llm_api
+from src.plugin_system.apis import config_api, llm_api, person_api
 
 # 导入旧的工具函数，我们稍后会考虑是否也需要重构它
 from ..utils.history_utils import get_send_history
 
 logger = get_logger("MaiZone.ContentService")
+
+# 提示词日志颜色（使用ANSI颜色码）
+PROMPT_COLOR = "\033[36m"  # 青色
+PROMPT_HEADER_COLOR = "\033[96m"  # 亮青色（用于标题）
+RESET_COLOR = "\033[0m"
 
 
 class ContentService:
@@ -358,116 +361,369 @@ class ContentService:
         except Exception as e:
             logger.error(f"生成说说内容时发生异常: {e}")
             return "", {}
+
+    # ==================== QQ空间社交互动方法 ====================
+
+    async def _get_relation_info(self, target_name: str, target_qq: str | None = None) -> str:
         """
-        针对一条具体的说说内容生成评论。
+        获取与目标用户的关系信息，用于注入到空间评论提示词中。
+
+        :param target_name: 用户名称
+        :param target_qq: 用户QQ号（可选，如果有则优先使用）
+        :return: 格式化的关系信息文本
         """
-        for i in range(3):  # 重试3次
-            try:
-                chat_manager = get_chat_manager()
-                bot_platform = config_api.get_global_config("bot.platform")
-                bot_qq = str(config_api.get_global_config("bot.qq_account"))
-                bot_nickname = config_api.get_global_config("bot.nickname")
+        try:
+            # 获取 person_id
+            person_id = None
+            if target_qq:
+                person_id = person_api.get_person_id("qq", target_qq)
+            if not person_id and target_name:
+                person_id = await person_api.get_person_id_by_name(target_name)
 
-                bot_user_info = DatabaseUserInfo(platform=bot_platform, user_id=bot_qq, user_nickname=bot_nickname)
+            if not person_id:
+                return f"你对{target_name}不太熟悉，这可能是第一次看到ta的空间。"
 
-                chat_stream = await chat_manager.get_or_create_stream(platform=bot_platform, user_info=bot_user_info)
+            # 并行获取用户信息
+            info, impression, points = await asyncio.gather(
+                person_api.get_person_info(person_id),
+                person_api.get_person_impression(person_id, short=True),
+                person_api.get_person_points(person_id, limit=3),
+            )
 
-                if not chat_stream:
-                    logger.error(f"无法为QQ号 {bot_qq} 创建聊天流")
-                    return ""
+            # 获取关系数据
+            user_id = info.get("user_id") or target_qq
+            rel_data = {}
+            if user_id:
+                rel_data = await person_api.get_user_relationship_data(str(user_id))
 
+            # 构建关系信息
+            relation_parts = []
+
+            person_name = info.get("person_name", target_name)
+            relation_parts.append(f"关于{person_name}：")
+
+            # 关系分数
+            score = rel_data.get("relationship_score", 0.3)
+            if score >= 0.8:
+                relation_parts.append("- 你们是非常亲密的朋友")
+            elif score >= 0.6:
+                relation_parts.append("- 你们是好朋友")
+            elif score >= 0.4:
+                relation_parts.append("- 你们是普通朋友")
+            elif score >= 0.2:
+                relation_parts.append("- 你们认识但不太熟")
+            else:
+                relation_parts.append("- 你们不太熟悉")
+
+            # 印象
+            if impression and impression != "还没有形成对该用户的印象。":
+                relation_parts.append(f"- 你对ta的印象：{impression}")
+
+            # 记忆点
+            if points:
+                memory_points = [f"{p[0]}" for p in points[:2]]
+                relation_parts.append(f"- 你记得关于ta的一些事：{'; '.join(memory_points)}")
+
+            return "\n".join(relation_parts)
+
+        except Exception as e:
+            logger.warning(f"获取用户关系信息失败: {e}")
+            return f"你对{target_name}的了解有限。"
+
+    def _clean_truncated_content(self, content: str) -> str:
+        """
+        清理说说内容中的截断标记和无效内容。
+
+        :param content: 原始说说内容
+        :return: 清理后的内容
+        """
+        if not content:
+            return content
+
+        import re
+
+        # 常见的截断标记模式
+        truncation_patterns = [
+            r"展开全文\s*>?>?",
+            r"查看全文\s*>?>?",
+            r"展开\s*>?>?",
+            r"收起\s*<<?",
+            r"\.\.\.\s*展开$",
+            r"\.\.\.\s*查看全文$",
+            r"…\s*展开$",
+            r"…\s*查看全文$",
+        ]
+
+        cleaned = content
+        for pattern in truncation_patterns:
+            cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+
+        return cleaned.strip()
+
+    async def generate_qzone_comment(
+        self,
+        target_name: str,
+        content: str,
+        rt_con: str | None = None,
+        images: list[str] | None = None,
+        target_qq: str | None = None,
+    ) -> str:
+        """
+        针对他人的说说内容生成评论。使用空间专用提示词。
+
+        :param target_name: 说说作者名称
+        :param content: 说说内容
+        :param rt_con: 转发内容（可选）
+        :param images: 图片URL列表（可选）
+        :param target_qq: 说说作者QQ号（可选）
+        :return: 生成的评论内容
+        """
+        try:
+            # 清理可能的截断标记
+            content = self._clean_truncated_content(content)
+            if rt_con:
+                rt_con = self._clean_truncated_content(rt_con)
+            # 获取模型配置
+            models = llm_api.get_available_models()
+            text_model = str(self.get_config("models.text_model", "replyer"))
+            model_config = models.get(text_model)
+
+            if not model_config:
+                logger.error("未配置LLM模型")
+                return ""
+
+            # 获取机器人人格（三要素：核心人格、人格侧面、表达方式）
+            bot_personality_core = config_api.get_global_config("personality.personality_core", "一个友好的机器人")
+            bot_personality_side = config_api.get_global_config("personality.personality_side", "")
+            bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
+
+            # 获取时间信息
+            now = datetime.datetime.now()
+            current_time = now.strftime("%m月%d日 %H:%M")
+
+            # 获取关系信息
+            relation_info = await self._get_relation_info(target_name, target_qq)
+
+            # 处理图片描述
+            image_block = ""
+            if images:
                 image_descriptions = []
-                if images:
-                    for image_url in images:
-                        description = await self._describe_image(image_url)
-                        if description:
-                            image_descriptions.append(description)
-
-                extra_info = "你正在准备评论一个人的空间内容。和X(前推特)一样，qq空间是别人在自己的空间内自言自语的一片小天地，很多言论，包括含有负面情绪的言论，并非针对你。当下系统环境中你并不是与其单独聊天。你只是路过发出评论，所以请保持尊重。但由于系统限制，你不知道其他说说是什么样子。但这不妨碍你对说说发出评论，专心针对一条具体的说说内容生成评论。不要要求更多上下文。如果你不想评论，直接返回空文本/换行符/空格。"
+                for image_url in images:
+                    description = await self._describe_image(image_url)
+                    if description:
+                        image_descriptions.append(description)
                 if image_descriptions:
-                    extra_info += "说说中包含的图片内容如下，这可能会产生问题，如果你看不到任何描述图片的自然语言内容，请直接返回空文本/换行符/空格：\n" + "\n".join(image_descriptions)
+                    image_block = "\n\n[说说中的图片内容]\n" + "\n".join(f"- {desc}" for desc in image_descriptions)
 
-                reply_to = f"{target_name}:{content}"
-                if rt_con:
-                    reply_to += f"\n[转发内容]: {rt_con}"
+            # 处理转发内容
+            rt_block = ""
+            if rt_con:
+                rt_block = f"\n\n[转发内容]: {rt_con}"
 
-                success, reply_set, _ = await generator_api.generate_reply(
-                    chat_stream=chat_stream, reply_to=reply_to, extra_info=extra_info, request_type="maizone.comment", enable_splitter=False
-                )
+            # 构建人设描述（三要素）
+            personality_block = f"你的核心人格：{bot_personality_core}"
+            if bot_personality_side:
+                personality_block += f"\n你的人格侧面：{bot_personality_side}"
+            personality_block += f"\n你的表达方式：{bot_reply_style}"
 
-                if success and reply_set:
-                    comment = "".join([content for type, content in reply_set if type == "text"])
-                    logger.info(f"成功生成评论内容：'{comment}'")
-                    return comment
-                else:
-                    # 如果生成失败，则进行重试
-                    if i < 2:
-                        logger.warning(f"生成评论失败，将在5秒后重试 (尝试 {i + 1}/3)")
-                        await asyncio.sleep(5)
-                        continue
-                    else:
-                        logger.error("使用 generator_api 生成评论失败")
-                        return ""
-            except Exception as e:
-                if i < 2:
-                    logger.warning(f"生成评论时发生异常，将在5秒后重试 (尝试 {i + 1}/3): {e}")
-                    await asyncio.sleep(5)
-                    continue
-                else:
-                    logger.error(f"生成评论时发生异常: {e}")
-                    return ""
-        return ""
+            # 构建空间评论专用提示词
+            prompt = f"""# 人设定义
 
-    async def generate_comment_reply(self, story_content: str, comment_content: str, commenter_name: str) -> str:
+{personality_block}
+
+# 用户关系
+
+{relation_info}
+
+# 当前场景
+
+- 时间: {current_time}
+- 场景: 浏览QQ空间
+- 目标: 为{target_name}的说说发表评论
+
+# 说说内容
+
+{content}{rt_block}{image_block}
+
+# 行为规范
+
+## 核心原则
+1. 考虑关系亲疏，调整语气和内容
+2. 尊重对方空间，不说教、不随意给建议
+3. 自然互动，表达共鸣、好奇或轻松闲聊
+4. 简短自然，控制在15-30字左右
+5. 保持真实，符合人格表达
+
+## 禁止事项
+- Emoji表情符号
+- @符号
+- 格式化标记
+- 敏感话题
+
+# 输出要求
+
+直接输出评论正文，无任何前缀后缀。若无话可说则返回空。"""
+
+            # 输出提示词到日志（青色）
+            logger.info(f"{PROMPT_HEADER_COLOR}{'='*50}{RESET_COLOR}")
+            logger.info(f"{PROMPT_HEADER_COLOR}  QQ空间评论提示词 - 目标: {target_name}{RESET_COLOR}")
+            logger.info(f"{PROMPT_HEADER_COLOR}{'='*50}{RESET_COLOR}")
+            logger.info(f"{PROMPT_COLOR}{prompt}{RESET_COLOR}")
+            logger.info(f"{PROMPT_HEADER_COLOR}{'='*50} 提示词结束 {'='*50}{RESET_COLOR}")
+
+            # 调用LLM生成评论
+            success, comment, _, _ = await llm_api.generate_with_model(
+                prompt=prompt,
+                model_config=model_config,
+                request_type="maizone.qzone_comment",
+                temperature=0.4,
+                max_tokens=1500,  # 增加 max_tokens 防止截断
+            )
+
+            if success:
+                # 清理可能的格式问题
+                comment = comment.strip()
+                # 移除可能的引号包裹
+                if comment.startswith('"') and comment.endswith('"'):
+                    comment = comment[1:-1]
+                if comment.startswith("'") and comment.endswith("'"):
+                    comment = comment[1:-1]
+                logger.info(f"成功生成空间评论（长度{len(comment)}）：'{comment}'")
+                return comment
+            else:
+                logger.error("生成空间评论失败")
+                return ""
+
+        except Exception as e:
+            logger.error(f"生成空间评论时发生异常: {e}")
+            return ""
+
+    async def generate_comment_reply(
+        self,
+        story_content: str,
+        comment_content: str,
+        commenter_name: str,
+        commenter_qq: str | None = None,
+    ) -> str:
         """
-        针对自己说说的评论，生成回复。
+        针对自己说说的评论，生成回复。使用空间专用提示词。
+
+        :param story_content: 自己的说说内容
+        :param comment_content: 评论内容
+        :param commenter_name: 评论者名称
+        :param commenter_qq: 评论者QQ号（可选）
+        :return: 生成的回复内容
         """
-        for i in range(3):  # 重试3次
-            try:
-                chat_manager = get_chat_manager()
-                bot_platform = config_api.get_global_config("bot.platform")
-                bot_qq = str(config_api.get_global_config("bot.qq_account"))
-                bot_nickname = config_api.get_global_config("bot.nickname")
+        try:
+            # 获取模型配置
+            models = llm_api.get_available_models()
+            text_model = str(self.get_config("models.text_model", "replyer"))
+            model_config = models.get(text_model)
 
-                bot_user_info = DatabaseUserInfo(platform=bot_platform, user_id=bot_qq, user_nickname=bot_nickname)
+            if not model_config:
+                logger.error("未配置LLM模型")
+                return ""
 
-                chat_stream = await chat_manager.get_or_create_stream(platform=bot_platform, user_info=bot_user_info)
+            # 获取机器人人格（三要素：核心人格、人格侧面、表达方式）
+            bot_personality_core = config_api.get_global_config("personality.personality_core", "一个友好的机器人")
+            bot_personality_side = config_api.get_global_config("personality.personality_side", "")
+            bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
 
-                if not chat_stream:
-                    logger.error(f"无法为QQ号 {bot_qq} 创建聊天流")
-                    return ""
+            # 获取时间信息
+            now = datetime.datetime.now()
+            current_time = now.strftime("%m月%d日 %H:%M")
 
-                reply_to = f"{commenter_name}:{comment_content}"
-                extra_info = f"正在回复我的QQ空间说说“{story_content}”下的评论。"
+            # 获取关系信息
+            relation_info = await self._get_relation_info(commenter_name, commenter_qq)
 
-                success, reply_set, _ = await generator_api.generate_reply(
-                    chat_stream=chat_stream,
-                    reply_to=reply_to,
-                    extra_info=extra_info,
-                    request_type="maizone.comment_reply", enable_splitter=False,
-                )
+            # 构建人设描述（三要素）
+            personality_block = f"你的核心人格：{bot_personality_core}"
+            if bot_personality_side:
+                personality_block += f"\n你的人格侧面：{bot_personality_side}"
+            personality_block += f"\n你的表达方式：{bot_reply_style}"
 
-                if success and reply_set:
-                    reply = "".join([content for type, content in reply_set if type == "text"])
-                    logger.debug(f"成功为'{commenter_name}'的评论生成回复: '{reply}'")
-                    return reply
-                else:
-                    if i < 2:
-                        logger.warning(f"生成评论回复失败，将在5秒后重试 (尝试 {i + 1}/3)")
-                        await asyncio.sleep(5)
-                        continue
-                    else:
-                        logger.error("使用 generator_api 生成评论回复失败")
-                        return ""
-            except Exception as e:
-                if i < 2:
-                    logger.warning(f"生成评论回复时发生异常，将在5秒后重试 (尝试 {i + 1}/3): {e}")
-                    await asyncio.sleep(5)
-                    continue
-                else:
-                    logger.error(f"生成评论回复时发生异常: {e}")
-                    return ""
-        return ""
+            # 构建空间回复专用提示词
+            prompt = f"""# 人设定义
+
+{personality_block}
+
+# 用户关系
+
+{relation_info}
+
+# 当前场景
+
+- 时间: {current_time}
+- 场景: 回复自己说说下的评论
+- 评论者: {commenter_name}
+
+# 你发的说说
+
+{story_content}
+
+# {commenter_name}的评论
+
+{comment_content}
+
+# 行为规范
+
+## 核心原则
+1. 友好自然，根据关系亲疏调整语气
+2. 简短自然，控制在15-30字左右
+3. 可感谢关注、回应观点、延续话题、轻松调侃
+4. 保持风格一致
+
+## 禁止事项
+- Emoji表情符号
+- 格式化标记
+- 敏感话题
+- "回复@xxx："格式
+
+# 输出要求
+
+直接输出回复正文，无任何前缀后缀。若无话可说则返回空。"""
+
+            # 输出提示词到日志（青色）
+            logger.info(f"{PROMPT_HEADER_COLOR}{'='*50}{RESET_COLOR}")
+            logger.info(f"{PROMPT_HEADER_COLOR}  QQ空间回复提示词 - 回复: {commenter_name}{RESET_COLOR}")
+            logger.info(f"{PROMPT_HEADER_COLOR}{'='*50}{RESET_COLOR}")
+            logger.info(f"{PROMPT_COLOR}{prompt}{RESET_COLOR}")
+            logger.info(f"{PROMPT_HEADER_COLOR}{'='*50} 提示词结束 {'='*50}{RESET_COLOR}")
+
+            # 调用LLM生成回复
+            success, reply, _, _ = await llm_api.generate_with_model(
+                prompt=prompt,
+                model_config=model_config,
+                request_type="maizone.qzone_reply",
+                temperature=0.4,
+                max_tokens=500,  # 增加 max_tokens 防止截断
+            )
+
+            if success:
+                # 清理可能的格式问题
+                reply = reply.strip()
+                # 移除可能的引号包裹
+                if reply.startswith('"') and reply.endswith('"'):
+                    reply = reply[1:-1]
+                if reply.startswith("'") and reply.endswith("'"):
+                    reply = reply[1:-1]
+                # 移除可能的"回复@xxx："格式
+                import re
+                reply = re.sub(r'^回复\s*@[^:：]+[：:]\s*', '', reply)
+                reply = re.sub(r'^@[^:：\s]+[：:]\s*', '', reply)
+                
+                # 在回复内容前加上 @用户名（空间回复需要@对方）
+                reply_with_at = f"@{commenter_name} {reply}"
+                
+                logger.info(f"成功为'{commenter_name}'的评论生成回复（长度{len(reply_with_at)}）: '{reply_with_at}'")
+                return reply_with_at
+            else:
+                logger.error("生成空间回复失败")
+                return ""
+
+        except Exception as e:
+            logger.error(f"生成空间回复时发生异常: {e}")
+            return ""
 
     async def _describe_image(self, image_url: str) -> str | None:
         """
