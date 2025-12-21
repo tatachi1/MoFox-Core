@@ -129,9 +129,13 @@ class NapcatAdapter(BaseAdapter):
         # 检查是否屏蔽其他QQ机器人（仅对消息事件生效）
         if post_type == "message" and features_config.get("ban_qq_bot", False):
             sender_info = raw.get("sender", {})
-            role = sender_info.get("role", "")
-            if role == "admin" or "bot" in str(sender_info).lower():
-                logger.debug(f"检测到机器人消息 {user_id}，事件被过滤")
+            # 检查 title 字段（OneBot 11 中，bot 账号通常在 title 字段中包含 "bot" 标识）
+            title = sender_info.get("title", "").lower()
+            # 或者检查 card（群名片）字段
+            card = sender_info.get("card", "").lower()
+            # 检测是否为 bot（title 或 card 中包含 "bot" 或 "機器人" 或 "机器人"）
+            if "bot" in title or "bot" in card or "机器人" in title or "机器人" in card or "機器人" in title or "機器人" in card:
+                logger.debug(f"检测到机器人消息 {user_id}（title: {title}, card: {card}），事件被过滤")
                 return False
 
         # 获取消息类型（消息事件使用 message_type，通知事件根据 group_id 判断）
