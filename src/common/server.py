@@ -60,6 +60,7 @@ class Server:
             "http://localhost:3001",
             "http://127.0.0.1:3001",
             "http://127.0.0.1:12138",
+            "http://localhost:12318"
             # 在生产环境中，您应该添加实际的前端域名
         ]
 
