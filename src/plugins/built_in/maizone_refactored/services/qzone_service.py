@@ -431,9 +431,15 @@ class QZoneService:
             comment_key = f"{fid}_{comment_tid}"
             nickname = comment.get("nickname", "")
             comment_content = comment.get("content", "")
+            commenter_qq = str(comment.get("qq_account", "")) if comment.get("qq_account") else None
 
             try:
-                reply_content = await self.content_service.generate_comment_reply(content, comment_content, nickname)
+                reply_content = await self.content_service.generate_comment_reply(
+                    story_content=content,
+                    comment_content=comment_content,
+                    commenter_name=nickname,
+                    commenter_qq=commenter_qq,
+                )
                 if reply_content:
                     success = await api_client["reply"](fid, qq_account, nickname, reply_content, comment_tid)
                     if success:
@@ -502,11 +508,13 @@ class QZoneService:
             logger.debug(f"锁定待评论说说: {comment_key}")
             self.processing_comments.add(comment_key)
             try:
-                # 使用content_service生成评论（相当于回复好友的说说）
-                comment_text = await self.content_service.generate_comment_reply(
-                    story_content=content or rt_con or "说说内容",
-                    comment_content="",  # 评论说说时没有评论内容
-                    commenter_name=target_name
+                # 使用空间专用评论方法
+                comment_text = await self.content_service.generate_qzone_comment(
+                    target_name=target_name,
+                    content=content or rt_con or "说说内容",
+                    rt_con=rt_con if content else None,
+                    images=images,
+                    target_qq=target_qq,
                 )
                 if comment_text:
                     success = await api_client["comment"](target_qq, fid, comment_text)
