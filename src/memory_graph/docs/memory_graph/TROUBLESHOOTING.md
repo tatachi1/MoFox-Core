@@ -21,6 +21,11 @@
 - 日志
   - 打开调试日志：在配置中将日志级别设为 debug；排查时关注 src.memory_graph.* 模块的日志
 
+- 权限与调度
+  - 确认敏感操作（批量清理/导出/合并）所需权限是否已配置（管理员/Master）
+  - 检查统一调度器是否已自动启动（由 `MainSystem.initialize()` 触发）
+  - 如需后台整理/衰减/嵌入刷新，确认已注册调度任务（TIME/事件）
+
 ---
 
 ## 1. 症状：短期记忆“没有新建”或“检索不到”
@@ -47,6 +52,10 @@
   - 操作名：统一 `strip().lower().replace('-', '_')`，枚举失败回退 `CREATE_NEW`
   - 回退创建：MERGE/UPDATE 的目标缺失与“未知操作默认创建”均调用 `_invalidate_matrix_cache()`
   - 快速验证（建议写一段最小脚本验证创建+检索链路）
+
+- 额外建议（数据库/缓存）
+  - 写入路径使用数据库 API 层（`CRUDBase`/`QueryBuilder`），避免直接 `Session`；批量更新用 `AdaptiveBatchScheduler`
+  - 修改后调用 `_invalidate_matrix_cache()` 或对应缓存失效方法；高频查询引入 L1/L2 缓存
 
 ---
 
@@ -77,6 +86,11 @@
       再失败则截取首个 `[]` 或 `{}` 片段再修复；若为对象则自动包装为数组
   - 环境准备：确保 `networkx`、`json-repair`、`chromadb` 等依赖已安装
   - 验证：运行示例脚本 `examples/ltm_parse_test.py`（已包含多种解析变体）
+
+- 统一调度器与事件（推荐做法）
+  - 将 `_auto_transfer_loop()` 行为后台化：通过统一调度器注册周期任务（例如每 10 分钟）
+  - 当“临时池/staged”达到阈值时，以事件触发一次整理，避免主路径阻塞
+  - 检查 `logs/app_*.jsonl` 中是否有 `periodic_short_to_long_transfer` / `threshold_memory_consolidation` 的执行记录
 
 ---
 
@@ -112,6 +126,7 @@
 - 排查建议
   - 针对记忆文本，独立调用 embeddings 接口，确认能返回向量
   - 在修改内容后确认有 `_invalidate_matrix_cache()` 调用
+  - 检查 embeddings 生成是否批量执行（推荐），减少单次调用的抖动
 
 ---
 
@@ -143,6 +158,20 @@
   ruff check .
   ```
 
+- 调度器任务注册（示例）
+  ```python
+  from src.schedule.unified_scheduler import unified_scheduler, TriggerType
+
+  async def register_tasks():
+      await unified_scheduler.create_schedule(
+          callback=run_memory_consolidation,
+          trigger_type=TriggerType.TIME,
+          trigger_config={"delay_seconds": 6 * 3600},
+          is_recurring=True,
+          task_name="periodic_memory_consolidation"
+      )
+  ```
+
 ---
 
 ## 7. 日志与文件位置
@@ -156,6 +185,15 @@
   - 统一：`src/memory_graph/unified_manager.py`
   - 模型与枚举：`src/memory_graph/models.py`
   - 图/向量存储：`src/memory_graph/storage/graph_store.py`, `src/memory_graph/storage/vector_store.py`
+  - 调度器：`src/schedule/unified_scheduler.py`
+  - 数据库 API：`src/common/database/api/`（`CRUDBase`/`QueryBuilder`）
+  - 优化层：`src/common/database/optimization/`（三级缓存/预加载/批量调度）
+
+- 结构化日志字段（建议）
+  - 核心：`module`=`memory_graph.*`、`tool_name`、`request_id`、`correlation_id`、`latency_ms`、`db_reads/writes`、`cache_hit_rate`
+  - 错误码：`E_PARAM_VALIDATION`、`E_PERMISSION_DENIED`、`E_DB_IO`、`E_VECTOR_SERVICE`、`E_GRAPH_INDEX`、`E_TIMEOUT`
+  - 隐私：`user_id`/`session_id` 建议散列；文本字段截断与脱敏
+  - 详见：[tool_calling_guide.md](tool_calling_guide.md#日志字段与观测清单详细)
 
 ---
 
@@ -164,6 +202,9 @@
 - 当前“转移策略”为：短期满额才整批转移；重要性阈值用于转移后低重要性清理，不参与选择谁被转移
 - 创建/更新记忆后务必刷新相似度缓存（本仓库的主创建路径已处理）
 - 解析 LLM 的 JSON 应对多变格式要容错：无语言代码块、注释、尾逗号、混杂文本
+ - 后台化：整理/衰减/嵌入刷新尽量由统一调度器执行，主路径仅做轻量标记/入临时池
+ - 权限：敏感操作需管理员/Master 权限；记录结构化审计日志
+ - 数据库：批量操作走 `AdaptiveBatchScheduler`；查询优先 `QueryBuilder`，减少频繁小查询
 
 ---
 
@@ -179,7 +220,7 @@
 
 本记忆图谱系统（三层记忆架构：感知层/短期层/长期层）计划在未来版本中由**新的记忆系统**逐步替代。升级计划如下：
 
-#### 当前状态（v0.13.0+）
+#### 当前状态（v0.13.0+ / 更新至 2025-12-22）
 - **主系统**：当前三层记忆系统为官方推荐方案，持续维护和优化
 - **代码位置**：src/memory_graph/
 - **维护范围**：Bug 修复、性能优化、兼容性更新
@@ -217,6 +258,14 @@
 - **计划迁移**：使用提供的数据导出工具备份现有记忆数据
 - **灰度切换**：先在测试环境验证新系统，再切换生产环境
 - **回滚预案**：保留旧数据快照，支持快速回退
+
+---
+
+### 参考与交叉链接（新增）
+- 设计与架构：[design_outline.md](design_outline.md)
+- 统一管理器说明：[unified_memory_manager.md](unified_memory_manager.md)
+- 优化与示例：[long_term_manager_optimization_summary.md](long_term_manager_optimization_summary.md)
+- 快速使用与导航：[memory_graph_README.md](memory_graph_README.md)
 
 ### 维护者联系
 
