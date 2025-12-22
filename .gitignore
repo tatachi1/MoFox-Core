@@ -344,3 +344,5 @@ package.json
 mofox_bot_statistics.html
 src/plugins/built_in/napcat_adapter/src/handlers/napcat_cache.json
 depends-data/pinyin_dict.json
+更新本地文件.bat
+启动bot.bat
