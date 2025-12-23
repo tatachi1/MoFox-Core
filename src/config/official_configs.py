@@ -323,7 +323,6 @@ class VoiceConfig(ValidatedConfigBase):
     """语音识别配置类"""
 
     enable_asr: bool = Field(default=False, description="启用语音识别")
-    asr_provider: str = Field(default="api", description="语音识别提供商")
 
 
 class EmojiConfig(ValidatedConfigBase):
