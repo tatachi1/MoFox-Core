@@ -1,5 +1,5 @@
 [inner]
-version = "8.0.4"
+version = "8.0.3"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -682,48 +682,3 @@ quiet_hours_end = "07:00" # 勿扰结束时间
 
 # 5. 触发概率：每次检查时主动发起的概率，用于避免过于频繁打扰。
 trigger_probability = 0.3 # 0.0~1.0，默认30%概率
-# ==================== Napcat 适配器配置 ====================
-# Napcat 是 OneBot 11 协议的 QQ 机器人框架适配器
-# 本配置控制视频消息处理、消息过滤等功能
-
-[napcat_adapter]
-# Napcat WebSocket 服务配置
-[napcat_adapter.napcat_server]
-mode = "reverse" # WebSocket 连接模式: "reverse"(反向连接) 或 "direct"(直连)
-host = "localhost" # Napcat WebSocket 服务地址
-port = 8095 # Napcat WebSocket 服务端口
-access_token = "" # Napcat API 访问令牌（可选，留空表示无需认证）
-
-# 消息过滤配置
-[napcat_adapter.features]
-# ========== 群聊/私聊过滤 ==========
-group_list_type = "blacklist" # 群聊名单模式: "blacklist"(黑名单) 或 "whitelist"(白名单)
-group_list = [] # 群聊黑/白名单，格式为群号列表，例如: [123456789, 987654321]
-private_list_type = "blacklist" # 私聊名单模式: "blacklist"(黑名单) 或 "whitelist"(白名单)
-private_list = [] # 私聊黑/白名单，格式为用户QQ列表，例如: [123456789, 987654321]
-ban_user_id = [] # 全局封禁的用户 ID 列表（所有来源都会被过滤）
-ban_qq_bot = false # 是否屏蔽其他 QQ 机器人消息
-
-# ========== 消息类型开关 ==========
-enable_poke = true # 是否启用戳一戳消息处理
-ignore_non_self_poke = false # 是否忽略不是针对自己的戳一戳消息
-poke_debounce_seconds = 2.0 # 戳一戳防抖时间（秒），相同用户在此时间内重复戳一戳会被合并
-
-enable_emoji_like = true # 是否启用群聊表情回复处理
-enable_reply_at = true # 是否在回复时自动@原消息发送者
-reply_at_rate = 0.5 # 回复时@的概率（0.0-1.0，0.5 表示 50% 概率）
-
-# ========== 视频消息处理配置 ==========
-# 注意：如果你的网络带宽有限或机器性能较弱，建议关闭视频处理
-# 参考 GitHub Issue #10: https://github.com/MoFox-Studio/MoFox-Core/issues/10
-enable_video_processing = true # 是否启用视频消息处理
-                                # 关闭后视频消息会显示为 [视频消息] 占位符，不进行下载
-                                # 这可以显著减少网络流量和 CPU 占用
-
-video_max_size_mb = 100 # 允许下载的视频文件最大大小（MB）
-                         # 超过此大小的视频会被跳过，显示错误信息
-                         # 建议范围: 10-500 MB（根据机器性能和网络调整）
-
-video_download_timeout = 60 # 视频下载超时时间（秒）
-                             # 若下载在此时间内未完成，会自动中止并返回错误
-                             # 建议范围: 30-180 秒（根据网络速度调整）

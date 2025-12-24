@@ -709,12 +709,12 @@ class ContentService:
                     reply = reply[1:-1]
                 # 移除可能的"回复@xxx："格式
                 import re
-                reply = re.sub(r"^回复\s*@[^:：]+[：:]\s*", "", reply)
-                reply = re.sub(r"^@[^:：\s]+[：:]\s*", "", reply)
-
+                reply = re.sub(r'^回复\s*@[^:：]+[：:]\s*', '', reply)
+                reply = re.sub(r'^@[^:：\s]+[：:]\s*', '', reply)
+                
                 # 在回复内容前加上 @用户名（空间回复需要@对方）
                 reply_with_at = f"@{commenter_name} {reply}"
-
+                
                 logger.info(f"成功为'{commenter_name}'的评论生成回复（长度{len(reply_with_at)}）: '{reply_with_at}'")
                 return reply_with_at
             else:
