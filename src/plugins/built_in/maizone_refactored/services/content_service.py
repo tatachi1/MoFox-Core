@@ -709,7 +709,7 @@ class ContentService:
                 model_config=model_config,
                 request_type="maizone.qzone_reply",
                 temperature=0.4,
-                max_tokens=500,  # 增加 max_tokens 防止截断
+                max_tokens=8000,  
             )
 
             if success:
