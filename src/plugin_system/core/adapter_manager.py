@@ -14,6 +14,9 @@ from __future__ import annotations
 import asyncio
 import importlib
 import multiprocessing as mp
+import os
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -71,6 +74,39 @@ def _adapter_process_entry(
     import contextlib
 
     from mofox_wire import ProcessCoreSink
+
+    # 保障子进程的工作目录与导入路径，避免 Windows spawn 下导入失败
+    def _ensure_import_context() -> None:
+        try:
+            # 优先依据插件目录回推工程根目录（包含 src 的上一级）
+            project_root: Path | None = None
+            if plugin_info and plugin_info.get("plugin_dir"):
+                p = Path(plugin_info["plugin_dir"]).resolve()
+                for ancestor in [p] + list(p.parents):
+                    # 找到包含 src 目录的父级，将其父级视为工程根
+                    if (ancestor / "src").exists() and ancestor.name != "src":
+                        project_root = ancestor
+                        break
+                    # 兼容直接命名为 src 的目录
+                    if ancestor.name == "src":
+                        project_root = ancestor.parent
+                        break
+            # 如果未能识别，退回当前工作目录
+            if project_root is None:
+                project_root = Path.cwd()
+
+            # 调整 cwd 并补充 sys.path，确保可以 import 'src.*'
+            try:
+                os.chdir(project_root)
+            except Exception:
+                pass
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+        except Exception:
+            # 不抛出，让后续导入去报错并由上层记录
+            pass
+
+    _ensure_import_context()
 
     async def _run() -> None:
         adapter_cls = _load_class(*adapter_path)
@@ -147,6 +183,20 @@ class AdapterProcess:
                 name=f"{self.adapter_name}-proc",
             )
             self.process.start()
+
+            # 简单健康检查：短暂等待后确认子进程是否存活
+            await asyncio.sleep(0.3)
+            if not self.process.is_alive():
+                rc = self.process.exitcode
+                logger.error(
+                    f"启动适配器子进程 {self.adapter_name} 失败：子进程已退出 (exitcode={rc}). "
+                    "请检查插件模块是否可导入（例如 'src.*' 导入路径与工作目录），"
+                    "以及 mofox_wire 是否已正确安装。"
+                )
+                # 清理已创建但未使用的队列
+                from src.common.core_sink_manager import get_core_sink_manager
+                get_core_sink_manager().remove_process_sink(self.adapter_name)
+                return False
 
             logger.info(f"启动适配器子进程 {self.adapter_name} (PID: {self.process.pid})")
             return True
