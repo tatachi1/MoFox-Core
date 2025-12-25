@@ -496,6 +496,9 @@ class ContentService:
             bot_personality_core = config_api.get_global_config("personality.personality_core", "一个友好的机器人")
             bot_personality_side = config_api.get_global_config("personality.personality_side", "")
             bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
+            
+            # 获取互动规则
+            safety_guidelines = config_api.get_global_config("personality.safety_guidelines", [])
 
             # 获取时间信息
             now = datetime.datetime.now()
@@ -525,21 +528,30 @@ class ContentService:
             if bot_personality_side:
                 personality_block += f"\n你的人格侧面：{bot_personality_side}"
             personality_block += f"\n你的表达方式：{bot_reply_style}"
+            
+            # 构建互动规则
+            safety_block = ""
+            if safety_guidelines:
+                safety_block = "\n\n# 互动规则\n\n" + "\n".join(f"- {rule}" for rule in safety_guidelines[:5])  # 限制最多5条核心规则
 
             # 构建空间评论专用提示词
-            prompt = f"""# 人设定义
+            prompt = f"""# 平台说明
+
+**QQ空间**是中国最流行的社交平台之一，类似于Facebook的"动态"或Instagram。用户可以发表"说说"（类似朋友圈动态），好友可以点赞、评论和回复。这是一个记录生活、分享心情、与朋友互动的社交空间。
+
+# 人设定义
 
 {personality_block}
 
 # 用户关系
 
-{relation_info}
+{relation_info}{safety_block}
 
 # 当前场景
 
 - 时间: {current_time}
-- 场景: 浏览QQ空间
-- 目标: 为{target_name}的说说发表评论
+- 场景: 浏览QQ空间，为好友的说说发表评论
+- 目标: 为{target_name}的说说发表一条自然、友好的评论
 
 # 说说内容
 
@@ -634,6 +646,9 @@ class ContentService:
             bot_personality_core = config_api.get_global_config("personality.personality_core", "一个友好的机器人")
             bot_personality_side = config_api.get_global_config("personality.personality_side", "")
             bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
+            
+            # 获取互动规则
+            safety_guidelines = config_api.get_global_config("personality.safety_guidelines", [])
 
             # 获取当前时间信息
             now = datetime.datetime.now()
@@ -678,6 +693,11 @@ class ContentService:
             if bot_personality_side:
                 personality_block += f"\n你的人格侧面：{bot_personality_side}"
             personality_block += f"\n你的表达方式：{bot_reply_style}"
+            
+            # 构建互动规则
+            safety_block = ""
+            if safety_guidelines:
+                safety_block = "\n\n# 互动规则\n\n" + "\n".join(f"- {rule}" for rule in safety_guidelines[:5])  # 限制最多5条核心规则
 
             # 构建时间信息块（清晰标注各个时间点，帮助模型理解时间线）
             time_info_lines = [f"- 当前时间: {current_time}"]
@@ -688,13 +708,17 @@ class ContentService:
             time_info_block = "\n".join(time_info_lines)
 
             # 构建空间回复专用提示词
-            prompt = f"""# 人设定义
+            prompt = f"""# 平台说明
+
+**QQ空间**是中国最流行的社交平台之一，类似于Facebook的"动态"或Instagram。用户可以发表"说说"（类似朋友圈动态），好友可以点赞、评论和回复。这是一个记录生活、分享心情、与朋友互动的社交空间。
+
+# 人设定义
 
 {personality_block}
 
 # 用户关系
 
-{relation_info}
+{relation_info}{safety_block}
 
 # 当前场景
 
