@@ -352,8 +352,19 @@ class ContentService:
 
                 except Exception as e:
                     logger.error(f"解析JSON失败: {e}, 原始响应: {response[:200]}")
-                    # 降级处理：只返回文本，空配图信息
-                    return response, {}
+                    # 安全降级：检测截断并拒绝发送无效内容
+                    # 宁愿失败也不要发出残缺的JSON
+                    if self._is_truncated_json(response):
+                        logger.warning("检测到响应被截断，拒绝发送残缺内容，返回空")
+                        return "", {}
+                    # 尝试从残缺JSON中提取text字段
+                    extracted_text = self._extract_text_from_broken_json(response)
+                    if extracted_text:
+                        logger.info(f"从残缺JSON中成功提取文本: '{extracted_text[:50]}...'")
+                        return extracted_text, {}
+                    # 无法提取有效内容，返回空
+                    logger.warning("无法从响应中提取有效内容，返回空")
+                    return "", {}
             else:
                 logger.error("生成说说内容失败")
                 return "", {}
@@ -459,6 +470,82 @@ class ContentService:
             cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
 
         return cleaned.strip()
+
+    def _is_truncated_json(self, response: str) -> bool:
+        """
+        检测响应是否是被截断的JSON。
+        
+        :param response: LLM的原始响应
+        :return: 如果检测到截断返回True
+        """
+        if not response:
+            return False
+        
+        response = response.strip()
+        
+        # 如果以 { 开头但不以 } 结尾，很可能是截断的JSON
+        if response.startswith("{") and not response.endswith("}"):
+            return True
+        
+        # 如果以 [ 开头但不以 ] 结尾，也是截断
+        if response.startswith("[") and not response.endswith("]"):
+            return True
+        
+        # 检查是否有未闭合的引号（简单检测）
+        # 如果引号数量是奇数，说明有未闭合的字符串
+        quote_count = response.count('"')
+        if response.startswith("{") and quote_count % 2 != 0:
+            return True
+        
+        return False
+
+    def _extract_text_from_broken_json(self, response: str) -> str:
+        """
+        尝试从残缺的JSON响应中提取text字段的内容。
+        
+        :param response: 可能被截断的JSON响应
+        :return: 提取到的文本，如果失败返回空字符串
+        """
+        import re
+        
+        if not response:
+            return ""
+        
+        # 尝试多种模式匹配 "text": "内容"
+        patterns = [
+            # 标准格式: "text": "内容"
+            r'"text"\s*:\s*"([^"]*)"',
+            # 带转义的格式
+            r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"',
+            # text 字段可能是被截断的，尝试提取到响应末尾
+            r'"text"\s*:\s*"([^"]*)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, response, re.DOTALL)
+            if match:
+                extracted = match.group(1)
+                # 清理转义字符
+                extracted = extracted.replace('\\"', '"')
+                extracted = extracted.replace('\\n', '\n')
+                extracted = extracted.replace('\\t', '\t')
+                
+                # 验证提取的内容有效性
+                # 1. 不能是空的
+                if not extracted.strip():
+                    continue
+                # 2. 不能太短（少于3个字符可能是无效内容）
+                if len(extracted.strip()) < 3:
+                    continue
+                # 3. 不能以明显的截断符号结尾
+                if extracted.endswith('\\') or extracted.endswith(','):
+                    extracted = extracted[:-1].strip()
+                
+                # 最终验证
+                if extracted.strip():
+                    return extracted.strip()
+        
+        return ""
 
     async def generate_qzone_comment(
         self,
