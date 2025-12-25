@@ -182,9 +182,9 @@ def build_context_module(
     # 内在状态
     parts.append(f"\n你现在的心情：{mood}")
 
-    # 关系信息
+    # 关系信息（章节标题由 build_system_prompt 添加）
     if relation_info:
-        parts.append(f"\n## 4. 你和对方的关系\n{relation_info}")
+        parts.append(f"\n{relation_info}")
 
     # 记忆
     if memory_block:
@@ -386,7 +386,11 @@ def build_system_prompt(
     # 获取自定义决策提示词
     custom_decision_block = build_custom_decision_module()
 
-    # 组装各模块
+    # 组装各模块（方案B：动作放在规则后面，作为能力描述）
+    # 逻辑链条：
+    # 1. 你是谁 + 规则 + 能力 → 人设定义
+    # 2. 当前情境 → 时间/状态/关系/记忆
+    # 3. 怎么回复 → 输出格式（放在最后，紧接对话内容）
     modules = [
         role_frame,
         "",
@@ -401,21 +405,34 @@ def build_system_prompt(
     if custom_decision_block:
         modules.extend([
             "",
-            "## 2.5. 决策指导",
+            "## 3. 决策指导",
             custom_decision_block,
         ])
-
-    modules.extend([
-        "",
-        "## 3. 现在的情况",
-        build_context_module(session, chat_stream, context_data),
-        "",
-        "## 4. 你能做的事",
-        build_actions_module(available_actions),
-        "",
-        "## 5. 怎么回复",
-        build_output_module(context_data),
-    ])
+        # 动作能力放在决策指导后面
+        modules.extend([
+            "",
+            "## 4. 你能做的事",
+            build_actions_module(available_actions),
+            "",
+            "## 5. 现在的情况",
+            build_context_module(session, chat_stream, context_data),
+            "",
+            "## 6. 怎么回复",
+            build_output_module(context_data),
+        ])
+    else:
+        # 没有自定义决策时，动作能力直接跟在规则后面
+        modules.extend([
+            "",
+            "## 3. 你能做的事",
+            build_actions_module(available_actions),
+            "",
+            "## 4. 现在的情况",
+            build_context_module(session, chat_stream, context_data),
+            "",
+            "## 5. 怎么回复",
+            build_output_module(context_data),
+        ])
 
     return "\n".join(modules)
 
