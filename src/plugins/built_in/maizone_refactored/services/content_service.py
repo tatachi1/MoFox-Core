@@ -496,7 +496,7 @@ class ContentService:
             bot_personality_core = config_api.get_global_config("personality.personality_core", "一个友好的机器人")
             bot_personality_side = config_api.get_global_config("personality.personality_side", "")
             bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
-            
+
             # 获取互动规则
             safety_guidelines = config_api.get_global_config("personality.safety_guidelines", [])
 
@@ -528,7 +528,7 @@ class ContentService:
             if bot_personality_side:
                 personality_block += f"\n你的人格侧面：{bot_personality_side}"
             personality_block += f"\n你的表达方式：{bot_reply_style}"
-            
+
             # 构建互动规则
             safety_block = ""
             if safety_guidelines:
@@ -646,7 +646,7 @@ class ContentService:
             bot_personality_core = config_api.get_global_config("personality.personality_core", "一个友好的机器人")
             bot_personality_side = config_api.get_global_config("personality.personality_side", "")
             bot_reply_style = config_api.get_global_config("personality.reply_style", "内容积极向上")
-            
+
             # 获取互动规则
             safety_guidelines = config_api.get_global_config("personality.safety_guidelines", [])
 
@@ -693,7 +693,7 @@ class ContentService:
             if bot_personality_side:
                 personality_block += f"\n你的人格侧面：{bot_personality_side}"
             personality_block += f"\n你的表达方式：{bot_reply_style}"
-            
+
             # 构建互动规则
             safety_block = ""
             if safety_guidelines:
@@ -771,7 +771,7 @@ class ContentService:
                 model_config=model_config,
                 request_type="maizone.qzone_reply",
                 temperature=0.4,
-                max_tokens=8000,  
+                max_tokens=8000,
             )
 
             if success:
@@ -784,12 +784,12 @@ class ContentService:
                     reply = reply[1:-1]
                 # 移除可能的"回复@xxx："格式
                 import re
-                reply = re.sub(r'^回复\s*@[^:：]+[：:]\s*', '', reply)
-                reply = re.sub(r'^@[^:：\s]+[：:]\s*', '', reply)
-                
+                reply = re.sub(r"^回复\s*@[^:：]+[：:]\s*", "", reply)
+                reply = re.sub(r"^@[^:：\s]+[：:]\s*", "", reply)
+
                 # 在回复内容前加上 @用户名（空间回复需要@对方）
                 reply_with_at = f"@{commenter_name} {reply}"
-                
+
                 logger.info(f"成功为'{commenter_name}'的评论生成回复（长度{len(reply_with_at)}）: '{reply_with_at}'")
                 return reply_with_at
             else:
