@@ -186,7 +186,7 @@ def _remove_obsolete_keys(target: TOMLDocument | dict | Table, reference: TOMLDo
             _remove_obsolete_keys(target[key], reference[key])  # type: ignore
 
 
-def _prune_unknown_keys_by_schema(target: TOMLDocument | Table, schema_model: type[BaseModel]):
+def _prune_unknown_keys_by_schema(target: TOMLDocument | Table, schema_model: type[BaseModel], path: list[str] | None = None):
     """
     基于 Pydantic Schema 递归移除未知配置键（含可重复的 AoT 表）。
 
@@ -195,6 +195,8 @@ def _prune_unknown_keys_by_schema(target: TOMLDocument | Table, schema_model: ty
     - 对于 list[BaseModel] 字段（TOML 的 [[...]]），会遍历每个元素并递归清理。
     - 对于 dict[str, Any] 等自由结构字段，不做键级裁剪。
     """
+    if path is None:
+        path = []
 
     def _strip_optional(annotation: Any) -> Any:
         origin = get_origin(annotation)
@@ -212,7 +214,7 @@ def _prune_unknown_keys_by_schema(target: TOMLDocument | Table, schema_model: ty
     def _is_model_type(annotation: Any) -> bool:
         return isinstance(annotation, type) and issubclass(annotation, BaseModel)
 
-    def _prune_table(table: TOMLDocument | Table, model: type[BaseModel]):
+    def _prune_table(table: TOMLDocument | Table, model: type[BaseModel], current_path: list[str]):
         name_by_key: dict[str, str] = {}
         allowed_keys: set[str] = set()
 
@@ -239,7 +241,7 @@ def _prune_unknown_keys_by_schema(target: TOMLDocument | Table, schema_model: ty
                 continue
 
             if _is_model_type(annotation) and isinstance(value, (TOMLDocument, Table)):
-                _prune_table(value, annotation)
+                _prune_table(value, annotation, current_path + [str(key)])
                 continue
 
             origin = get_origin(annotation)
@@ -251,9 +253,9 @@ def _prune_unknown_keys_by_schema(target: TOMLDocument | Table, schema_model: ty
                 if _is_model_type(elem_ann) and hasattr(value, "__iter__"):
                     for item in value:
                         if isinstance(item, (TOMLDocument, Table)):
-                            _prune_table(item, elem_ann)
+                            _prune_table(item, elem_ann, current_path + [str(key)])
 
-    _prune_table(target, schema_model)
+    _prune_table(target, schema_model, path)
 
 
 def _create_multiline_array(value: list) -> Any:
@@ -269,27 +271,52 @@ def _create_multiline_array(value: list) -> Any:
     return arr
 
 
-def _update_dict(target: TOMLDocument | dict | Table, source: TOMLDocument | dict):
+def _is_aot(value) -> bool:
+    """
+    检查一个值是否是 Array of Tables (AoT)
+    AoT 是 TOML 中的特殊数组格式，每个元素都是一个表（字典）
+    例如：[[expression.rules]]
+    """
+    if not isinstance(value, list):
+        return False
+    if len(value) == 0:
+        return False
+    # 检查是否所有元素都是字典/Table（AoT的特征）
+    return all(isinstance(item, (dict, Table)) for item in value)
+
+
+def _update_dict(target: TOMLDocument | dict | Table, source: TOMLDocument | dict, path: list[str] | None = None):
     """
     将source字典的值更新到target字典中
     对于已存在的键，使用source的值进行更新
     对于不存在的键，从source添加到target
+    
+    特别处理 Array of Tables (AoT)：保持其原始格式，避免破坏TOML结构
     """
+    if path is None:
+        path = []
+    
     for key, value in source.items():
         # 跳过version字段的更新
         if key == "version":
             continue
 
-        # 在合并 permission.master_users 时添加特别调试日志
-        if key == "permission" and isinstance(value, (dict, Table)) and "master_users" in value:
-            logger.info(f"【调试日志】在 _update_dict 中检测到 'permission' 表，其 'master_users' 的值为: {value['master_users']}")
-
+        current_path = [*path, str(key)]
+        path_str = ".".join(current_path)
 
         if key in target:
             # 键已存在，更新值
             target_value = target[key]
+            
+            # 检查是否为AoT（Array of Tables）
+            is_source_aot = _is_aot(value)
+            is_target_aot = _is_aot(target_value)
+            
             if isinstance(value, dict) and isinstance(target_value, dict | Table):
-                _update_dict(target_value, value)
+                _update_dict(target_value, value, current_path)
+            elif is_source_aot or is_target_aot:
+                # 这是AoT，直接使用source的值，不要用_create_multiline_array转换
+                target[key] = value
             else:
                 try:
                     # 对数组类型进行特殊处理，使用多行格式保持可读性
@@ -303,14 +330,19 @@ def _update_dict(target: TOMLDocument | dict | Table, source: TOMLDocument | dic
                     target[key] = value
         else:
             # 键不存在，从source添加新键到target
+            is_source_aot = _is_aot(value)
+            
             try:
                 if isinstance(value, dict):
                     # 对于字典类型，创建新的Table
                     new_table = tomlkit.table()
-                    _update_dict(new_table, value)
+                    _update_dict(new_table, value, current_path)
                     target[key] = new_table
+                elif is_source_aot:
+                    # 对于AoT，直接赋值，不要转换
+                    target[key] = value
                 elif isinstance(value, list):
-                    # 对于数组类型，使用多行格式保持可读性
+                    # 对于普通数组类型，使用多行格式保持可读性
                     target[key] = _create_multiline_array(value)
                 else:
                     # 其他类型使用item方法创建新值
