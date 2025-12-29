@@ -22,7 +22,7 @@ logger = get_logger("afc_reply_actions")
 
 class ReplyAction(BaseAction):
     """Reply动作 - 针对单条消息的深度回复
-    
+
     特点：
     - 使用 s4u (Speak for You) 模板
     - 专注于理解和回应单条消息的具体内容
@@ -38,7 +38,7 @@ class ReplyAction(BaseAction):
     activation_type = ActionActivationType.ALWAYS  # 回复动作总是可用
     mode_enable = ChatMode.ALL  # 在所有模式下都可用
     parallel_action = False  # 回复动作不能与其他动作并行
-    
+
     # Chatter 限制：仅允许 AffinityFlowChatter 使用
     chatter_allow: ClassVar[list[str]] = ["AffinityFlowChatter"]
 
@@ -67,17 +67,17 @@ class ReplyAction(BaseAction):
         try:
             # 确保 action_message 是 DatabaseMessages 类型，否则使用 None
             reply_message = self.action_message if isinstance(self.action_message, DatabaseMessages) else None
-            
+
             # 检查目标消息是否为表情包
             if reply_message and getattr(reply_message, "is_emoji", False):
                 if not getattr(global_config.chat, "allow_reply_to_emoji", True):
                     logger.info(f"{self.log_prefix} 目标消息为表情包且配置不允许回复，跳过")
                     return True, ""
-            
+
             # 准备 action_data
             action_data = self.action_data.copy()
             action_data["prompt_mode"] = "s4u"
-            
+
             # 生成回复
             success, response_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,
@@ -88,17 +88,16 @@ class ReplyAction(BaseAction):
                 request_type="chat.replyer",
                 from_plugin=False,
             )
-            
+
             if not success or not response_set:
                 logger.warning(f"{self.log_prefix} 回复生成失败")
                 return False, ""
-            
+
             # 发送回复
             reply_text = await self._send_response(response_set)
-            
-            logger.info(f"{self.log_prefix} reply 动作执行成功")
+
             return True, reply_text
-            
+
         except asyncio.CancelledError:
             logger.debug(f"{self.log_prefix} 回复任务被取消")
             return False, ""
@@ -107,28 +106,28 @@ class ReplyAction(BaseAction):
             import traceback
             traceback.print_exc()
             return False, ""
-    
+
     async def _send_response(self, response_set) -> str:
         """发送回复内容"""
         reply_text = ""
         should_quote = self.action_data.get("should_quote_reply", False)
         first_sent = False
-        
+
         # 确保 action_message 是 DatabaseMessages 类型
         reply_message = self.action_message if isinstance(self.action_message, DatabaseMessages) else None
-        
+
         for reply_seg in response_set:
             # 处理元组格式
             if isinstance(reply_seg, tuple) and len(reply_seg) >= 2:
                 _, data = reply_seg
             else:
                 data = str(reply_seg)
-            
+
             if isinstance(data, list):
                 data = "".join(map(str, data))
-            
+
             reply_text += data
-            
+
             # 发送消息
             if not first_sent:
                 await send_api.text_to_stream(
@@ -147,13 +146,13 @@ class ReplyAction(BaseAction):
                     set_reply=False,
                     typing=True,
                 )
-        
+
         return reply_text
 
 
 class RespondAction(BaseAction):
     """Respond动作 - 对未读消息的统一回应
-    
+
     特点：
     - 关注整体对话动态和未读消息的统一回应
     - 适合对于群聊消息下的宏观回应
@@ -169,7 +168,7 @@ class RespondAction(BaseAction):
     activation_type = ActionActivationType.ALWAYS  # 回应动作总是可用
     mode_enable = ChatMode.ALL  # 在所有模式下都可用
     parallel_action = False  # 回应动作不能与其他动作并行
-    
+
     # Chatter 限制：仅允许 AffinityFlowChatter 使用
     chatter_allow: ClassVar[list[str]] = ["AffinityFlowChatter"]
 
@@ -197,10 +196,10 @@ class RespondAction(BaseAction):
             # 准备 action_data
             action_data = self.action_data.copy()
             action_data["prompt_mode"] = "normal"
-            
+
             # 确保 action_message 是 DatabaseMessages 类型，否则使用 None
             reply_message = self.action_message if isinstance(self.action_message, DatabaseMessages) else None
-            
+
             # 生成回复
             success, response_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,
@@ -211,17 +210,16 @@ class RespondAction(BaseAction):
                 request_type="chat.replyer",
                 from_plugin=False,
             )
-            
+
             if not success or not response_set:
                 logger.warning(f"{self.log_prefix} 回复生成失败")
                 return False, ""
-            
+
             # 发送回复（respond 默认不引用）
             reply_text = await self._send_response(response_set)
-            
-            logger.info(f"{self.log_prefix} respond 动作执行成功")
+
             return True, reply_text
-            
+
         except asyncio.CancelledError:
             logger.debug(f"{self.log_prefix} 回复任务被取消")
             return False, ""
@@ -230,23 +228,23 @@ class RespondAction(BaseAction):
             import traceback
             traceback.print_exc()
             return False, ""
-    
+
     async def _send_response(self, response_set) -> str:
         """发送回复内容（不引用原消息）"""
         reply_text = ""
         first_sent = False
-        
+
         for reply_seg in response_set:
             if isinstance(reply_seg, tuple) and len(reply_seg) >= 2:
                 _, data = reply_seg
             else:
                 data = str(reply_seg)
-            
+
             if isinstance(data, list):
                 data = "".join(map(str, data))
-            
+
             reply_text += data
-            
+
             if not first_sent:
                 await send_api.text_to_stream(
                     text=data,
@@ -264,5 +262,5 @@ class RespondAction(BaseAction):
                     set_reply=False,
                     typing=True,
                 )
-        
+
         return reply_text

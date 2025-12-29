@@ -2,15 +2,13 @@
 """数据库迁移脚本
 
 支持在不同数据库之间迁移数据：
-- SQLite <-> MySQL
 - SQLite <-> PostgreSQL
-- MySQL <-> PostgreSQL
 
 使用方法:
     python scripts/migrate_database.py --help
     python scripts/migrate_database.py --source sqlite --target postgresql
-    python scripts/migrate_database.py --source mysql --target postgresql --batch-size 5000
-    
+    python scripts/migrate_database.py --source postgresql --target sqlite --batch-size 5000
+
     # 交互式向导模式（推荐）
     python scripts/migrate_database.py
 
@@ -18,14 +16,14 @@
 1. 迁移前请备份源数据库
 2. 目标数据库应该是空的或不存在的（脚本会自动创建表）
 3. 迁移过程可能需要较长时间，请耐心等待
-4. 迁移到 PostgreSQL 时，脚本会自动：
+4. 迁移到 PostgreSQL 时，脚本会自动：1
    - 修复布尔列类型（SQLite INTEGER -> PostgreSQL BOOLEAN）
    - 重置序列值（避免主键冲突）
 
 实现细节:
 - 使用 SQLAlchemy 进行数据库连接和元数据管理
 - 采用流式迁移，避免一次性加载过多数据
-- 支持 SQLite、MySQL、PostgreSQL 之间的互相迁移
+- 支持 SQLite、PostgreSQL 之间的互相迁移
 - 批量插入失败时自动降级为逐行插入，最大程度保留数据
 """
 
@@ -57,19 +55,21 @@ try:
 except ImportError:
     tomllib = None
 
-from typing import Any, Iterable, Callable
-
+from collections.abc import Iterable
 from datetime import datetime as dt
+from typing import Any
 
 from sqlalchemy import (
-    create_engine,
     MetaData,
     Table,
+    create_engine,
     inspect,
     text,
+)
+from sqlalchemy import (
     types as sqltypes,
 )
-from sqlalchemy.engine import Engine, Connection
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 # ====== 为了在 Windows 上更友好的输出中文，提前设置环境 ======
@@ -124,7 +124,7 @@ def get_database_config_from_toml(db_type: str) -> dict | None:
     """从 bot_config.toml 中读取数据库配置
 
     Args:
-        db_type: 数据库类型，支持 "sqlite"、"mysql"、"postgresql"
+        db_type: 数据库类型，支持 "sqlite"、"postgresql"
 
     Returns:
         dict: 数据库配置字典，如果对应配置不存在则返回 None
@@ -147,28 +147,6 @@ def get_database_config_from_toml(db_type: str) -> dict | None:
         if not os.path.isabs(sqlite_path):
             sqlite_path = os.path.join(PROJECT_ROOT, sqlite_path)
         return {"path": sqlite_path}
-
-    elif db_type == "mysql":
-        return {
-            "host": db_config.get("mysql_host")
-            or config_data.get("mysql_host")
-            or "localhost",
-            "port": db_config.get("mysql_port")
-            or config_data.get("mysql_port")
-            or 3306,
-            "database": db_config.get("mysql_database")
-            or config_data.get("mysql_database")
-            or "maibot",
-            "user": db_config.get("mysql_user")
-            or config_data.get("mysql_user")
-            or "root",
-            "password": db_config.get("mysql_password")
-            or config_data.get("mysql_password")
-            or "",
-            "charset": db_config.get("mysql_charset")
-            or config_data.get("mysql_charset")
-            or "utf8mb4",
-        }
 
     elif db_type == "postgresql":
         return {
@@ -257,7 +235,7 @@ def create_engine_by_type(db_type: str, config: dict) -> Engine:
     """根据数据库类型创建对应的 SQLAlchemy Engine
 
     Args:
-        db_type: 数据库类型，支持 sqlite/mysql/postgresql
+        db_type: 数据库类型，支持 sqlite/postgresql
         config: 配置字典
 
     Returns:
@@ -266,15 +244,6 @@ def create_engine_by_type(db_type: str, config: dict) -> Engine:
     db_type = db_type.lower()
     if db_type == "sqlite":
         return create_sqlite_engine(config["path"])
-    elif db_type == "mysql":
-        return create_mysql_engine(
-            host=config["host"],
-            port=config["port"],
-            database=config["database"],
-            user=config["user"],
-            password=config["password"],
-            charset=config.get("charset", "utf8mb4"),
-        )
     elif db_type == "postgresql":
         return create_postgresql_engine(
             host=config["host"],
@@ -353,7 +322,7 @@ def convert_value_for_target(
     """
     # 获取目标类型的类名
     target_type_name = target_col_type.__class__.__name__.upper()
-    source_type_name = source_col_type.__class__.__name__.upper()
+    source_col_type.__class__.__name__.upper()
 
     # 处理 None 值
     if val is None:
@@ -512,7 +481,7 @@ def migrate_table_data(
         source_table: 源表对象
         target_table: 目标表对象
         batch_size: 每批次处理大小
-        target_dialect: 目标数据库方言 (sqlite/mysql/postgresql)
+        target_dialect: 目标数据库方言 (sqlite/postgresql)
         row_limit: 最大迁移行数限制，None 表示不限制
 
     Returns:
@@ -533,7 +502,7 @@ def migrate_table_data(
     target_cols_by_name = {c.key: c for c in target_table.columns}
 
     # 识别主键列（通常是 id），迁移时保留原始 ID 以避免重复数据
-    primary_key_cols = {c.key for c in source_table.primary_key.columns}
+    {c.key for c in source_table.primary_key.columns}
 
     # 使用流式查询，避免一次性加载太多数据
     # 使用 text() 原始 SQL 查询，避免 SQLAlchemy 自动类型转换（如 DateTime）导致的错误
@@ -738,7 +707,7 @@ class DatabaseMigrator:
 
     def _validate_database_types(self):
         """验证数据库类型"""
-        supported_types = {"sqlite", "mysql", "postgresql"}
+        supported_types = {"sqlite", "postgresql"}
         if self.source_type not in supported_types:
             raise ValueError(f"不支持的源数据库类型: {self.source_type}")
         if self.target_type not in supported_types:
@@ -809,7 +778,7 @@ class DatabaseMigrator:
         for table_name in self.metadata.tables:
             dependencies[table_name] = set()
 
-        for table_name, table in self.metadata.tables.items():
+        for table_name in self.metadata.tables.keys():
             fks = inspector.get_foreign_keys(table_name)
             for fk in fks:
                 # 被引用的表
@@ -952,7 +921,7 @@ class DatabaseMigrator:
                     self.stats["errors"].append(f"表 {source_table.name} 迁移失败: {e}")
 
         self.stats["end_time"] = time.time()
-        
+
         # 迁移完成后，自动修复 PostgreSQL 特有问题
         if self.target_type == "postgresql" and self.target_engine:
             fix_postgresql_boolean_columns(self.target_engine)
@@ -960,7 +929,6 @@ class DatabaseMigrator:
 
     def print_summary(self):
         """打印迁移总结"""
-        import time
 
         duration = None
         if self.stats["start_time"] is not None and self.stats["end_time"] is not None:
@@ -995,7 +963,7 @@ class DatabaseMigrator:
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description="数据库迁移工具 - 在 SQLite、MySQL、PostgreSQL 之间迁移数据",
+        description="数据库迁移工具 - 在 SQLite、PostgreSQL 之间迁移数据",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""示例:
   # 从 SQLite 迁移到 PostgreSQL
@@ -1008,15 +976,16 @@ def parse_args():
     --target-user postgres \
     --target-password your_password
 
-  # 从 SQLite 迁移到 MySQL
+  # 从 PostgreSQL 迁移到 SQLite
   python scripts/migrate_database.py \
-    --source sqlite \
-    --target mysql \
-    --target-host localhost \
-    --target-port 3306 \
-    --target-database maibot \
-    --target-user root \
-    --target-password your_password
+    --source postgresql \
+    --source-host localhost \
+    --source-port 5432 \
+    --source-database maibot \
+    --source-user postgres \
+    --source-password your_password \
+    --target sqlite \
+    --target-path data/MaiBot_backup.db
 
   # 使用交互式向导模式（推荐）
   python scripts/migrate_database.py
@@ -1028,13 +997,13 @@ def parse_args():
     parser.add_argument(
         "--source",
         type=str,
-        choices=["sqlite", "mysql", "postgresql"],
+        choices=["sqlite", "postgresql"],
         help="源数据库类型（不指定时，在交互模式中选择）",
     )
     parser.add_argument(
         "--target",
         type=str,
-        choices=["sqlite", "mysql", "postgresql"],
+        choices=["sqlite", "postgresql"],
         help="目标数据库类型（不指定时，在交互模式中选择）",
     )
     parser.add_argument(
@@ -1053,8 +1022,8 @@ def parse_args():
     # 源数据库参数（可选，默认从 bot_config.toml 读取）
     source_group = parser.add_argument_group("源数据库配置（可选，默认从 bot_config.toml 读取）")
     source_group.add_argument("--source-path", type=str, help="SQLite 数据库路径")
-    source_group.add_argument("--source-host", type=str, help="MySQL/PostgreSQL 主机")
-    source_group.add_argument("--source-port", type=int, help="MySQL/PostgreSQL 端口")
+    source_group.add_argument("--source-host", type=str, help="PostgreSQL 主机")
+    source_group.add_argument("--source-port", type=int, help="PostgreSQL 端口")
     source_group.add_argument("--source-database", type=str, help="数据库名")
     source_group.add_argument("--source-user", type=str, help="用户名")
     source_group.add_argument("--source-password", type=str, help="密码")
@@ -1062,13 +1031,12 @@ def parse_args():
     # 目标数据库参数
     target_group = parser.add_argument_group("目标数据库配置")
     target_group.add_argument("--target-path", type=str, help="SQLite 数据库路径")
-    target_group.add_argument("--target-host", type=str, help="MySQL/PostgreSQL 主机")
-    target_group.add_argument("--target-port", type=int, help="MySQL/PostgreSQL 端口")
+    target_group.add_argument("--target-host", type=str, help="PostgreSQL 主机")
+    target_group.add_argument("--target-port", type=int, help="PostgreSQL 端口")
     target_group.add_argument("--target-database", type=str, help="数据库名")
     target_group.add_argument("--target-user", type=str, help="用户名")
     target_group.add_argument("--target-password", type=str, help="密码")
     target_group.add_argument("--target-schema", type=str, default="public", help="PostgreSQL schema")
-    target_group.add_argument("--target-charset", type=str, default="utf8mb4", help="MySQL 字符集")
 
     # 跳过表参数
     parser.add_argument(
@@ -1113,23 +1081,19 @@ def build_config_from_args(args, prefix: str, db_type: str) -> dict | None:
             return {"path": path}
         return None
 
-    elif db_type in ("mysql", "postgresql"):
+    elif db_type == "postgresql":
         host = getattr(args, f"{prefix}_host", None)
         if not host:
             return None
 
         config = {
             "host": host,
-            "port": getattr(args, f"{prefix}_port") or (3306 if db_type == "mysql" else 5432),
+            "port": getattr(args, f"{prefix}_port") or 5432,
             "database": getattr(args, f"{prefix}_database") or "maibot",
-            "user": getattr(args, f"{prefix}_user") or ("root" if db_type == "mysql" else "postgres"),
+            "user": getattr(args, f"{prefix}_user") or "postgres",
             "password": getattr(args, f"{prefix}_password") or "",
+            "schema": getattr(args, f"{prefix}_schema", "public"),
         }
-
-        if db_type == "mysql":
-            config["charset"] = getattr(args, f"{prefix}_charset", "utf8mb4")
-        elif db_type == "postgresql":
-            config["schema"] = getattr(args, f"{prefix}_schema", "public")
 
         return config
 
@@ -1201,14 +1165,14 @@ def interactive_setup() -> dict:
     print("只需回答几个问题，我会帮你构造迁移配置。")
     print("=" * 60)
 
-    db_types = ["sqlite", "mysql", "postgresql"]
+    db_types = ["sqlite", "postgresql"]
 
     # 选择源数据库
     source_type = _ask_choice("请选择【源数据库类型】:", db_types, default_index=0)
 
     # 选择目标数据库（不能与源相同）
     while True:
-        default_idx = 2 if len(db_types) >= 3 else 0
+        default_idx = 1 if len(db_types) >= 2 else 0
         target_type = _ask_choice("请选择【目标数据库类型】:", db_types, default_index=default_idx)
         if target_type != source_type:
             break
@@ -1231,8 +1195,8 @@ def interactive_setup() -> dict:
             source_path = _ask_str("源 SQLite 文件路径", default="data/MaiBot.db")
             source_config = {"path": source_path}
         else:
-            port_default = 3306 if source_type == "mysql" else 5432
-            user_default = "root" if source_type == "mysql" else "postgres"
+            port_default = 5432
+            user_default = "postgres"
             host = _ask_str("源数据库 host", default="localhost")
             port = _ask_int("源数据库 port", default=port_default)
             database = _ask_str("源数据库名", default="maibot")
@@ -1245,9 +1209,7 @@ def interactive_setup() -> dict:
                 "user": user,
                 "password": password,
             }
-            if source_type == "mysql":
-                source_config["charset"] = _ask_str("源数据库字符集", default="utf8mb4")
-            elif source_type == "postgresql":
+            if source_type == "postgresql":
                 source_config["schema"] = _ask_str("源数据库 schema", default="public")
 
     # 目标数据库配置（必须显式确认）
@@ -1260,8 +1222,8 @@ def interactive_setup() -> dict:
         )
         target_config = {"path": target_path}
     else:
-        port_default = 3306 if target_type == "mysql" else 5432
-        user_default = "root" if target_type == "mysql" else "postgres"
+        port_default = 5432
+        user_default = "postgres"
         host = _ask_str("目标数据库 host", default="localhost")
         port = _ask_int("目标数据库 port", default=port_default)
         database = _ask_str("目标数据库名", default="maibot")
@@ -1275,9 +1237,7 @@ def interactive_setup() -> dict:
             "user": user,
             "password": password,
         }
-        if target_type == "mysql":
-            target_config["charset"] = _ask_str("目标数据库字符集", default="utf8mb4")
-        elif target_type == "postgresql":
+        if target_type == "postgresql":
             target_config["schema"] = _ask_str("目标数据库 schema", default="public")
 
     print()
@@ -1303,104 +1263,104 @@ def interactive_setup() -> dict:
 
 def fix_postgresql_sequences(engine: Engine):
     """修复 PostgreSQL 序列值
-    
+
     迁移数据后，PostgreSQL 的序列（用于自增主键）可能没有更新到正确的值，
     导致插入新记录时出现主键冲突。此函数会自动检测并重置所有序列。
-    
+
     Args:
         engine: PostgreSQL 数据库引擎
     """
     if engine.dialect.name != "postgresql":
         logger.info("非 PostgreSQL 数据库，跳过序列修复")
         return
-    
+
     logger.info("正在修复 PostgreSQL 序列...")
-    
+
     with engine.connect() as conn:
         # 获取所有带有序列的表
-        result = conn.execute(text('''
-            SELECT 
+        result = conn.execute(text("""
+            SELECT
                 t.table_name,
                 c.column_name,
                 pg_get_serial_sequence(t.table_name, c.column_name) as sequence_name
             FROM information_schema.tables t
-            JOIN information_schema.columns c 
+            JOIN information_schema.columns c
                 ON t.table_name = c.table_name AND t.table_schema = c.table_schema
-            WHERE t.table_schema = 'public' 
+            WHERE t.table_schema = 'public'
             AND t.table_type = 'BASE TABLE'
             AND c.column_default LIKE 'nextval%'
             ORDER BY t.table_name
-        '''))
-        
+        """))
+
         sequences = result.fetchall()
         logger.info("发现 %d 个带序列的表", len(sequences))
-        
+
         fixed_count = 0
         for table_name, column_name, seq_name in sequences:
             if seq_name:
                 try:
                     # 获取当前表中该列的最大值
-                    max_result = conn.execute(text(f'SELECT COALESCE(MAX({column_name}), 0) FROM {table_name}'))
+                    max_result = conn.execute(text(f"SELECT COALESCE(MAX({column_name}), 0) FROM {table_name}"))
                     max_val = max_result.scalar()
-                    
+
                     # 设置序列的下一个值
                     next_val = max_val + 1
                     conn.execute(text(f"SELECT setval('{seq_name}', {next_val}, false)"))
                     conn.commit()
-                    
+
                     logger.info("  ✅ %s.%s: 最大值=%d, 序列设为=%d", table_name, column_name, max_val, next_val)
                     fixed_count += 1
                 except Exception as e:
                     logger.warning("  ❌ %s.%s: 修复失败 - %s", table_name, column_name, e)
-        
+
         logger.info("序列修复完成！共修复 %d 个序列", fixed_count)
 
 
 def fix_postgresql_boolean_columns(engine: Engine):
     """修复 PostgreSQL 布尔列类型
-    
+
     从 SQLite 迁移后，布尔列可能是 INTEGER 类型。此函数将其转换为 BOOLEAN。
-    
+
     Args:
         engine: PostgreSQL 数据库引擎
     """
     if engine.dialect.name != "postgresql":
         logger.info("非 PostgreSQL 数据库，跳过布尔列修复")
         return
-    
+
     # 已知需要转换为 BOOLEAN 的列
     BOOLEAN_COLUMNS = {
-        'messages': ['is_mentioned', 'is_emoji', 'is_picid', 'is_command', 
-                     'is_notify', 'is_public_notice', 'should_reply', 'should_act'],
-        'action_records': ['action_done', 'action_build_into_prompt'],
+        "messages": ["is_mentioned", "is_emoji", "is_picid", "is_command",
+                     "is_notify", "is_public_notice", "should_reply", "should_act"],
+        "action_records": ["action_done", "action_build_into_prompt"],
     }
-    
+
     logger.info("正在检查并修复 PostgreSQL 布尔列...")
-    
+
     with engine.connect() as conn:
         fixed_count = 0
         for table_name, columns in BOOLEAN_COLUMNS.items():
             for col_name in columns:
                 try:
                     # 检查当前类型
-                    result = conn.execute(text(f'''
-                        SELECT data_type FROM information_schema.columns 
+                    result = conn.execute(text(f"""
+                        SELECT data_type FROM information_schema.columns
                         WHERE table_name = '{table_name}' AND column_name = '{col_name}'
-                    '''))
+                    """))
                     row = result.fetchone()
-                    if row and row[0] != 'boolean':
+                    if row and row[0] != "boolean":
                         # 需要修复
-                        conn.execute(text(f'''
-                            ALTER TABLE {table_name} 
-                            ALTER COLUMN {col_name} TYPE BOOLEAN 
+                        conn.execute(text(f"""
+                            ALTER TABLE {table_name}
+                            ALTER COLUMN {col_name} TYPE BOOLEAN
                             USING CASE WHEN {col_name} = 0 THEN FALSE ELSE TRUE END
-                        '''))
+                        """))
                         conn.commit()
                         logger.info("  ✅ %s.%s: %s -> BOOLEAN", table_name, col_name, row[0])
                         fixed_count += 1
                 except Exception as e:
                     logger.warning("  ⚠️ %s.%s: 检查/修复失败 - %s", table_name, col_name, e)
-        
+
         if fixed_count > 0:
             logger.info("布尔列修复完成！共修复 %d 列", fixed_count)
         else:

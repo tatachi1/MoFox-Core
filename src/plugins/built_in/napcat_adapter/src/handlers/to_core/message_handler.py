@@ -2,25 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
-import uuid
+from typing import TYPE_CHECKING, Any
 
-from mofox_wire import MessageBuilder
+import orjson
+from mofox_wire import MessageBuilder, SegPayload
+
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api
-from mofox_wire import (
-    MessageEnvelope,
-    SegPayload,
-    MessageInfoPayload,
-    UserInfoPayload,
-    GroupInfoPayload,
-)
 
 from ...event_models import ACCEPT_FORMAT, QQ_FACE, RealMessageType
-from ..utils import *
+from ..utils import (
+    get_forward_message,
+    get_group_info,
+    get_image_base64,
+    get_member_info,
+    get_message_detail,
+    get_record_detail,
+    get_self_info,
+)
 
 if TYPE_CHECKING:
     from ....plugin import NapcatAdapter
@@ -33,86 +36,24 @@ class MessageHandler:
 
     def __init__(self, adapter: "NapcatAdapter"):
         self.adapter = adapter
-        self.plugin_config: Optional[Dict[str, Any]] = None
+        self.plugin_config: dict[str, Any] | None = None
+        self._video_downloader = None
 
-    def set_plugin_config(self, config: Dict[str, Any]) -> None:
-        """设置插件配置"""
+    def set_plugin_config(self, config: dict[str, Any]) -> None:
+        """设置插件配置，并根据配置初始化视频下载器"""
         self.plugin_config = config
 
-    def _should_process_message(self, raw: Dict[str, Any]) -> bool:
-        """
-        检查消息是否应该被处理（黑白名单过滤）
+        # 如果启用了视频处理，根据配置初始化视频下载器
+        if config_api.get_plugin_config(config, "features.enable_video_processing", True):
+            from ..video_handler import VideoDownloader
 
-        Args:
-            raw: OneBot 原始消息数据
+            max_size = config_api.get_plugin_config(config, "features.video_max_size_mb", 100)
+            timeout = config_api.get_plugin_config(config, "features.video_download_timeout", 60)
 
-        Returns:
-            bool: True表示应该处理，False表示应该过滤
-        """
-        if not self.plugin_config:
-            return True  # 如果没有配置，默认处理所有消息
+            self._video_downloader = VideoDownloader(max_size_mb=max_size, download_timeout=timeout)
+            logger.debug(f"视频下载器已初始化: max_size={max_size}MB, timeout={timeout}s")
 
-        features_config = self.plugin_config.get("features", {})
-
-        # 获取消息基本信息
-        message_type = raw.get("message_type")
-        sender_info = raw.get("sender", {})
-        user_id = str(sender_info.get("user_id", ""))
-
-        # 检查全局封禁用户列表
-        ban_user_ids = [str(item) for item in features_config.get("ban_user_id", [])]
-        if user_id in ban_user_ids:
-            logger.debug(f"用户 {user_id} 在全局封禁列表中，消息被过滤")
-            return False
-
-        # 检查是否屏蔽其他QQ机器人
-        if features_config.get("ban_qq_bot", False):
-            # 判断是否为机器人消息：通常通过sender中的role字段或其他标识
-            role = sender_info.get("role", "")
-            if role == "admin" or "bot" in str(sender_info).lower():
-                logger.debug(f"检测到机器人消息 {user_id}，消息被过滤")
-                return False
-
-        # 群聊消息处理
-        if message_type == "group":
-            group_id = str(raw.get("group_id", ""))
-
-            # 获取群聊配置
-            group_list_type = features_config.get("group_list_type", "blacklist")
-            group_list = [str(item) for item in features_config.get("group_list", [])]
-
-            if group_list_type == "blacklist":
-                # 黑名单模式：如果在黑名单中就过滤
-                if group_id in group_list:
-                    logger.debug(f"群聊 {group_id} 在黑名单中，消息被过滤")
-                    return False
-            else:  # whitelist
-                # 白名单模式：如果不在白名单中就过滤
-                if group_id not in group_list:
-                    logger.debug(f"群聊 {group_id} 不在白名单中，消息被过滤")
-                    return False
-
-        # 私聊消息处理
-        elif message_type == "private":
-            # 获取私聊配置
-            private_list_type = features_config.get("private_list_type", "blacklist")
-            private_list = [str(item) for item in features_config.get("private_list", [])]
-
-            if private_list_type == "blacklist":
-                # 黑名单模式：如果在黑名单中就过滤
-                if user_id in private_list:
-                    logger.debug(f"私聊用户 {user_id} 在黑名单中，消息被过滤")
-                    return False
-            else:  # whitelist
-                # 白名单模式：如果不在白名单中就过滤
-                if user_id not in private_list:
-                    logger.debug(f"私聊用户 {user_id} 不在白名单中，消息被过滤")
-                    return False
-
-        # 通过所有过滤条件
-        return True
-
-    async def handle_raw_message(self, raw: Dict[str, Any]):
+    async def handle_raw_message(self, raw: dict[str, Any]):
         """
         处理原始消息并转换为 MessageEnvelope
 
@@ -120,17 +61,16 @@ class MessageHandler:
             raw: OneBot 原始消息数据
 
         Returns:
-            MessageEnvelope (dict) or None (if message is filtered)
+            MessageEnvelope (dict) or None
+
+        Note:
+            黑白名单过滤已移动到 NapcatAdapter.from_platform_message 顶层执行，
+            确保所有类型的事件（消息、通知等）都能被统一过滤。
         """
 
         message_type = raw.get("message_type")
         message_id = str(raw.get("message_id", ""))
         message_time = time.time()
-
-        # 黑白名单过滤
-        if not self._should_process_message(raw):
-            logger.debug(f"消息被黑白名单过滤丢弃: message_id={message_id}")
-            return None
 
         msg_builder = MessageBuilder()
 
@@ -169,12 +109,17 @@ class MessageHandler:
 
         # 解析消息段
         message_segments = raw.get("message", [])
-        seg_list: List[SegPayload] = []
+        seg_list: list[SegPayload] = []
 
         for segment in message_segments:
             seg_message = await self.handle_single_segment(segment, raw)
             if seg_message:
                 seg_list.append(seg_message)
+
+        # 防御性检查：确保至少有一个消息段，避免消息为空导致构建失败
+        if not seg_list:
+            logger.warning("消息内容为空，添加占位符文本")
+            seg_list.append({"type": "text", "data": "[消息内容为空]"})
 
         msg_builder.format_info(
             content_format=[seg["type"] for seg in seg_list],
@@ -232,7 +177,7 @@ class MessageHandler:
                 return await self._handle_json_message(segment)
             case RealMessageType.file:
                 return await self._handle_file_message(segment)
-    
+
             case _:
                 logger.warning(f"Unsupported segment type: {seg_type}")
                 return None
@@ -263,7 +208,7 @@ class MessageHandler:
         try:
             image_base64 = await get_image_base64(message_data.get("url", ""))
         except Exception as e:
-            logger.error(f"图片消息处理失败: {str(e)}")
+            logger.error(f"图片消息处理失败: {e!s}")
             return None
         if image_sub_type == 0:
             return {"type": "image", "data": image_base64}
@@ -315,7 +260,7 @@ class MessageHandler:
             return {"type": "text", "data": "[无法获取被引用的消息]"}
 
         # 递归处理被引用的消息
-        reply_segments: List[SegPayload] = []
+        reply_segments: list[SegPayload] = []
         for reply_seg in message_detail.get("message", []):
             if isinstance(reply_seg, dict):
                 reply_result = await self.handle_single_segment(reply_seg, raw_message, in_reply=True)
@@ -354,7 +299,7 @@ class MessageHandler:
                 return None
             audio_base64 = record_detail.get("base64", "")
         except Exception as e:
-            logger.error(f"语音消息处理失败: {str(e)}")
+            logger.error(f"语音消息处理失败: {e!s}")
             return None
 
         if not audio_base64:
@@ -373,13 +318,12 @@ class MessageHandler:
         video_source = file_path if file_path else video_url
         if not video_source:
             logger.warning("视频消息缺少URL或文件路径信息")
-            return None
+            return {"type": "text", "data": "[视频消息]"}
 
         try:
             if file_path and Path(file_path).exists():
                 # 本地文件处理
-                with open(file_path, "rb") as f:
-                    video_data = f.read()
+                video_data = await asyncio.to_thread(Path(file_path).read_bytes)
                 video_base64 = base64.b64encode(video_data).decode("utf-8")
                 logger.debug(f"视频文件大小: {len(video_data) / (1024 * 1024):.2f} MB")
 
@@ -392,14 +336,17 @@ class MessageHandler:
                     },
                 }
             elif video_url:
-                # URL下载处理
-                from ..video_handler import get_video_downloader
-                video_downloader = get_video_downloader()
-                download_result = await video_downloader.download_video(video_url)
+                # URL下载处理 - 使用配置中的下载器实例
+                downloader = self._video_downloader
+                if not downloader:
+                    from ..video_handler import get_video_downloader
+                    downloader = get_video_downloader()
+
+                download_result = await downloader.download_video(video_url)
 
                 if not download_result["success"]:
                     logger.warning(f"视频下载失败: {download_result.get('error', '未知错误')}")
-                    return None
+                    return {"type": "text", "data": f"[视频消息] ({download_result.get('error', '下载失败')})"}
 
                 video_base64 = base64.b64encode(download_result["data"]).decode("utf-8")
                 logger.debug(f"视频下载成功，大小: {len(download_result['data']) / (1024 * 1024):.2f} MB")
@@ -415,11 +362,11 @@ class MessageHandler:
                 }
             else:
                 logger.warning("既没有有效的本地文件路径，也没有有效的视频URL")
-                return None
+                return {"type": "text", "data": "[视频消息]"}
 
         except Exception as e:
-            logger.error(f"视频消息处理失败: {str(e)}")
-            return None
+            logger.error(f"视频消息处理失败: {e!s}")
+            return {"type": "text", "data": "[视频消息处理出错]"}
 
     async def _handle_rps_message(self, segment: dict) -> SegPayload:
         """处理猜拳消息"""
@@ -474,7 +421,7 @@ class MessageHandler:
                 try:
                     encoded_image = await get_image_base64(image_url)
                 except Exception as e:
-                    logger.error(f"图片处理失败: {str(e)}")
+                    logger.error(f"图片处理失败: {e!s}")
                     return {"type": "text", "data": "[图片]"}
                 return {"type": "image", "data": encoded_image}
             if seg_data.get("type") == "emoji":
@@ -482,7 +429,7 @@ class MessageHandler:
                 try:
                     encoded_image = await get_image_base64(image_url)
                 except Exception as e:
-                    logger.error(f"图片处理失败: {str(e)}")
+                    logger.error(f"图片处理失败: {e!s}")
                     return {"type": "text", "data": "[表情包]"}
                 return {"type": "emoji", "data": encoded_image}
             logger.debug(f"不处理类型: {seg_data.get('type')}")
@@ -495,7 +442,7 @@ class MessageHandler:
         logger.debug(f"不处理类型: {seg_data.get('type')}")
         return seg_data
 
-    async def _handle_forward_message(self, message_list: list, layer: int) -> Tuple[SegPayload | None, int]:
+    async def _handle_forward_message(self, message_list: list, layer: int) -> tuple[SegPayload | None, int]:
         # sourcery skip: low-code-quality
         """
         递归处理实际转发消息
@@ -506,7 +453,7 @@ class MessageHandler:
             seg_data: Seg: 处理后的消息段
             image_count: int: 图片数量
         """
-        seg_list: List[SegPayload] = []
+        seg_list: list[SegPayload] = []
         image_count = 0
         if message_list is None:
             return None, 0
@@ -515,7 +462,7 @@ class MessageHandler:
             user_nickname: str = sender_info.get("nickname", "QQ用户")
             user_nickname_str = f"【{user_nickname}】:"
             break_seg: SegPayload = {"type": "text", "data": "\n"}
-            message_of_sub_message_list: List[Dict[str, Any]] = sub_message.get("message")
+            message_of_sub_message_list: list[dict[str, Any]] = sub_message.get("message")
             if not message_of_sub_message_list:
                 logger.warning("转发消息内容为空")
                 continue
@@ -549,7 +496,7 @@ class MessageHandler:
                 text_message = sub_message_data.get("text")
                 seg_data: SegPayload = {"type": "text", "data": text_message}
                 nickname_prefix = ("--" * layer) + user_nickname_str if layer > 0 else user_nickname_str
-                data_list: List[SegPayload] = [
+                data_list: list[SegPayload] = [
                     {"type": "text", "data": nickname_prefix},
                     seg_data,
                     break_seg,
@@ -681,7 +628,7 @@ class MessageHandler:
                         "data": f"这是一条小程序分享消息，可以根据来源，考虑使用对应解析工具\n{formatted_content}",
                     }
 
-                    
+
 
             # 检查是否是音乐分享 (QQ音乐类型)
             if nested_data.get("view") == "music" and "com.tencent.music" in str(nested_data.get("app", "")):
@@ -751,7 +698,7 @@ class MessageHandler:
         except Exception as e:
             logger.error(f"处理JSON消息时发生未知错误: {e}")
             return None
-        
+
     def _is_file_upload_echo(self, nested_data: Any) -> bool:
         """检查一个JSON对象是否是机器人自己上传文件的回声消息"""
         if not isinstance(nested_data, dict):
@@ -773,26 +720,26 @@ class MessageHandler:
 
         return False
 
-    def _extract_file_info_from_echo(self, nested_data: dict) -> Optional[dict]:
+    def _extract_file_info_from_echo(self, nested_data: dict) -> dict | None:
         """从文件上传的回声消息中提取文件信息"""
         try:
             meta = nested_data.get("meta", {})
             detail_1 = meta.get("detail_1", {})
-            
+
             # 文件名在 'desc' 字段
             file_name = detail_1.get("desc")
-            
+
             # 文件大小在 'summary' 字段，格式为 "大小：1.7MB"
             summary = detail_1.get("summary", "")
             file_size_str = summary.replace("大小：", "").strip() # 移除前缀和空格
-            
+
             # QQ API有时返回的大小不标准，这里我们只提取它给的字符串
             # 实际大小已经由Napcat在发送时记录，这里主要是为了保持格式一致
-            
+
             if file_name and file_size_str:
                 return {"file": file_name, "file_size": file_size_str, "file_id": None} # file_id在回声中不可用
         except Exception as e:
             logger.error(f"从文件回声中提取信息失败: {e}")
-            
+
         return None
-      
+

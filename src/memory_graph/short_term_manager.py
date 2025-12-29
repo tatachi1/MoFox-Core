@@ -8,13 +8,12 @@
 """
 
 import asyncio
-import json
 import re
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import json_repair
 import numpy as np
 
 from src.common.logger import get_logger
@@ -25,7 +24,6 @@ from src.memory_graph.models import (
     ShortTermOperation,
 )
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity_async, batch_cosine_similarity_async
 
 logger = get_logger(__name__)
 
@@ -43,6 +41,9 @@ class ShortTermMemoryManager:
         max_memories: int = 30,
         transfer_importance_threshold: float = 0.6,
         llm_temperature: float = 0.2,
+        enable_force_cleanup: bool = False,
+        cleanup_keep_ratio: float = 0.9,
+        overflow_strategy: str = "transfer_all",
     ):
         """
         初始化短期记忆层管理器
@@ -52,6 +53,11 @@ class ShortTermMemoryManager:
             max_memories: 最大短期记忆数量
             transfer_importance_threshold: 转移到长期记忆的重要性阈值
             llm_temperature: LLM 决策的温度参数
+            enable_force_cleanup: 是否启用泄压功能
+            cleanup_keep_ratio: 泄压时保留容量的比例（默认0.9表示保留90%）
+            overflow_strategy: 短期记忆溢出策略
+                - "transfer_all": 一次性转移所有记忆到长期记忆，并删除不重要的短期记忆（默认）
+                - "selective_cleanup": 选择性清理，仅转移重要记忆，直接删除低重要性记忆
         """
         self.data_dir = data_dir or Path("data/memory_graph")
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -60,10 +66,19 @@ class ShortTermMemoryManager:
         self.max_memories = max_memories
         self.transfer_importance_threshold = transfer_importance_threshold
         self.llm_temperature = llm_temperature
+        self.enable_force_cleanup = enable_force_cleanup
+        self.cleanup_keep_ratio = cleanup_keep_ratio
+        self.overflow_strategy = overflow_strategy  # 新增：溢出策略
 
         # 核心数据
         self.memories: list[ShortTermMemory] = []
         self.embedding_generator: EmbeddingGenerator | None = None
+
+        # 优化：快速查找索引
+        self._memory_id_index: dict[str, ShortTermMemory] = {}  # ID 快速查找
+        self._similarity_cache: dict[str, dict[str, float]] = {}  # 相似度缓存 {query_id: {target_id: sim}}
+        self._emb_matrix: np.ndarray | None = None
+        self._emb_matrix_mem_ids: list[str] | None = None
 
         # 状态
         self._initialized = False
@@ -71,7 +86,9 @@ class ShortTermMemoryManager:
 
         logger.info(
             f"短期记忆管理器已创建 (max_memories={max_memories}, "
-            f"transfer_threshold={transfer_importance_threshold:.2f})"
+            f"transfer_threshold={transfer_importance_threshold:.2f}, "
+            f"overflow_strategy={overflow_strategy}, "
+            f"force_cleanup={'on' if enable_force_cleanup else 'off'})"
         )
 
     async def initialize(self) -> None:
@@ -187,8 +204,8 @@ class ShortTermMemoryManager:
   "importance": 0.7,
   "attributes": {{
     "time": "时间信息",
-    "attribute1": "其他属性1"
-    "attribute2": "其他属性2"
+    "attribute1": "其他属性1",
+    "attribute2": "其他属性2",
     ...
   }}
 }}
@@ -325,11 +342,16 @@ class ShortTermMemoryManager:
                 )
 
             # 创建决策对象
-            # 将 LLM 返回的大写操作名转换为小写（适配枚举定义）
-            operation_str = data.get("operation", "CREATE_NEW").lower()
-            
+            # 规范化操作名，兼容连字符与大小写差异
+            op_raw = data.get("operation", "create_new")
+            operation_str = op_raw.strip().lower().replace("-", "_")
+            try:
+                op_enum = ShortTermOperation(operation_str)
+            except Exception:
+                op_enum = ShortTermOperation.CREATE_NEW
+
             decision = ShortTermDecision(
-                operation=ShortTermOperation(operation_str),
+                operation=op_enum,
                 target_memory_id=data.get("target_memory_id"),
                 merged_content=data.get("merged_content"),
                 reasoning=data.get("reasoning", ""),
@@ -366,6 +388,8 @@ class ShortTermMemoryManager:
             if decision.operation == ShortTermOperation.CREATE_NEW:
                 # 创建新记忆
                 self.memories.append(new_memory)
+                self._memory_id_index[new_memory.id] = new_memory  # 更新索引
+                self._invalidate_matrix_cache()
                 logger.debug(f"创建新短期记忆: {new_memory.id}")
                 return new_memory
 
@@ -375,6 +399,8 @@ class ShortTermMemoryManager:
                 if not target:
                     logger.warning(f"目标记忆不存在，改为创建新记忆: {decision.target_memory_id}")
                     self.memories.append(new_memory)
+                    self._memory_id_index[new_memory.id] = new_memory
+                    self._invalidate_matrix_cache()
                     return new_memory
 
                 # 更新内容
@@ -389,6 +415,10 @@ class ShortTermMemoryManager:
                 target.embedding = await self._generate_embedding(target.content)
                 target.update_access()
 
+                # 清除此记忆的缓存
+                self._similarity_cache.pop(target.id, None)
+                self._invalidate_matrix_cache()
+
                 logger.debug(f"合并记忆到: {target.id}")
                 return target
 
@@ -398,6 +428,8 @@ class ShortTermMemoryManager:
                 if not target:
                     logger.warning(f"目标记忆不存在，改为创建新记忆: {decision.target_memory_id}")
                     self.memories.append(new_memory)
+                    self._memory_id_index[new_memory.id] = new_memory
+                    self._invalidate_matrix_cache()
                     return new_memory
 
                 # 更新内容
@@ -412,23 +444,31 @@ class ShortTermMemoryManager:
                 target.source_block_ids.extend(new_memory.source_block_ids)
                 target.update_access()
 
+                # 清除此记忆的缓存
+                self._similarity_cache.pop(target.id, None)
+                self._invalidate_matrix_cache()
+
                 logger.debug(f"更新记忆: {target.id}")
                 return target
 
             elif decision.operation == ShortTermOperation.DISCARD:
                 # 丢弃
-                logger.info(f"🗑️ 丢弃低价值记忆: {decision.reasoning}")
+                logger.debug(f"丢弃低价值记忆: {decision.reasoning}")
                 return None
 
             elif decision.operation == ShortTermOperation.KEEP_SEPARATE:
                 # 保持独立
                 self.memories.append(new_memory)
-                logger.info(f"✅ 保持独立记忆: {new_memory.id}")
+                self._memory_id_index[new_memory.id] = new_memory  # 更新索引
+                self._invalidate_matrix_cache()
+                logger.debug(f"保持独立记忆: {new_memory.id}")
                 return new_memory
 
             else:
                 logger.warning(f"未知操作类型: {decision.operation}，默认创建新记忆")
                 self.memories.append(new_memory)
+                self._memory_id_index[new_memory.id] = new_memory
+                self._invalidate_matrix_cache()
                 return new_memory
 
         except Exception as e:
@@ -439,7 +479,7 @@ class ShortTermMemoryManager:
         self, memory: ShortTermMemory, top_k: int = 5
     ) -> list[tuple[ShortTermMemory, float]]:
         """
-        查找与给定记忆相似的现有记忆
+        查找与给定记忆相似的现有记忆（优化版：并发计算 + 缓存）
 
         Args:
             memory: 目标记忆
@@ -452,13 +492,32 @@ class ShortTermMemoryManager:
             return []
 
         try:
-            scored = []
-            for existing_mem in self.memories:
-                if existing_mem.embedding is None:
-                    continue
+            # 检查缓存
+            if memory.id in self._similarity_cache:
+                cached = self._similarity_cache[memory.id]
+                scored = [(self._memory_id_index[mid], sim)
+                         for mid, sim in cached.items()
+                         if mid in self._memory_id_index]
+                scored.sort(key=lambda x: x[1], reverse=True)
+                return scored[:top_k]
 
-                similarity = await cosine_similarity_async(memory.embedding, existing_mem.embedding)
-                scored.append((existing_mem, similarity))
+            valid_memories, matrix = await self._ensure_embeddings_matrix()
+            if not valid_memories or matrix is None:
+                return []
+
+            q = memory.embedding.astype(np.float32)
+            sims = await self._compute_cosine_similarities_vectorized(q, matrix)
+            if sims is None or len(sims) == 0:
+                return []
+
+            # 构建结果并缓存
+            scored = []
+            cache_entry = {}
+            for existing_mem, similarity in zip(valid_memories, sims):
+                scored.append((existing_mem, float(similarity)))
+                cache_entry[existing_mem.id] = float(similarity)
+
+            self._similarity_cache[memory.id] = cache_entry
 
             # 按相似度降序排序
             scored.sort(key=lambda x: x[1], reverse=True)
@@ -470,15 +529,12 @@ class ShortTermMemoryManager:
             return []
 
     def _find_memory_by_id(self, memory_id: str | None) -> ShortTermMemory | None:
-        """根据ID查找记忆"""
+        """根据ID查找记忆（优化版：O(1) 哈希表查找）"""
         if not memory_id:
             return None
 
-        for mem in self.memories:
-            if mem.id == memory_id:
-                return mem
-
-        return None
+        # 使用索引进行 O(1) 查找
+        return self._memory_id_index.get(memory_id)
 
     async def _generate_embedding(self, text: str) -> np.ndarray | None:
         """生成文本向量"""
@@ -488,7 +544,7 @@ class ShortTermMemoryManager:
                 return None
 
             embedding = await self.embedding_generator.generate(text)
-            return embedding
+            return self._normalize_embedding(embedding)
 
         except Exception as e:
             logger.error(f"生成向量失败: {e}")
@@ -510,7 +566,7 @@ class ShortTermMemoryManager:
                 return [None] * len(texts)
 
             embeddings = await self.embedding_generator.generate_batch(texts)
-            return embeddings
+            return [self._normalize_embedding(e) for e in embeddings]
 
         except Exception as e:
             logger.error(f"批量生成向量失败: {e}")
@@ -524,17 +580,31 @@ class ShortTermMemoryManager:
             if json_match:
                 json_str = json_match.group(1)
             else:
-                # 尝试直接解析
-                json_str = response.strip()
+                # 兼容未标注语言的代码块
+                any_block = re.search(r"```\s*(.*?)\s*```", response, re.DOTALL)
+                if any_block:
+                    json_str = any_block.group(1)
+                else:
+                    # 尝试直接解析原文
+                    json_str = response.strip()
 
             # 移除可能的注释
             json_str = re.sub(r"//.*", "", json_str)
             json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
 
-            data = json.loads(json_str)
+            try:
+                data = json_repair.loads(json_str)
+            except Exception:
+                # 回退：提取第一个花括号包围的 JSON 片段
+                start = json_str.find("{")
+                end = json_str.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    data = json_repair.loads(json_str[start : end + 1])
+                else:
+                    raise
             return data
 
-        except json.JSONDecodeError as e:
+        except Exception as e:
             logger.warning(f"JSON 解析失败: {e}, 响应: {response[:200]}")
             return None
 
@@ -542,7 +612,7 @@ class ShortTermMemoryManager:
         self, query_text: str, top_k: int = 5, similarity_threshold: float = 0.5
     ) -> list[ShortTermMemory]:
         """
-        检索相关的短期记忆
+        检索相关的短期记忆（优化版：并发计算相似度）
 
         Args:
             query_text: 查询文本
@@ -561,25 +631,28 @@ class ShortTermMemoryManager:
             if query_embedding is None or len(query_embedding) == 0:
                 return []
 
-            # 计算相似度
-            scored = []
-            for memory in self.memories:
-                if memory.embedding is None:
-                    continue
+            valid_memories, matrix = await self._ensure_embeddings_matrix()
+            if not valid_memories or matrix is None:
+                return []
 
-                similarity = await cosine_similarity_async(query_embedding, memory.embedding)
-                if similarity >= similarity_threshold:
-                    scored.append((memory, similarity))
+            q = query_embedding.astype(np.float32)
+            sims = await self._compute_cosine_similarities_vectorized(q, matrix)
+
+            # 构建结果
+            scored = []
+            for memory, similarity in zip(valid_memories, sims):
+                if float(similarity) >= similarity_threshold:
+                    scored.append((memory, float(similarity)))
 
             # 排序并取 TopK
             scored.sort(key=lambda x: x[1], reverse=True)
             results = [mem for mem, _ in scored[:top_k]]
 
-            # 更新访问记录
+            # 批量更新访问记录
             for mem in results:
                 mem.update_access()
 
-            logger.info(f"检索到 {len(results)} 条短期记忆")
+            logger.debug(f"检索到 {len(results)} 条短期记忆")
             return results
 
         except Exception as e:
@@ -588,59 +661,116 @@ class ShortTermMemoryManager:
 
     def get_memories_for_transfer(self) -> list[ShortTermMemory]:
         """
-        获取需要转移到长期记忆的记忆
+        获取需要转移到长期记忆的记忆（简化版：满额整批转移）
 
-        逻辑：
-        1. 优先选择重要性 >= 阈值的记忆
-        2. 如果剩余记忆数量仍超过 max_memories，直接清理最早的低重要性记忆直到低于上限
+        策略：
+        - 当短期记忆数量达到上限（>= max_memories）时，返回当前全部短期记忆；
+        - 没满则返回空列表，不触发转移。
         """
-        # 1. 正常筛选：重要性达标的记忆
-        candidates = [mem for mem in self.memories if mem.importance >= self.transfer_importance_threshold]
-        candidate_ids = {mem.id for mem in candidates}
+        if self.max_memories <= 0:
+            return []
+        if len(self.memories) >= self.max_memories:
+            logger.debug(f"转移候选: 短期记忆已满，准备整批转移 {len(self.memories)} 条")
+            return list(self.memories)
+        return []
+
+    def force_cleanup_overflow(self, keep_ratio: float | None = None) -> int:
+        """
+        当短期记忆超过容量时，强制删除低重要性且最早的记忆以泄压
         
-        # 2. 检查低重要性记忆是否积压
-        # 剩余的都是低重要性记忆
-        low_importance_memories = [mem for mem in self.memories if mem.id not in candidate_ids]
+        Args:
+            keep_ratio: 保留容量的比例（默认使用配置中的 cleanup_keep_ratio）
         
-        # 如果低重要性记忆数量超过了上限（说明积压严重）
-        # 我们需要清理掉一部分，而不是转移它们
-        if len(low_importance_memories) > self.max_memories:
-            # 目标保留数量（降至上限的 90%）
-            target_keep_count = int(self.max_memories * 0.9)
-            num_to_remove = len(low_importance_memories) - target_keep_count
-            
-            if num_to_remove > 0:
-                # 按创建时间排序，删除最早的
-                low_importance_memories.sort(key=lambda x: x.created_at)
-                to_remove = low_importance_memories[:num_to_remove]
-                
-                for mem in to_remove:
-                    if mem in self.memories:
-                        self.memories.remove(mem)
-                        
-                logger.info(
-                    f"短期记忆清理: 移除了 {len(to_remove)} 条低重要性记忆 "
-                    f"(保留 {len(self.memories)} 条)"
-                )
-                
-                # 触发保存
-                asyncio.create_task(self._save_to_disk())
-            
-        return candidates
+        Returns:
+            删除的记忆数量
+        """
+        if not self.enable_force_cleanup:
+            return 0
+
+        if self.max_memories <= 0:
+            return 0
+
+        # 使用实例配置或传入参数
+        if keep_ratio is None:
+            keep_ratio = self.cleanup_keep_ratio
+
+        current = len(self.memories)
+        limit = int(self.max_memories * keep_ratio)
+        if current <= self.max_memories:
+            return 0
+
+        # 先按重要性升序，再按创建时间升序删除
+        sorted_memories = sorted(self.memories, key=lambda m: (m.importance, m.created_at))
+        remove_count = max(0, current - limit)
+        to_remove = {mem.id for mem in sorted_memories[:remove_count]}
+
+        if not to_remove:
+            return 0
+
+        self.memories = [mem for mem in self.memories if mem.id not in to_remove]
+        for mem_id in to_remove:
+            self._memory_id_index.pop(mem_id, None)
+            self._similarity_cache.pop(mem_id, None)
+        self._invalidate_matrix_cache()
+
+        # 异步保存即可，不阻塞主流程
+        asyncio.create_task(self._save_to_disk())
+
+        logger.warning(
+            f"短期记忆压力泄压: 移除 {len(to_remove)} 条 (当前 {len(self.memories)}/{self.max_memories})"
+        )
+
+        return len(to_remove)
 
     async def clear_transferred_memories(self, memory_ids: list[str]) -> None:
         """
         清除已转移到长期记忆的记忆
+        
+        在 "transfer_all" 策略下，还会删除不重要的短期记忆以释放空间
 
         Args:
             memory_ids: 已转移的记忆ID列表
         """
         try:
-            self.memories = [mem for mem in self.memories if mem.id not in memory_ids]
+            remove_ids = set(memory_ids)
+            self.memories = [mem for mem in self.memories if mem.id not in remove_ids]
+
+            # 更新索引
+            for mem_id in remove_ids:
+                self._memory_id_index.pop(mem_id, None)
+                self._similarity_cache.pop(mem_id, None)
+
             logger.info(f"清除 {len(memory_ids)} 条已转移的短期记忆")
+
+            # 在 "transfer_all" 策略下，进一步删除不重要的短期记忆
+            if self.overflow_strategy == "transfer_all":
+                # 计算需要删除的低重要性记忆数量
+                low_importance_memories = [
+                    mem for mem in self.memories
+                    if mem.importance < self.transfer_importance_threshold
+                ]
+
+                if low_importance_memories:
+                    # 按重要性和创建时间排序，删除最不重要的
+                    low_importance_memories.sort(key=lambda m: (m.importance, m.created_at))
+
+                    # 删除所有低重要性记忆
+                    to_delete = {mem.id for mem in low_importance_memories}
+                    self.memories = [mem for mem in self.memories if mem.id not in to_delete]
+
+                    # 更新索引
+                    for mem_id in to_delete:
+                        self._memory_id_index.pop(mem_id, None)
+                        self._similarity_cache.pop(mem_id, None)
+
+                    logger.info(
+                        f"transfer_all 策略: 额外删除了 {len(to_delete)} 条低重要性记忆 "
+                        f"(重要性 < {self.transfer_importance_threshold:.2f})"
+                    )
 
             # 异步保存
             asyncio.create_task(self._save_to_disk())
+            self._invalidate_matrix_cache()
 
         except Exception as e:
             logger.error(f"清除已转移记忆失败: {e}")
@@ -696,8 +826,14 @@ class ShortTermMemoryManager:
             data = orjson.loads(load_path.read_bytes())
             self.memories = [ShortTermMemory.from_dict(m) for m in data.get("memories", [])]
 
-            # 重新生成向量
+            # 重建索引
+            for mem in self.memories:
+                self._memory_id_index[mem.id] = mem
+
+            # 批量重新生成向量
             await self._reload_embeddings()
+
+            self._invalidate_matrix_cache()
 
             logger.info(f"短期记忆已从 {load_path} 加载 ({len(self.memories)} 条)")
 
@@ -705,7 +841,7 @@ class ShortTermMemoryManager:
             logger.error(f"加载短期记忆失败: {e}")
 
     async def _reload_embeddings(self) -> None:
-        """重新生成记忆的向量"""
+        """重新生成记忆的向量（优化版：并发处理）"""
         logger.info("重新生成短期记忆向量...")
 
         memories_to_process = []
@@ -722,6 +858,7 @@ class ShortTermMemoryManager:
 
         logger.info(f"开始批量生成 {len(memories_to_process)} 条短期记忆的向量...")
 
+        # 使用 gather 并发生成向量
         embeddings = await self._generate_embeddings_batch(texts_to_process)
 
         success_count = 0
@@ -730,7 +867,52 @@ class ShortTermMemoryManager:
                 memory.embedding = embedding
                 success_count += 1
 
-        logger.info(f"✅ 向量重新生成完成（成功: {success_count}/{len(memories_to_process)}）")
+        logger.info(f"向量重新生成完成（成功: {success_count}/{len(memories_to_process)}）")
+        self._invalidate_matrix_cache()
+
+    def _normalize_embedding(self, emb: np.ndarray | None) -> np.ndarray | None:
+        if emb is None:
+            return None
+        v = emb.astype(np.float32)
+        n = float(np.linalg.norm(v))
+        if n == 0.0:
+            return v
+        return v / n
+
+    def _invalidate_matrix_cache(self) -> None:
+        self._emb_matrix = None
+        self._emb_matrix_mem_ids = None
+        self._similarity_cache.clear()
+
+    async def _ensure_embeddings_matrix(self) -> tuple[list[ShortTermMemory], np.ndarray | None]:
+        if self._emb_matrix is not None and self._emb_matrix_mem_ids is not None:
+            mems = [self._memory_id_index[mid] for mid in self._emb_matrix_mem_ids if mid in self._memory_id_index]
+            return mems, self._emb_matrix
+
+        valid_memories = [m for m in self.memories if m.embedding is not None]
+        if not valid_memories:
+            self._emb_matrix = None
+            self._emb_matrix_mem_ids = None
+            return [], None
+
+        matrix = np.array([m.embedding for m in valid_memories], dtype=np.float32)
+        self._emb_matrix = matrix
+        self._emb_matrix_mem_ids = [m.id for m in valid_memories]
+        return valid_memories, matrix
+
+    async def _compute_cosine_similarities_vectorized(
+        self, query_embedding: np.ndarray, matrix: np.ndarray
+    ) -> np.ndarray | None:
+        try:
+            if query_embedding is None or len(query_embedding) == 0 or matrix is None or matrix.ndim != 2:
+                return None
+            return await asyncio.to_thread(self._compute_cosine_similarities_np, query_embedding, matrix)
+        except Exception as e:
+            logger.error(f"向量化相似度计算失败: {e}")
+            return None
+
+    def _compute_cosine_similarities_np(self, q: np.ndarray, matrix: np.ndarray) -> np.ndarray:
+        return matrix @ q
 
     async def shutdown(self) -> None:
         """关闭管理器"""
@@ -744,7 +926,7 @@ class ShortTermMemoryManager:
             await self._save_to_disk()
 
             self._initialized = False
-            logger.info("✅ 短期记忆管理器已关闭")
+            logger.info("短期记忆管理器已关闭")
 
         except Exception as e:
             logger.error(f"关闭短期记忆管理器失败: {e}")

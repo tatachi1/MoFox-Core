@@ -9,13 +9,15 @@ from typing import Any
 import numpy as np
 import rjieba
 
+from src.common.data_models.database_data_model import DatabaseUserInfo
+
 # MessageRecv 已被移除，现在使用 DatabaseMessages
 from src.common.logger import get_logger
-from src.common.message_repository import count_messages, find_messages
+from src.common.message_repository import count_and_length_messages, find_messages
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.person_info.person_info import PersonInfoManager, get_person_info_manager
-from src.common.data_models.database_data_model import DatabaseUserInfo
+
 from .typo_generator import get_typo_generator
 
 logger = get_logger("chat_utils")
@@ -405,6 +407,12 @@ def recover_quoted_content(sentences: list[str], placeholder_map: dict[str, str]
 
 def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese_typo: bool = True) -> list[str]:
     assert global_config is not None
+
+    normalized_text = text.strip() if isinstance(text, str) else ""
+    if normalized_text.upper() == "PASS":
+        logger.info("[回复内容过滤器] 检测到PASS信号，跳过发送。")
+        return []
+
     if not global_config.response_post_process.enable_response_post_process:
         return [text]
 
@@ -420,7 +428,7 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
     protected_text, special_blocks_mapping = protect_special_blocks(protected_text)
 
     # 提取被 () 或 [] 或 （）包裹且包含中文的内容
-    pattern = re.compile(r"[(\[（](?=.*[一-鿿]).*?[)\]）]")
+    pattern = re.compile(r"[(\[（](?=.*[一-鿿]).+?[)\]）]")
     _extracted_contents = pattern.findall(protected_text)
     cleaned_text = pattern.sub("", protected_text)
 
@@ -715,14 +723,8 @@ async def count_messages_between(start_time: float, end_time: float, stream_id: 
     filter_query = {"chat_id": stream_id, "time": {"$gt": start_time, "$lte": end_time}}
 
     try:
-        # 先获取消息数量
-        count = await count_messages(filter_query)
-
-        # 获取消息内容计算总长度
-        messages = await find_messages(message_filter=filter_query)
-        total_length = sum(len(msg.get("processed_plain_text", "")) for msg in messages)
-
-        return count, total_length
+        # 使用聚合查询，避免一次性拉取全部消息导致内存暴涨
+        return await count_and_length_messages(filter_query)
 
     except Exception as e:
         logger.error(f"计算消息数量时发生意外错误: {e}")

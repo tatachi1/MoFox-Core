@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 # 1. 感知记忆：自动收集消息块
 # 2. 短期记忆：激活后由模型格式化
 # 3. 长期记忆：定期转移到图结构
-# 
+#
 # 不再需要LLM手动调用工具创建记忆
 
 class _DeprecatedCreateMemoryTool(BaseTool):

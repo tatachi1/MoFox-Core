@@ -1,9 +1,9 @@
 """元事件处理器"""
 from __future__ import annotations
 
-import time
 import asyncio
-from typing import TYPE_CHECKING, Any, Dict, Optional
+import time
+from typing import TYPE_CHECKING, Any
 
 from src.common.logger import get_logger
 
@@ -20,14 +20,15 @@ class MetaEventHandler:
 
     def __init__(self, adapter: "NapcatAdapter"):
         self.adapter = adapter
-        self.plugin_config: Optional[Dict[str, Any]] = None
+        self.plugin_config: dict[str, Any] | None = None
         self._interval_checking = False
+        self._heartbeat_task: asyncio.Task | None = None
 
-    def set_plugin_config(self, config: Dict[str, Any]) -> None:
+    def set_plugin_config(self, config: dict[str, Any]) -> None:
         """设置插件配置"""
         self.plugin_config = config
 
-    async def handle_meta_event(self, raw: Dict[str, Any]):
+    async def handle_meta_event(self, raw: dict[str, Any]):
         event_type = raw.get("meta_event_type")
         if event_type == MetaEventType.lifecycle:
             sub_type = raw.get("sub_type")
@@ -41,7 +42,7 @@ class MetaEventHandler:
                 self_id = raw.get("self_id")
                 if not self._interval_checking and self_id:
                     # 第一次收到心跳包时才启动心跳检查
-                    asyncio.create_task(self.check_heartbeat(self_id))
+                    self._heartbeat_task = asyncio.create_task(self.check_heartbeat(self_id))
                 self.last_heart_beat = time.time()
                 interval = raw.get("interval")
                 if interval:

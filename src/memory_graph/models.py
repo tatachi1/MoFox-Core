@@ -15,7 +15,6 @@ from typing import Any
 
 import numpy as np
 
-
 # ============================================================================
 # 三层记忆系统枚举
 # ============================================================================
@@ -233,6 +232,7 @@ class Memory:
     activation: float = 0.0  # 激活度 [0-1]，用于记忆整合和遗忘
     status: MemoryStatus = MemoryStatus.STAGED  # 记忆状态
     created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime | None = None  # 最近一次结构或元数据更新
     last_accessed: datetime = field(default_factory=datetime.now)  # 最后访问时间
     access_count: int = 0  # 访问次数
     decay_factor: float = 1.0  # 衰减因子（随时间变化）
@@ -245,6 +245,8 @@ class Memory:
         # 确保重要性和激活度在有效范围内
         self.importance = max(0.0, min(1.0, self.importance))
         self.activation = max(0.0, min(1.0, self.activation))
+        if not self.updated_at:
+            self.updated_at = self.created_at
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典（用于序列化）"""
@@ -258,6 +260,7 @@ class Memory:
             "activation": self.activation,
             "status": self.status.value,
             "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_accessed": self.last_accessed.isoformat(),
             "access_count": self.access_count,
             "decay_factor": self.decay_factor,
@@ -278,6 +281,13 @@ class Memory:
             # 备选：使用直接的 activation 字段
             activation_level = data.get("activation", 0.0)
 
+        updated_at_raw = data.get("updated_at")
+        if updated_at_raw:
+            updated_at = datetime.fromisoformat(updated_at_raw)
+        else:
+            # 旧数据没有 updated_at，退化为最后访问时间或创建时间
+            updated_at = datetime.fromisoformat(data.get("last_accessed", data["created_at"]))
+
         return cls(
             id=data["id"],
             subject_id=data["subject_id"],
@@ -288,6 +298,7 @@ class Memory:
             activation=activation_level,  # 使用统一的激活度值
             status=MemoryStatus(data.get("status", "staged")),
             created_at=datetime.fromisoformat(data["created_at"]),
+            updated_at=updated_at,
             last_accessed=datetime.fromisoformat(data.get("last_accessed", data["created_at"])),
             access_count=data.get("access_count", 0),
             decay_factor=data.get("decay_factor", 1.0),

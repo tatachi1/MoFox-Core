@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 import re
 import traceback
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from mofox_wire import MessageEnvelope, MessageRuntime
 
@@ -53,6 +53,22 @@ logger = get_logger("message_handler")
 # 项目根目录
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
+# 预编译的正则表达式缓存（避免重复编译）
+_compiled_regex_cache: dict[str, re.Pattern] = {}
+
+# 硬编码过滤关键词（缓存到全局变量，避免每次创建列表）
+_MEDIA_FAILURE_KEYWORDS = frozenset(["[表情包(描述生成失败)]", "[图片(描述生成失败)]"])
+
+def _get_compiled_pattern(pattern: str) -> re.Pattern | None:
+    """获取编译的正则表达式，使用缓存避免重复编译"""
+    if pattern not in _compiled_regex_cache:
+        try:
+            _compiled_regex_cache[pattern] = re.compile(pattern)
+        except re.error as e:
+            logger.warning(f"正则表达式编译失败: {pattern}, 错误: {e}")
+            return None
+    return _compiled_regex_cache.get(pattern)
+
 def _check_ban_words(text: str, chat: "ChatStream", userinfo) -> bool:
     """检查消息是否包含过滤词"""
     if global_config is None:
@@ -65,11 +81,13 @@ def _check_ban_words(text: str, chat: "ChatStream", userinfo) -> bool:
             return True
     return False
 def _check_ban_regex(text: str, chat: "ChatStream", userinfo) -> bool:
-    """检查消息是否匹配过滤正则表达式"""
+    """检查消息是否匹配过滤正则表达式 - 优化版本使用预编译缓存"""
     if global_config is None:
         return False
+
     for pattern in global_config.message_receive.ban_msgs_regex:
-        if re.search(pattern, text):
+        compiled_pattern = _get_compiled_pattern(pattern)
+        if compiled_pattern and compiled_pattern.search(text):
             chat_name = chat.group_info.group_name if chat.group_info else "私聊"
             logger.info(f"[{chat_name}]{userinfo.user_nickname}:{text}")
             logger.info(f"[正则表达式过滤]消息匹配到{pattern}，filtered")
@@ -97,6 +115,10 @@ class MessageHandler:
     4. 普通消息处理：触发事件、存储、情绪更新
     """
 
+    # 类级别缓存：命令查询结果缓存（减少重复查询）
+    _plus_command_cache: ClassVar[dict[str, Any]] = {}
+    _base_command_cache: ClassVar[dict[str, Any]] = {}
+
     def __init__(self):
         self._started = False
         self._message_manager_started = False
@@ -107,6 +129,36 @@ class MessageHandler:
     def set_core_sink_manager(self, manager: "CoreSinkManager") -> None:
         """设置 CoreSinkManager 引用"""
         self._core_sink_manager = manager
+
+    async def _get_or_create_chat_stream(
+        self, platform: str, user_info: dict | None, group_info: dict | None
+    ) -> "ChatStream":
+        """获取或创建聊天流 - 统一方法"""
+        from src.chat.message_receive.chat_stream import get_chat_manager
+
+        return await get_chat_manager().get_or_create_stream(
+            platform=platform,
+            user_info=DatabaseUserInfo.from_dict(cast(dict[str, Any], user_info)) if user_info else None,
+            group_info=DatabaseGroupInfo.from_dict(cast(dict[str, Any], group_info)) if group_info else None,
+        )
+
+    async def _process_message_to_database(
+        self, envelope: MessageEnvelope, chat: "ChatStream"
+    ) -> DatabaseMessages:
+        """将消息信封转换为 DatabaseMessages - 统一方法"""
+        from src.chat.message_receive.message_processor import process_message_from_dict
+
+        message = await process_message_from_dict(
+            message_dict=envelope,
+            stream_id=chat.stream_id,
+            platform=chat.platform
+        )
+
+        # 填充聊天流时间信息
+        message.chat_info.create_time = chat.create_time
+        message.chat_info.last_active_time = chat.last_active_time
+
+        return message
 
     def register_handlers(self, runtime: MessageRuntime) -> None:
         """
@@ -265,7 +317,7 @@ class MessageHandler:
             additional_config = message_info.get("additional_config", {})
             if not isinstance(additional_config, dict):
                 additional_config = {}
-            
+
             notice_type = additional_config.get("notice_type", "unknown")
             is_public_notice = additional_config.get("is_public_notice", False)
 
@@ -279,25 +331,10 @@ class MessageHandler:
 
             # 获取或创建聊天流
             platform = message_info.get("platform", "unknown")
-
-            from src.chat.message_receive.chat_stream import get_chat_manager
-            chat = await get_chat_manager().get_or_create_stream(
-                platform=platform,
-                user_info=DatabaseUserInfo.from_dict(cast(dict[str, Any], user_info)) if user_info else None,  # type: ignore
-                group_info=DatabaseGroupInfo.from_dict(cast(dict[str, Any], group_info)) if group_info else None,
-            )
+            chat = await self._get_or_create_chat_stream(platform, user_info, group_info)
 
             # 将消息信封转换为 DatabaseMessages
-            from src.chat.message_receive.message_processor import process_message_from_dict
-            message = await process_message_from_dict(
-                message_dict=envelope,
-                stream_id=chat.stream_id,
-                platform=chat.platform
-            )
-
-            # 填充聊天流时间信息
-            message.chat_info.create_time = chat.create_time
-            message.chat_info.last_active_time = chat.last_active_time
+            message = await self._process_message_to_database(envelope, chat)
 
             # 标记为 notice 消息
             message.is_notify = True
@@ -337,8 +374,7 @@ class MessageHandler:
 
         except Exception as e:
             logger.error(f"处理 Notice 消息时出错: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             return None
 
     async def _add_notice_to_manager(
@@ -429,25 +465,10 @@ class MessageHandler:
 
             # 获取或创建聊天流
             platform = message_info.get("platform", "unknown")
-
-            from src.chat.message_receive.chat_stream import get_chat_manager
-            chat = await get_chat_manager().get_or_create_stream(
-                platform=platform,
-                user_info=DatabaseUserInfo.from_dict(cast(dict[str, Any], user_info)) if user_info else None,  # type: ignore
-                group_info=DatabaseGroupInfo.from_dict(cast(dict[str, Any], group_info)) if group_info else None,
-            )
+            chat = await self._get_or_create_chat_stream(platform, user_info, group_info)
 
             # 将消息信封转换为 DatabaseMessages
-            from src.chat.message_receive.message_processor import process_message_from_dict
-            message = await process_message_from_dict(
-                message_dict=envelope,
-                stream_id=chat.stream_id,
-                platform=chat.platform
-            )
-
-            # 填充聊天流时间信息
-            message.chat_info.create_time = chat.create_time
-            message.chat_info.last_active_time = chat.last_active_time
+            message = await self._process_message_to_database(envelope, chat)
 
             # 注册消息到聊天管理器
             from src.chat.message_receive.chat_stream import get_chat_manager
@@ -462,9 +483,8 @@ class MessageHandler:
             logger.info(f"[{chat_name}]{user_nickname}:{message.processed_plain_text}\u001b[0m")
 
             # 硬编码过滤
-            failure_keywords = ["[表情包(描述生成失败)]", "[图片(描述生成失败)]"]
             processed_text = message.processed_plain_text or ""
-            if any(keyword in processed_text for keyword in failure_keywords):
+            if any(keyword in processed_text for keyword in _MEDIA_FAILURE_KEYWORDS):
                 logger.info(f"[硬编码过滤] 检测到媒体内容处理失败（{processed_text}），消息被静默处理。")
                 return None
 

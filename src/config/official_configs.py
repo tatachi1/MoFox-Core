@@ -13,28 +13,17 @@ from src.config.config_base import ValidatedConfigBase
 """
 
 
+class InnerConfig(ValidatedConfigBase):
+    """配置文件元信息"""
+
+    version: str = Field(..., description="配置文件版本号（用于配置文件升级与兼容性检查）")
+
+
 class DatabaseConfig(ValidatedConfigBase):
     """数据库配置类"""
 
-    database_type: Literal["sqlite", "mysql", "postgresql"] = Field(default="sqlite", description="数据库类型")
+    database_type: Literal["sqlite", "postgresql"] = Field(default="sqlite", description="数据库类型")
     sqlite_path: str = Field(default="data/MaiBot.db", description="SQLite数据库文件路径")
-
-    # MySQL 配置
-    mysql_host: str = Field(default="localhost", description="MySQL服务器地址")
-    mysql_port: int = Field(default=3306, ge=1, le=65535, description="MySQL服务器端口")
-    mysql_database: str = Field(default="maibot", description="MySQL数据库名")
-    mysql_user: str = Field(default="root", description="MySQL用户名")
-    mysql_password: str = Field(default="", description="MySQL密码")
-    mysql_charset: str = Field(default="utf8mb4", description="MySQL字符集")
-    mysql_unix_socket: str = Field(default="", description="MySQL Unix套接字路径")
-    mysql_ssl_mode: Literal["DISABLED", "PREFERRED", "REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY"] = Field(
-        default="DISABLED", description="SSL模式"
-    )
-    mysql_ssl_ca: str = Field(default="", description="SSL CA证书路径")
-    mysql_ssl_cert: str = Field(default="", description="SSL客户端证书路径")
-    mysql_ssl_key: str = Field(default="", description="SSL密钥路径")
-    mysql_autocommit: bool = Field(default=True, description="自动提交事务")
-    mysql_sql_mode: str = Field(default="TRADITIONAL", description="SQL模式")
 
     # PostgreSQL 配置
     postgresql_host: str = Field(default="localhost", description="PostgreSQL服务器地址")
@@ -61,6 +50,12 @@ class DatabaseConfig(ValidatedConfigBase):
 
     # 数据库缓存配置
     enable_database_cache: bool = Field(default=True, description="是否启用数据库查询缓存系统")
+    cache_backend: str = Field(
+        default="memory",
+        description="缓存后端类型: memory(内存缓存) 或 redis(Redis缓存)",
+    )
+
+    # 内存缓存配置 (cache_backend = "memory" 时生效)
     cache_l1_max_size: int = Field(default=1000, ge=100, le=50000, description="L1缓存最大条目数（热数据，内存占用约1-5MB）")
     cache_l1_ttl: int = Field(default=300, ge=10, le=3600, description="L1缓存生存时间（秒）")
     cache_l2_max_size: int = Field(default=10000, ge=1000, le=100000, description="L2缓存最大条目数（温数据，内存占用约10-50MB）")
@@ -68,6 +63,24 @@ class DatabaseConfig(ValidatedConfigBase):
     cache_cleanup_interval: int = Field(default=60, ge=30, le=600, description="缓存清理任务执行间隔（秒）")
     cache_max_memory_mb: int = Field(default=100, ge=10, le=1000, description="缓存最大内存占用（MB），超过此值将触发强制清理")
     cache_max_item_size_mb: int = Field(default=1, ge=1, le=100, description="单个缓存条目最大大小（MB），超过此值将不缓存")
+
+    # Redis缓存配置 (cache_backend = "redis" 时生效)
+    redis_host: str = Field(default="localhost", description="Redis服务器地址")
+    redis_port: int = Field(default=6379, ge=1, le=65535, description="Redis服务器端口")
+    redis_password: str = Field(default="", description="Redis密码（可选）")
+    redis_db: int = Field(default=0, ge=0, le=15, description="Redis数据库编号")
+    redis_key_prefix: str = Field(default="mofox:", description="Redis缓存键前缀")
+    redis_default_ttl: int = Field(default=600, ge=60, le=86400, description="Redis默认缓存过期时间（秒）")
+    redis_connection_pool_size: int = Field(default=10, ge=1, le=100, description="Redis连接池大小")
+    redis_socket_timeout: float = Field(default=5.0, ge=1.0, le=30.0, description="Redis socket超时时间（秒）")
+    redis_ssl: bool = Field(default=False, description="是否启用Redis SSL连接")
+
+    # 慢查询监控配置
+    enable_slow_query_logging: bool = Field(default=False, description="是否启用慢查询日志（默认关闭，设置为 true 启用）")
+    slow_query_threshold: float = Field(default=0.5, ge=0.1, le=10.0, description="慢查询阈值（秒）")
+    query_timeout: int = Field(default=30, ge=5, le=300, description="查询超时时间（秒）")
+    collect_slow_queries: bool = Field(default=True, description="是否收集慢查询统计（用于生成报告）")
+    slow_query_buffer_size: int = Field(default=100, ge=10, le=1000, description="慢查询缓冲大小（最近N条）")
 
 
 class BotConfig(ValidatedConfigBase):
@@ -191,9 +204,9 @@ class NoticeConfig(ValidatedConfigBase):
     enable_notice_trigger_chat: bool = Field(default=True, description="是否允许notice消息触发聊天流程")
     notice_in_prompt: bool = Field(default=True, description="是否在提示词中展示最近的notice消息")
     notice_prompt_limit: int = Field(default=5, ge=1, le=20, description="在提示词中展示的最大notice数量")
-    notice_time_window: int = Field(default=3600, ge=60, le=86400, description="notice时间窗口(秒)")
+    notice_time_window: int = Field(default=3600, ge=10, le=86400, description="notice时间窗口(秒)")
     max_notices_per_chat: int = Field(default=30, ge=10, le=100, description="每个聊天保留的notice数量上限")
-    notice_retention_time: int = Field(default=86400, ge=3600, le=604800, description="notice保留时间(秒)")
+    notice_retention_time: int = Field(default=86400, ge=10, le=604800, description="notice保留时间(秒)")
 
 
 class ExpressionRule(ValidatedConfigBase):
@@ -212,6 +225,12 @@ class ExpressionConfig(ValidatedConfigBase):
     mode: Literal["classic", "exp_model"] = Field(
         default="classic",
         description="表达方式选择模式: classic=经典LLM评估, exp_model=机器学习模型预测"
+    )
+    model_temperature: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=5.0,
+        description="表达模型采样温度，0为贪婪，值越大越容易采样到低分表达"
     )
     expiration_days: int = Field(
         default=90,
@@ -304,7 +323,6 @@ class VoiceConfig(ValidatedConfigBase):
     """语音识别配置类"""
 
     enable_asr: bool = Field(default=False, description="启用语音识别")
-    asr_provider: str = Field(default="api", description="语音识别提供商")
 
 
 class EmojiConfig(ValidatedConfigBase):
@@ -508,6 +526,7 @@ class MemoryConfig(ValidatedConfigBase):
     short_term_decay_factor: float = Field(default=0.98, description="衰减因子")
 
     # 长期记忆层配置
+    use_judge: bool = Field(default=True, description="使用评判模型决定是否检索长期记忆")
     long_term_batch_size: int = Field(default=10, description="批量转移大小")
     long_term_decay_factor: float = Field(default=0.95, description="衰减因子")
     long_term_auto_transfer_interval: int = Field(default=60, description="自动转移间隔（秒）")
@@ -579,6 +598,20 @@ class ResponseSplitterConfig(ValidatedConfigBase):
     max_length: int = Field(default=256, description="最大长度")
     max_sentence_num: int = Field(default=3, description="最大句子数")
     enable_kaomoji_protection: bool = Field(default=False, description="启用颜文字保护")
+
+
+class LogConfig(ValidatedConfigBase):
+    """日志配置类"""
+
+    date_style: str = Field(default="m-d H:i:s", description="日期格式")
+    log_level_style: str = Field(default="lite", description="日志级别样式")
+    color_text: str = Field(default="full", description="日志文本颜色")
+    log_level: str = Field(default="INFO", description="全局日志级别（向下兼容，优先级低于分别设置）")
+    file_retention_days: int = Field(default=7, description="文件日志保留天数，0=禁用文件日志，-1=永不删除")
+    console_log_level: str = Field(default="INFO", description="控制台日志级别")
+    file_log_level: str = Field(default="DEBUG", description="文件日志级别")
+    suppress_libraries: list[str] = Field(default_factory=list, description="完全屏蔽日志的第三方库列表")
+    library_log_levels: dict[str, str] = Field(default_factory=dict, description="设置特定库的日志级别")
 
 
 class DebugConfig(ValidatedConfigBase):
@@ -696,6 +729,7 @@ class WebSearchConfig(ValidatedConfigBase):
     enable_url_tool: bool = Field(default=True, description="启用URL工具")
     tavily_api_keys: list[str] = Field(default_factory=lambda: [], description="Tavily API密钥列表，支持轮询机制")
     exa_api_keys: list[str] = Field(default_factory=lambda: [], description="exa API密钥列表，支持轮询机制")
+    metaso_api_keys: list[str] = Field(default_factory=lambda: [], description="Metaso API密钥列表，支持轮询机制")
     searxng_instances: list[str] = Field(default_factory=list, description="SearXNG 实例 URL 列表")
     searxng_api_keys: list[str] = Field(default_factory=list, description="SearXNG 实例 API 密钥列表")
     serper_api_keys: list[str] = Field(default_factory=list, description="serper API 密钥列表")
@@ -796,14 +830,6 @@ class AffinityFlowConfig(ValidatedConfigBase):
     # 兴趣评分系统参数
     reply_action_interest_threshold: float = Field(default=0.4, description="回复动作兴趣阈值")
     non_reply_action_interest_threshold: float = Field(default=0.2, description="非回复动作兴趣阈值")
-    high_match_interest_threshold: float = Field(default=0.8, description="高匹配兴趣阈值")
-    medium_match_interest_threshold: float = Field(default=0.5, description="中匹配兴趣阈值")
-    low_match_interest_threshold: float = Field(default=0.2, description="低匹配兴趣阈值")
-    high_match_keyword_multiplier: float = Field(default=1.5, description="高匹配关键词兴趣倍率")
-    medium_match_keyword_multiplier: float = Field(default=1.2, description="中匹配关键词兴趣倍率")
-    low_match_keyword_multiplier: float = Field(default=1.0, description="低匹配关键词兴趣倍率")
-    match_count_bonus: float = Field(default=0.1, description="匹配数关键词加成值")
-    max_match_bonus: float = Field(default=0.5, description="最大匹配数加成值")
 
     # 回复决策系统参数
     no_reply_threshold_adjustment: float = Field(default=0.1, description="不回复兴趣阈值调整值")
@@ -893,30 +919,30 @@ class ProactiveThinkingConfig(ValidatedConfigBase):
 class KokoroFlowChatterProactiveConfig(ValidatedConfigBase):
     """
     Kokoro Flow Chatter 主动思考子配置
-    
+
     设计哲学：主动行为源于内部状态和外部环境的自然反应，而非机械的限制。
     她的主动是因为挂念、因为关心、因为想问候，而不是因为"任务"。
     """
     enabled: bool = Field(default=True, description="是否启用KFC的私聊主动思考")
-    
+
     # 1. 沉默触发器：当感到长久的沉默时，她可能会想说些什么
     silence_threshold_seconds: int = Field(
         default=7200, ge=60, le=86400,
         description="用户沉默超过此时长（秒），可能触发主动思考（默认2小时）"
     )
-    
+
     # 2. 关系门槛：她不会对不熟悉的人过于主动
     min_affinity_for_proactive: float = Field(
         default=0.3, ge=0.0, le=1.0,
         description="需要达到最低好感度，她才会开始主动关心"
     )
-    
+
     # 3. 频率呼吸：为了避免打扰，她的关心总是有间隔的
     min_interval_between_proactive: int = Field(
         default=1800, ge=0,
         description="两次主动思考之间的最小间隔（秒，默认30分钟）"
     )
-    
+
     # 4. 自然问候：在特定的时间，她会像朋友一样送上问候
     enable_morning_greeting: bool = Field(
         default=True, description="是否启用早安问候 (例如: 8:00 - 9:00)"
@@ -924,7 +950,7 @@ class KokoroFlowChatterProactiveConfig(ValidatedConfigBase):
     enable_night_greeting: bool = Field(
         default=True, description="是否启用晚安问候 (例如: 22:00 - 23:00)"
     )
-    
+
     # 5. 勿扰时段：在这段时间内不会主动发起对话
     quiet_hours_start: str = Field(
         default="23:00", description="勿扰时段开始时间，格式: HH:MM"
@@ -932,7 +958,7 @@ class KokoroFlowChatterProactiveConfig(ValidatedConfigBase):
     quiet_hours_end: str = Field(
         default="07:00", description="勿扰时段结束时间，格式: HH:MM"
     )
-    
+
     # 6. 触发概率：每次检查时主动发起的概率
     trigger_probability: float = Field(
         default=0.3, ge=0.0, le=1.0,
@@ -940,18 +966,80 @@ class KokoroFlowChatterProactiveConfig(ValidatedConfigBase):
     )
 
 
+class KokoroFlowChatterWaitingConfig(ValidatedConfigBase):
+    """Kokoro Flow Chatter 等待策略配置"""
+
+    default_max_wait_seconds: int = Field(
+        default=300,
+        ge=0,
+        le=3600,
+        description="默认最大等待秒数（当LLM未给出等待时间时使用）",
+    )
+    min_wait_seconds: int = Field(
+        default=30,
+        ge=0,
+        le=1800,
+        description="允许的最小等待秒数，防止等待时间过短导致频繁打扰",
+    )
+    max_wait_seconds: int = Field(
+        default=1800,
+        ge=60,
+        le=7200,
+        description="允许的最大等待秒数，避免等待时间过长",
+    )
+    wait_duration_multiplier: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=10.0,
+        description="等待时长倍率，用于整体放大或缩短LLM给出的等待时间",
+    )
+    max_consecutive_timeouts: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="允许的连续等待超时次数上限，达到后不再等待用户回复 (0 表示不限制)",
+    )
+
+
+class KokoroFlowChatterPromptConfig(ValidatedConfigBase):
+    """Kokoro Flow Chatter 提示词/上下文构建配置"""
+
+    activity_stream_format: Literal["narrative", "table", "both"] = Field(
+        default="narrative",
+        description='活动流格式: "narrative"(线性叙事) / "table"(结构化表格) / "both"(两者都输出)',
+    )
+    max_activity_entries: int = Field(
+        default=30,
+        ge=0,
+        le=200,
+        description="活动流最多保留条数（越大越完整，但token越高）",
+    )
+    max_entry_length: int = Field(
+        default=500,
+        ge=0,
+        le=5000,
+        description="活动流单条最大字符数（用于裁剪，避免单条过长拖垮上下文）",
+    )
+
+
 class KokoroFlowChatterConfig(ValidatedConfigBase):
     """
     Kokoro Flow Chatter 配置类 - 私聊专用心流对话系统
-    
+
     设计理念：KFC不是独立人格，它复用全局的人设、情感框架和回复模型，
     只作为Bot核心人格在私聊中的一种特殊表现模式。
     """
 
     # --- 总开关 ---
     enable: bool = Field(
-        default=True, 
+        default=True,
         description="开启后KFC将接管所有私聊消息；关闭后私聊消息将由AFC处理"
+    )
+
+    # --- 工作模式 ---
+    mode: Literal["unified", "split"] = Field(
+        default="split",
+        description='工作模式: "unified"(单次调用) 或 "split"(planner+replyer两次调用)',
     )
 
     # --- 核心行为配置 ---
@@ -960,8 +1048,24 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
         description="默认的最大等待秒数（AI发送消息后愿意等待用户回复的时间）"
     )
     enable_continuous_thinking: bool = Field(
-        default=True, 
+        default=True,
         description="是否在等待期间启用心理活动更新"
+    )
+
+    # --- 自定义决策提示词 ---
+    custom_decision_prompt: str = Field(
+        default="",
+        description="自定义KFC决策行为指导提示词（unified影响整体，split仅影响planner）",
+    )
+
+    prompt: KokoroFlowChatterPromptConfig = Field(
+        default_factory=KokoroFlowChatterPromptConfig,
+        description="提示词/上下文构建配置（活动流格式、裁剪等）",
+    )
+
+    waiting: KokoroFlowChatterWaitingConfig = Field(
+        default_factory=KokoroFlowChatterWaitingConfig,
+        description="等待策略配置（默认等待时间、倍率等）",
     )
 
     # --- 私聊专属主动思考配置 ---
@@ -969,4 +1073,3 @@ class KokoroFlowChatterConfig(ValidatedConfigBase):
         default_factory=KokoroFlowChatterProactiveConfig,
         description="私聊专属主动思考配置"
     )
-

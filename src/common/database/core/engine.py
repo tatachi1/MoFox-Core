@@ -4,7 +4,6 @@
 
 支持的数据库类型：
 - SQLite: 轻量级本地数据库，使用 aiosqlite 驱动
-- MySQL: 高性能关系型数据库，使用 aiomysql 驱动
 - PostgreSQL: 功能丰富的开源数据库，使用 asyncpg 驱动
 """
 
@@ -66,9 +65,7 @@ async def get_engine() -> AsyncEngine:
             logger.info(f"正在初始化 {db_type.upper()} 数据库引擎...")
 
             # 根据数据库类型构建URL和引擎参数
-            if db_type == "mysql":
-                url, engine_kwargs = _build_mysql_config(config)
-            elif db_type == "postgresql":
+            if db_type == "postgresql":
                 url, engine_kwargs = _build_postgresql_config(config)
             else:
                 url, engine_kwargs = _build_sqlite_config(config)
@@ -82,7 +79,7 @@ async def get_engine() -> AsyncEngine:
             elif db_type == "postgresql":
                 await _enable_postgresql_optimizations(_engine)
 
-            logger.info(f"✅ {db_type.upper()} 数据库引擎初始化成功")
+            logger.info(f"{db_type.upper()} 数据库引擎初始化成功")
             return _engine
 
         except Exception as e:
@@ -119,56 +116,7 @@ def _build_sqlite_config(config) -> tuple[str, dict]:
         },
     }
 
-    logger.info(f"SQLite配置: {db_path}")
-    return url, engine_kwargs
-
-
-def _build_mysql_config(config) -> tuple[str, dict]:
-    """构建 MySQL 配置
-
-    Args:
-        config: 数据库配置对象
-
-    Returns:
-        (url, engine_kwargs) 元组
-    """
-    encoded_user = quote_plus(config.mysql_user)
-    encoded_password = quote_plus(config.mysql_password)
-
-    if config.mysql_unix_socket:
-        # Unix socket连接
-        encoded_socket = quote_plus(config.mysql_unix_socket)
-        url = (
-            f"mysql+aiomysql://{encoded_user}:{encoded_password}"
-            f"@/{config.mysql_database}"
-            f"?unix_socket={encoded_socket}&charset={config.mysql_charset}"
-        )
-    else:
-        # TCP连接
-        url = (
-            f"mysql+aiomysql://{encoded_user}:{encoded_password}"
-            f"@{config.mysql_host}:{config.mysql_port}/{config.mysql_database}"
-            f"?charset={config.mysql_charset}"
-        )
-
-    engine_kwargs = {
-        "echo": False,
-        "future": True,
-        "pool_size": config.connection_pool_size,
-        "max_overflow": config.connection_pool_size * 2,
-        "pool_timeout": config.connection_timeout,
-        "pool_recycle": 3600,
-        "pool_pre_ping": True,
-        "connect_args": {
-            "autocommit": config.mysql_autocommit,
-            "charset": config.mysql_charset,
-            "connect_timeout": config.connection_timeout,
-        },
-    }
-
-    logger.info(
-        f"MySQL配置: {config.mysql_user}@{config.mysql_host}:{config.mysql_port}/{config.mysql_database}"
-    )
+    logger.debug(f"SQLite配置: {db_path}")
     return url, engine_kwargs
 
 
@@ -219,7 +167,7 @@ def _build_postgresql_config(config) -> tuple[str, dict]:
     if connect_args:
         engine_kwargs["connect_args"] = connect_args
 
-    logger.info(
+    logger.debug(
         f"PostgreSQL配置: {config.postgresql_user}@{config.postgresql_host}:{config.postgresql_port}/{config.postgresql_database}"
     )
     return url, engine_kwargs
@@ -236,7 +184,7 @@ async def close_engine():
         logger.info("正在关闭数据库引擎...")
         await _engine.dispose()
         _engine = None
-        logger.info("✅ 数据库引擎已关闭")
+        logger.info("数据库引擎已关闭")
 
 
 async def _enable_sqlite_optimizations(engine: AsyncEngine):
@@ -260,43 +208,57 @@ async def _enable_sqlite_optimizations(engine: AsyncEngine):
             # 启用外键约束
             await conn.execute(text("PRAGMA foreign_keys = ON"))
             # 设置busy_timeout，避免锁定错误
-            await conn.execute(text("PRAGMA busy_timeout = 60000"))
+            await conn.execute(text("PRAGMA busy_timeout = 10000"))
             # 设置缓存大小（10MB）
             await conn.execute(text("PRAGMA cache_size = -10000"))
             # 临时存储使用内存
             await conn.execute(text("PRAGMA temp_store = MEMORY"))
 
-        logger.info("✅ SQLite性能优化已启用 (WAL模式 + 并发优化)")
-
     except Exception as e:
         logger.warning(f"⚠️ SQLite性能优化失败: {e}，将使用默认配置")
 
 
-async def _enable_postgresql_optimizations(engine: AsyncEngine):
-    """启用PostgreSQL性能优化
+async def _enable_postgresql_optimizations(engine: AsyncEngine) -> None:
+    """启用 PostgreSQL 会话级性能优化。
 
-    优化项：
-    - 设置合适的 work_mem
-    - 启用 JIT 编译（如果可用）
-    - 设置合适的 statement_timeout
-
-    Args:
-        engine: SQLAlchemy异步引擎
+    包含：
+    - work_mem：单次排序/哈希可用内存
+    - statement_timeout：单条语句超时
+    - synchronous_commit：提交同步级别
+    - jit：是否启用 JIT
+    - idle_in_transaction_session_timeout：事务空闲超时
+    - lock_timeout：等待锁超时
     """
     try:
         async with engine.begin() as conn:
-            # 设置会话级别的参数
-            # work_mem: 排序和哈希操作的内存（64MB）
+            # 排序/哈希内存，注意这是“每个排序操作”的上限，不要乱调太大
             await conn.execute(text("SET work_mem = '64MB'"))
-            # 设置语句超时（5分钟）
-            await conn.execute(text("SET statement_timeout = '300000'"))
-            # 启用自动 EXPLAIN（可选，用于调试）
-            # await conn.execute(text("SET auto_explain.log_min_duration = '1000'"))
 
-        logger.info("✅ PostgreSQL性能优化已启用")
+            # 单条语句超时（1 分钟）
+            await conn.execute(text("SET statement_timeout = '60000'"))
+
+            # 提交同步级别：'local' 性能好一些，崩溃时可能丢几 ms 的数据
+            await conn.execute(text("SET synchronous_commit = 'local'"))
+
+            # 对大量短小查询，通常关掉 JIT 更省 CPU
+            await conn.execute(text("SET jit = 'off'"))
+
+            # 事务空闲超时，避免长时间占用锁
+            await conn.execute(
+                text("SET idle_in_transaction_session_timeout = '60000'")
+            )
+
+            # 等锁超过 5s 就报错，避免全部堆死
+            await conn.execute(text("SET lock_timeout = '5000'"))
+
+            # 可选：根据你预估的缓存情况设置
+            # await conn.execute(text("SET random_page_cost = 1.1"))
+            # await conn.execute(text("SET effective_cache_size = '2GB'"))
 
     except Exception as e:
-        logger.warning(f"⚠️ PostgreSQL性能优化失败: {e}，将使用默认配置")
+        logger.warning(
+            f"⚠️ PostgreSQL 会话级性能优化失败: {e}，将使用默认配置"
+        )
 
 
 async def get_engine_info() -> dict:

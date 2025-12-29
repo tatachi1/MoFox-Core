@@ -9,6 +9,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from src.common.database.compatibility import get_db_session
 from src.common.database.core.models import ChatStreams
 from src.common.logger import get_logger
@@ -159,20 +161,27 @@ class BatchDatabaseWriter:
         logger.info("批量写入循环结束")
 
     async def _collect_batch(self) -> list[StreamUpdatePayload]:
-        """收集一个批次的数据"""
-        batch = []
-        deadline = time.time() + self.flush_interval
+        """收集一个批次的数据
+        - 自适应刷新：队列增长加快时缩短等待时间
+        - 避免长时间空转：添加轻微抖动以分散竞争
+        """
+        batch: list[StreamUpdatePayload] = []
+        # 根据当前队列长度调整刷新时间（最多缩短到 40%）
+        qsize = self.write_queue.qsize()
+        adapt_factor = 1.0
+        if qsize > 0:
+            adapt_factor = max(0.4, min(1.0, self.batch_size / max(1, qsize)))
+        deadline = time.time() + (self.flush_interval * adapt_factor)
 
         while len(batch) < self.batch_size and time.time() < deadline:
             try:
-                # 计算剩余等待时间
-                remaining_time = max(0, deadline - time.time())
+                remaining_time = max(0.0, deadline - time.time())
                 if remaining_time == 0:
                     break
-
-                payload = await asyncio.wait_for(self.write_queue.get(), timeout=remaining_time)
+                # 轻微抖动，避免多个协程同时争抢队列
+                jitter = 0.002
+                payload = await asyncio.wait_for(self.write_queue.get(), timeout=remaining_time + jitter)
                 batch.append(payload)
-
             except asyncio.TimeoutError:
                 break
 
@@ -208,55 +217,52 @@ class BatchDatabaseWriter:
 
             logger.debug(f"批量写入完成: {len(batch)} 个更新，耗时 {time.time() - start_time:.3f}s")
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             self.stats["failed_writes"] += 1
             logger.error(f"批量写入失败: {e}")
             # 降级到单个写入
             for payload in batch:
                 try:
                     await self._direct_write(payload.stream_id, payload.update_data)
-                except Exception as single_e:
+                except SQLAlchemyError as single_e:
                     logger.error(f"单个写入也失败: {single_e}")
 
     async def _batch_write_to_database(self, payloads: list[StreamUpdatePayload]):
-        """批量写入数据库"""
+        """批量写入数据库（单事务、多值 UPSERT）"""
         if global_config is None:
             raise RuntimeError("Global config is not initialized")
 
+        if not payloads:
+            return
+
+        # 预组装行数据，确保每行包含 stream_id
+        rows: list[dict[str, Any]] = []
+        for p in payloads:
+            row = {"stream_id": p.stream_id}
+            row.update(p.update_data)
+            rows.append(row)
+
         async with get_db_session() as session:
-            for payload in payloads:
-                stream_id = payload.stream_id
-                update_data = payload.update_data
-
-                # 根据数据库类型选择不同的插入/更新策略
-                if global_config.database.database_type == "sqlite":
-                    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
-                    stmt = sqlite_insert(ChatStreams).values(stream_id=stream_id, **update_data)
-                    stmt = stmt.on_conflict_do_update(index_elements=["stream_id"], set_=update_data)
-                elif global_config.database.database_type == "mysql":
-                    from sqlalchemy.dialects.mysql import insert as mysql_insert
-
-                    stmt = mysql_insert(ChatStreams).values(stream_id=stream_id, **update_data)
-                    stmt = stmt.on_duplicate_key_update(
-                        **{key: value for key, value in update_data.items() if key != "stream_id"}
-                    )
-                elif global_config.database.database_type == "postgresql":
-                    from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-                    stmt = pg_insert(ChatStreams).values(stream_id=stream_id, **update_data)
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=[ChatStreams.stream_id],
-                        set_=update_data
-                    )
-                else:
-                    # 默认使用SQLite语法
-                    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
-                    stmt = sqlite_insert(ChatStreams).values(stream_id=stream_id, **update_data)
-                    stmt = stmt.on_conflict_do_update(index_elements=["stream_id"], set_=update_data)
-
+            # 使用单次事务提交，显著减少 I/O
+            if global_config.database.database_type == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                stmt = pg_insert(ChatStreams).values(rows)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[ChatStreams.stream_id],
+                    set_={k: getattr(stmt.excluded, k) for k in rows[0].keys() if k != "stream_id"}
+                )
                 await session.execute(stmt)
+                await session.commit()
+            else:
+                # 默认（sqlite）
+                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+                stmt = sqlite_insert(ChatStreams).values(rows)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["stream_id"],
+                    set_={k: getattr(stmt.excluded, k) for k in rows[0].keys() if k != "stream_id"}
+                )
+                await session.execute(stmt)
+                await session.commit()
     async def _direct_write(self, stream_id: str, update_data: dict[str, Any]):
         """直接写入数据库（降级方案）"""
         if global_config is None:
@@ -268,13 +274,6 @@ class BatchDatabaseWriter:
 
                 stmt = sqlite_insert(ChatStreams).values(stream_id=stream_id, **update_data)
                 stmt = stmt.on_conflict_do_update(index_elements=["stream_id"], set_=update_data)
-            elif global_config.database.database_type == "mysql":
-                from sqlalchemy.dialects.mysql import insert as mysql_insert
-
-                stmt = mysql_insert(ChatStreams).values(stream_id=stream_id, **update_data)
-                stmt = stmt.on_duplicate_key_update(
-                    **{key: value for key, value in update_data.items() if key != "stream_id"}
-                )
             elif global_config.database.database_type == "postgresql":
                 from sqlalchemy.dialects.postgresql import insert as pg_insert
 

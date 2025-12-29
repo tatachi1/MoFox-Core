@@ -300,7 +300,7 @@ async def db_save(
             crud = CRUDBase(model_class)
 
         # 使用get_or_create (返回tuple[T, bool])
-        instance, created = await crud.get_or_create(
+        instance, _created = await crud.get_or_create(
             defaults=data,
             **{key_field: key_value},
         )

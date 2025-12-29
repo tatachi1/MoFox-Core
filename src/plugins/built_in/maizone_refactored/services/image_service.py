@@ -6,15 +6,14 @@
 import base64
 import random
 from collections.abc import Callable
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
+
+import aiohttp
 from PIL import Image
 
-import aiofiles
-import aiohttp
-
 from src.common.logger import get_logger
-from src.plugin_system.apis import llm_api, config_api
+from src.plugin_system.apis import config_api, llm_api
 
 logger = get_logger("MaiZone.ImageService")
 
@@ -32,19 +31,49 @@ class ImageService:
         """
         self.get_config = get_config
 
+    async def generate_image_from_prompt(self, prompt: str, save_dir: str | None = None) -> tuple[bool, Path | None]:
+        """
+        直接使用提示词生成图片（硅基流动）
+
+        :param prompt: 图片提示词（英文）
+        :param save_dir: 图片保存目录（None使用默认）
+        :return: (是否成功, 图片路径)
+        """
+        try:
+            api_key = str(self.get_config("siliconflow.api_key", ""))
+            image_num = self.get_config("ai_image.image_number", 1)
+
+            if not api_key:
+                logger.warning("硅基流动API未配置，跳过图片生成")
+                return False, None
+
+            # 图片目录
+            if save_dir:
+                image_dir = Path(save_dir)
+            else:
+                plugin_dir = Path(__file__).parent.parent
+                image_dir = plugin_dir / "images"
+            image_dir.mkdir(parents=True, exist_ok=True)
+
+            logger.info(f"正在生成 {image_num} 张AI配图...")
+            success, img_path = await self._call_siliconflow_api(api_key, prompt, str(image_dir), image_num)
+            return success, img_path
+
+        except Exception as e:
+            logger.error(f"生成AI配图时发生异常: {e}")
+            return False, None
+
     async def generate_images_for_story(self, story: str) -> bool:
         """
-        根据说说内容，判断是否需要生成AI配图，并执行生成任务。
+        根据说说内容，判断是否需要生成AI配图，并执行生成任务（硅基流动）。
 
         :param story: 说说内容。
         :return: 图片是否成功生成（或不需要生成）。
         """
         try:
-            enable_ai_image = bool(self.get_config("send.enable_ai_image", False))
-            api_key = str(self.get_config("models.siliconflow_apikey", ""))
-            image_dir = str(self.get_config("send.image_directory", "./data/plugins/maizone_refactored/images"))
-            image_num_raw = self.get_config("send.ai_image_number", 1)
-            
+            api_key = str(self.get_config("siliconflow.api_key", ""))
+            image_num_raw = self.get_config("ai_image.image_number", 1)
+
             # 安全地处理图片数量配置，并限制在API允许的范围内
             try:
                 image_num = int(image_num_raw) if image_num_raw not in [None, ""] else 1
@@ -53,15 +82,14 @@ class ImageService:
                 logger.warning(f"无效的图片数量配置: {image_num_raw}，使用默认值1")
                 image_num = 1
 
-            if not enable_ai_image:
-                return True  # 未启用AI配图，视为成功
-
             if not api_key:
-                logger.error("启用了AI配图但未填写SiliconFlow API密钥")
-                return False
+                logger.warning("硅基流动API未配置，跳过图片生成")
+                return True
 
-            # 确保图片目录存在
-            Path(image_dir).mkdir(parents=True, exist_ok=True)
+            # 图片目录（使用统一配置）
+            plugin_dir = Path(__file__).parent.parent
+            image_dir = plugin_dir / "images"
+            image_dir.mkdir(parents=True, exist_ok=True)
 
             # 生成图片提示词
             image_prompt = await self._generate_image_prompt(story)
@@ -70,7 +98,8 @@ class ImageService:
                 return False
 
             logger.info(f"正在为说说生成 {image_num} 张AI配图...")
-            return await self._call_siliconflow_api(api_key, image_prompt, image_dir, image_num)
+            success, _ = await self._call_siliconflow_api(api_key, image_prompt, str(image_dir), image_num)
+            return success
 
         except Exception as e:
             logger.error(f"处理AI配图时发生异常: {e}")
@@ -79,7 +108,7 @@ class ImageService:
     async def _generate_image_prompt(self, story_content: str) -> str:
         """
         使用LLM生成图片提示词，基于说说内容。
-        
+
         :param story_content: 说说内容
         :return: 生成的图片提示词，失败时返回空字符串
         """
@@ -87,7 +116,7 @@ class ImageService:
             # 获取配置
             identity = config_api.get_global_config("personality.identity", "年龄为19岁,是女孩子,身高为160cm,黑色短发")
             enable_ref = bool(self.get_config("models.image_ref", True))
-            
+
             # 构建提示词
             prompt = f"""
                 请根据以下QQ空间说说内容配图，并构建生成配图的风格和prompt。
@@ -102,14 +131,14 @@ class ImageService:
             models = llm_api.get_available_models()
             prompt_model = self.get_config("models.text_model", "replyer")
             model_config = models.get(prompt_model)
-            
+
             if not model_config:
                 logger.error(f"找不到模型配置: {prompt_model}")
                 return ""
 
             # 调用LLM生成提示词
             logger.info("正在生成图片提示词...")
-            success, image_prompt, reasoning, model_name = await llm_api.generate_with_model(
+            success, image_prompt, _reasoning, _model_name = await llm_api.generate_with_model(
                 prompt=prompt,
                 model_config=model_config,
                 request_type="story.generate",
@@ -118,17 +147,17 @@ class ImageService:
             )
 
             if success:
-                logger.info(f'成功生成图片提示词: {image_prompt}')
+                logger.info(f"成功生成图片提示词: {image_prompt}")
                 return image_prompt
             else:
-                logger.error('生成图片提示词失败')
+                logger.error("生成图片提示词失败")
                 return ""
 
         except Exception as e:
             logger.error(f"生成图片提示词时发生异常: {e}")
             return ""
 
-    async def _call_siliconflow_api(self, api_key: str, image_prompt: str, image_dir: str, batch_size: int) -> bool:
+    async def _call_siliconflow_api(self, api_key: str, image_prompt: str, image_dir: str, batch_size: int) -> tuple[bool, Path | None]:
         """
         调用硅基流动（SiliconFlow）的API来生成图片。
 
@@ -136,7 +165,7 @@ class ImageService:
         :param image_prompt: 用于生成图片的提示词。
         :param image_dir: 图片保存目录。
         :param batch_size: 生成图片的数量（1-4）。
-        :return: API调用是否成功。
+        :return: (API调用是否成功, 第一张图片路径)
         """
         url = "https://api.siliconflow.cn/v1/images/generations"
         headers = {
@@ -174,14 +203,15 @@ class ImageService:
                 async with session.post(url, json=data, headers=headers) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f'生成图片出错，错误码[{response.status}]')
-                        logger.error(f'错误响应: {error_text}')
-                        return False
-                    
+                        logger.error(f"生成图片出错，错误码[{response.status}]")
+                        logger.error(f"错误响应: {error_text}")
+                        return False, None
+
                     json_data = await response.json()
                     image_urls = [img["url"] for img in json_data["images"]]
 
                     success_count = 0
+                    first_img_path = None
                     # 下载并保存图片
                     for i, img_url in enumerate(image_urls):
                         try:
@@ -193,61 +223,65 @@ class ImageService:
                             # 处理图片
                             try:
                                 image = Image.open(BytesIO(img_data))
-                                
+
                                 # 保存图片为PNG格式（确保兼容性）
-                                filename = f"image_{i}.png"
+                                filename = f"siliconflow_{i}.png"
                                 save_path = Path(image_dir) / filename
-                                
+
                                 # 转换为RGB模式如果必要（避免RGBA等模式的问题）
-                                if image.mode in ('RGBA', 'LA', 'P'):
-                                    background = Image.new('RGB', image.size, (255, 255, 255))
-                                    background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                                if image.mode in ("RGBA", "LA", "P"):
+                                    background = Image.new("RGB", image.size, (255, 255, 255))
+                                    background.paste(image, mask=image.split()[-1] if image.mode == "RGBA" else None)
                                     image = background
-                                
-                                image.save(save_path, format='PNG')
+
+                                image.save(save_path, format="PNG")
                                 logger.info(f"图片已保存至: {save_path}")
                                 success_count += 1
-                                
+
+                                # 记录第一张图片路径
+                                if first_img_path is None:
+                                    first_img_path = save_path
+
                             except Exception as e:
-                                logger.error(f"处理图片失败: {str(e)}")
+                                logger.error(f"处理图片失败: {e!s}")
                                 continue
 
                         except Exception as e:
-                            logger.error(f"下载第{i+1}张图片失败: {str(e)}")
+                            logger.error(f"下载图片失败: {e!s}")
                             continue
 
-                    # 只要至少有一张图片成功就返回True
-                    return success_count > 0
+                    # 至少有一张图片成功就返回True
+                    return success_count > 0, first_img_path
 
         except Exception as e:
             logger.error(f"调用AI生图API时发生异常: {e}")
-            return False
+            return False, None
 
     def _encode_image_to_base64(self, img: Image.Image) -> str:
         """
         将PIL.Image对象编码为base64 data URL
-        
+
         :param img: PIL图片对象
         :return: base64 data URL字符串，失败时返回空字符串
         """
         try:
             # 强制转换为PNG格式，因为SiliconFlow API要求data:image/png
             buffer = BytesIO()
-            
+
             # 转换为RGB模式如果必要
-            if img.mode in ('RGBA', 'LA', 'P'):
-                background = Image.new('RGB', img.size, (255, 255, 255))
-                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            if img.mode in ("RGBA", "LA", "P"):
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
                 img = background
-            
+
             # 保存为PNG格式
             img.save(buffer, format="PNG")
             byte_data = buffer.getvalue()
-            
+
             # Base64编码，使用固定的data:image/png
             encoded_string = base64.b64encode(byte_data).decode("utf-8")
             return f"data:image/png;base64,{encoded_string}"
-            
+
         except Exception as e:
             logger.error(f"编码图片为base64失败: {e}")
             return ""

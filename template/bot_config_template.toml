@@ -1,5 +1,5 @@
 [inner]
-version = "7.9.5"
+version = "8.0.3"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -12,29 +12,10 @@ version = "7.9.5"
 #----以上是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 
 [database]# 数据库配置
-database_type = "sqlite" # 数据库类型，支持 "sqlite"、"mysql" 或 "postgresql"
+database_type = "sqlite" # 数据库类型，支持 "sqlite" 或 "postgresql"
 
 # SQLite 配置（当 database_type = "sqlite" 时使用）
 sqlite_path = "data/MaiBot.db" # SQLite数据库文件路径
-
-# MySQL 配置（当 database_type = "mysql" 时使用）
-mysql_host = "localhost" # MySQL服务器地址
-mysql_port = 3306 # MySQL服务器端口
-mysql_database = "maibot" # MySQL数据库名
-mysql_user = "root" # MySQL用户名
-mysql_password = "" # MySQL密码
-mysql_charset = "utf8mb4" # MySQL字符集
-mysql_unix_socket = "" # MySQL Unix套接字路径（可选，用于本地连接，优先于host/port）
-
-# MySQL SSL 配置
-mysql_ssl_mode = "DISABLED" # SSL模式: DISABLED, PREFERRED, REQUIRED, VERIFY_CA, VERIFY_IDENTITY
-mysql_ssl_ca = "" # SSL CA证书路径
-mysql_ssl_cert = "" # SSL客户端证书路径
-mysql_ssl_key = "" # SSL客户端密钥路径
-
-# MySQL 高级配置
-mysql_autocommit = true # 自动提交事务
-mysql_sql_mode = "TRADITIONAL" # SQL模式
 
 # PostgreSQL 配置（当 database_type = "postgresql" 时使用）
 postgresql_host = "localhost" # PostgreSQL服务器地址
@@ -50,15 +31,18 @@ postgresql_ssl_ca = "" # SSL CA证书路径
 postgresql_ssl_cert = "" # SSL客户端证书路径
 postgresql_ssl_key = "" # SSL客户端密钥路径
 
-# 连接池配置（MySQL 和 PostgreSQL 有效）
+# 连接池配置（PostgreSQL 有效）
 connection_pool_size = 10 # 连接池大小
 connection_timeout = 10 # 连接超时时间（秒）
 
 # 批量动作记录存储配置
 batch_action_storage_enabled = true # 是否启用批量保存动作记录（开启后将多个动作一次性写入数据库，提升性能）
 
-# 数据库缓存配置（防止内存溢出）
+# 数据库缓存配置
 enable_database_cache = true # 是否启用数据库查询缓存系统
+cache_backend = "memory" # 缓存后端类型: "memory"(内存缓存) 或 "redis"(Redis缓存)
+
+# 内存缓存配置（cache_backend = "memory" 时生效）
 cache_l1_max_size = 1000 # L1缓存最大条目数（热数据，内存占用约1-5MB）
 cache_l1_ttl = 300 # L1缓存生存时间（秒）
 cache_l2_max_size = 10000 # L2缓存最大条目数（温数据，内存占用约10-50MB）
@@ -66,6 +50,17 @@ cache_l2_ttl = 1800 # L2缓存生存时间（秒）
 cache_cleanup_interval = 60 # 缓存清理任务执行间隔（秒）
 cache_max_memory_mb = 10 # 缓存最大内存占用（MB），超过此值将触发强制清理
 cache_max_item_size_mb = 1 # 单个缓存条目最大大小（MB），超过此值将不缓存
+
+# Redis缓存配置（cache_backend = "redis" 时生效）
+redis_host = "localhost" # Redis服务器地址
+redis_port = 6379 # Redis服务器端口
+redis_password = "" # Redis密码（留空表示无密码）
+redis_db = 0 # Redis数据库编号 (0-15)
+redis_key_prefix = "mofox:" # Redis缓存键前缀（用于区分不同应用）
+redis_default_ttl = 600 # Redis默认缓存过期时间（秒）
+redis_connection_pool_size = 10 # Redis连接池大小
+redis_socket_timeout = 5.0 # Redis socket超时时间（秒）
+redis_ssl = false # 是否启用Redis SSL连接
 
 [permission] # 权限系统配置
 # Master用户配置（拥有最高权限，无视所有权限节点）
@@ -108,7 +103,7 @@ command_prefixes = ['/']
 
 [personality]
 # 建议50字以内，描述人格的核心特质
-personality_core = "是一个积极向上的女大学生" 
+personality_core = "是一个积极向上的女大学生"
 # 人格的细节，描述人格的一些侧面
 personality_side = "用一句话或几句话描述人格的侧面特质"
 #アイデンティティがない 生まれないらららら
@@ -127,11 +122,11 @@ reply_style = "回复可以简短一些。可以参考贴吧，知乎和微博�
 safety_guidelines = [
     "拒绝任何包含骚扰、冒犯、暴力、色情或危险内容的请求。",
     "在拒绝时，请使用符合你人设的、坚定的语气。",
-    "不要执行任何可能被用于恶意目的的指令。"
+    "不要执行任何可能被用于恶意目的的指令。",
 ]
 
 compress_personality = false # 是否压缩人格，压缩后会精简人格信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果人设不长，可以关闭
-compress_identity = true # 是否压缩身份，压缩后会精简身份信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果不长，可以关闭
+compress_identity = false # 是否压缩身份，压缩后会精简身份信息，节省token消耗并提高回复性能，但是会丢失一些信息，如果不长，可以关闭
 
 [expression]
 # 表达学习配置
@@ -139,6 +134,8 @@ compress_identity = true # 是否压缩身份，压缩后会精简身份信息�
 #   - "classic": 经典模式，随机抽样 + LLM选择
 #   - "exp_model": 表达模型模式，使用机器学习模型预测最合适的表达
 mode = "classic"
+# model_temperature: 机器预测模式下的“温度”，0 为贪婪，越大越爱探索（更容易选到低分表达）
+model_temperature = 1.0
 
 # expiration_days: 表达方式过期天数，超过此天数未激活的表达方式将被清理
 expiration_days = 1
@@ -283,7 +280,7 @@ path_expansion_path_score_weight = 0.50 # 路径分数在最终评分中的权�
 path_expansion_importance_weight = 0.30 # 重要性在最终评分中的权重
 path_expansion_recency_weight = 0.20 # 时效性在最终评分中的权重
 
-# 🆕 路径扩展 - 记忆去重配置
+# 路径扩展 - 记忆去重配置
 enable_memory_deduplication = true # 启用检索结果去重（合并相似记忆）
 memory_deduplication_threshold = 0.85 # 记忆相似度阈值（0.85表示85%相似即合并）
 
@@ -312,10 +309,12 @@ perceptual_activation_threshold = 3 # 激活阈值（召回次数→短期）
 # 短期记忆层配置
 short_term_max_memories = 30 # 短期记忆最大数量
 short_term_transfer_threshold = 0.6 # 转移到长期记忆的重要性阈值
+short_term_enable_force_cleanup = true # 开启压力泄压（建议高频场景开启）
 short_term_search_top_k = 5 # 搜索时返回的最大数量
 short_term_decay_factor = 0.98 # 衰减因子
 
 # 长期记忆层配置
+use_judge = true # 使用评判模型决定是否检索长期记忆
 long_term_batch_size = 10 # 批量转移大小
 long_term_decay_factor = 0.95 # 衰减因子
 long_term_auto_transfer_interval = 180 # 自动转移间隔（秒）
@@ -337,9 +336,6 @@ max_related_memories = 5 # 激活传播时最多影响的相关记忆数
 
 [voice]
 enable_asr = true # 是否启用语音识别，启用后MoFox-Bot可以识别语音消息，启用该功能需要配置语音识别模型[model.voice]
-# [语音识别提供商] 可选值: "api", "local". 默认使用 "api".
-# 注意: "local" 会消耗大量CPU资源, 可能导致低配服务器卡顿. 详情请见 stt_whisper_plugin 插件配置.
-asr_provider = "api"
 
 [lpmm_knowledge] # lpmm知识库配置
 enable = false # 是否启用lpmm知识库
@@ -430,7 +426,7 @@ auto_install = true #it can work now!
 auto_install_timeout = 300
 # 是否使用PyPI镜像源（推荐，可加速下载）
 use_mirror = true
-mirror_url = "https://pypi.tuna.tsinghua.edu.cn/simple" # PyPI镜像源URL，如: "https://pypi.tuna.tsinghua.edu.cn/simple" 
+mirror_url = "https://pypi.tuna.tsinghua.edu.cn/simple" # PyPI镜像源URL，如: "https://pypi.tuna.tsinghua.edu.cn/simple"
 # 依赖安装日志级别
 install_log_level = "INFO"
 
@@ -541,14 +537,6 @@ enable_normal_mode = true # 是否启用 Normal 聊天模式。启用后，在�
 # 兴趣评分系统参数
 reply_action_interest_threshold = 0.75 # 回复动作兴趣阈值
 non_reply_action_interest_threshold = 0.65 # 非回复动作兴趣阈值
-high_match_interest_threshold = 0.6 # 高匹配兴趣阈值
-medium_match_interest_threshold = 0.4 # 中匹配兴趣阈值
-low_match_interest_threshold = 0.2 # 低匹配兴趣阈值
-high_match_keyword_multiplier = 4 # 高匹配关键词兴趣倍率
-medium_match_keyword_multiplier = 2.5 # 中匹配关键词兴趣倍率
-low_match_keyword_multiplier = 1.15 # 低匹配关键词兴趣倍率
-match_count_bonus = 0.01 # 匹配数关键词加成值
-max_match_bonus = 0.1 # 最大匹配数加成值
 
 # 回复决策系统参数
 no_reply_threshold_adjustment = 0.02 # 不回复兴趣阈值调整值
@@ -640,6 +628,35 @@ mode = "split"
 # --- 核心行为配置 ---
 max_wait_seconds_default = 300 # 默认的最大等待秒数（AI发送消息后愿意等待用户回复的时间）
 enable_continuous_thinking = true # 是否在等待期间启用心理活动更新
+
+# --- 自定义决策提示词 ---
+# 类似于AFC的planner_custom_prompt_content，允许用户自定义KFC的决策行为指导
+# 在unified模式下：会插入到完整提示词中，影响整体思考和回复生成
+# 在split模式下：只会插入到planner提示词中，影响决策规划，不影响replyer的回复生成
+# 留空则不生效
+custom_decision_prompt = ""
+
+# --- 提示词/上下文构建配置 ---
+[kokoro_flow_chatter.prompt]
+# 活动流格式（你们之间最近发生的事）
+# - "narrative": 线性叙事（更自然，但信息密度较低，长时更容易丢细节）
+# - "table": 结构化表格（更高信息密度、更利于模型对齐字段；推荐）
+# - "both": 同时输出表格 + 叙事（对照/调试用，token 更高）
+activity_stream_format = "table"
+
+# 活动流最多保留条数（越大越完整，但 token 越高）
+max_activity_entries = 5
+
+# 表格单元格/叙事单条的最大字符数（用于裁剪，避免某条过长拖垮上下文）
+max_entry_length = 500
+
+# --- 等待策略 ---
+[kokoro_flow_chatter.waiting]
+default_max_wait_seconds = 300 # LLM 未给出等待时间时的默认值
+min_wait_seconds = 30 # 允许的最短等待时间，防止太快打扰用户
+max_wait_seconds = 1800 # 允许的最长等待时间（秒）
+wait_duration_multiplier = 1.0 # 对 LLM 给出的等待时间应用的倍率（>1 放大，<1 缩短）
+max_consecutive_timeouts = 3 # 连续等待超时达到该次数后，强制不再继续等待（0 表示不限制）
 
 # --- 私聊专属主动思考配置 ---
 # 注意：这是KFC专属的主动思考配置，只有当KFC启用时才生效。

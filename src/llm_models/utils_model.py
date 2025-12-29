@@ -28,6 +28,7 @@ from collections.abc import Callable, Coroutine
 from enum import Enum
 from typing import Any, ClassVar, Literal
 
+import numpy as np
 from rich.traceback import install
 
 from src.common.logger import get_logger
@@ -36,7 +37,8 @@ from src.config.config import model_config
 
 from .exceptions import NetworkConnectionError, ReqAbortException, RespNotOkException, RespParseException
 from .model_client.base_client import APIResponse, BaseClient, UsageRecord, client_registry
-from .payload_content.message import Message, MessageBuilder
+from .payload_content.message import Message, MessageBuilder, RoleType
+from .payload_content.system_prompt import SYSTEM_PROMPT
 from .payload_content.tool_option import ToolCall, ToolOption, ToolOptionBuilder
 from .utils import compress_messages, llm_usage_recorder
 
@@ -769,6 +771,8 @@ class _RequestStrategy:
         executor: _RequestExecutor,
         model_list: list[str],
         task_name: str,
+        *,
+        system_prompt: str | None = None,
     ):
         """
         初始化请求策略。
@@ -785,6 +789,7 @@ class _RequestStrategy:
         self.executor = executor
         self.model_list = model_list
         self.task_name = task_name
+        self.system_prompt = system_prompt
 
     async def execute_with_failover(
         self,
@@ -818,8 +823,19 @@ class _RequestStrategy:
                     processed_prompt = await self.prompt_processor.prepare_prompt(
                         prompt, model_info, self.task_name
                     )
-                    message = MessageBuilder().add_text_content(processed_prompt).build()
-                    request_kwargs["message_list"] = [message]
+                    message_list = []
+                    if self.system_prompt:
+                        system_message = (
+                            MessageBuilder()
+                            .set_role(RoleType.System)
+                            .add_text_content(self.system_prompt)
+                            .build()
+                        )
+                        message_list.append(system_message)
+
+                    user_message = MessageBuilder().add_text_content(processed_prompt).build()
+                    message_list.append(user_message)
+                    request_kwargs["message_list"] = message_list
 
                 # 合并模型特定的额外参数
                 if model_info.extra_params:
@@ -935,6 +951,7 @@ class LLMRequest:
         """
         self.task_name = request_type
         self.model_for_task = model_set
+        self.system_prompt = self._resolve_system_prompt(model_set)
         self.model_usage: dict[str, ModelUsageStats] = {
             model: ModelUsageStats(total_tokens=0, penalty=0, usage_penalty=0, avg_latency=0.0, request_count=0)
             for model in self.model_for_task.model_list
@@ -951,8 +968,22 @@ class LLMRequest:
         self._prompt_processor = _PromptProcessor()
         self._executor = _RequestExecutor(self._model_selector, self.task_name)
         self._strategy = _RequestStrategy(
-            self._model_selector, self._prompt_processor, self._executor, self.model_for_task.model_list, self.task_name
+            self._model_selector,
+            self._prompt_processor,
+            self._executor,
+            self.model_for_task.model_list,
+            self.task_name,
+            system_prompt=self.system_prompt,
         )
+
+    def _resolve_system_prompt(self, model_set: TaskConfig) -> str | None:
+        """确定是否需要附加统一的system prompt."""
+        try:
+            if model_config and (model_set is model_config.model_task_config.replyer or model_set is model_config.model_task_config.replyer_private):
+                return SYSTEM_PROMPT
+        except AttributeError:
+            logger.debug("模型配置缺少replyer定义，无法注入系统提示词")
+        return None
 
     async def generate_response_for_image(
         self,
@@ -1140,7 +1171,8 @@ class LLMRequest:
             if not isinstance(embeddings, list):
                 raise RuntimeError("获取embedding失败，批量结果格式异常")
 
-            if embeddings and not isinstance(embeddings[0], list):
+            # embeddings 正常应该是 list[vector]；如果 provider 返回了一维列表（单向量），只在这种情况下套一层
+            if embeddings and not isinstance(embeddings[0], (list, tuple, np.ndarray)):
                 embeddings = [embeddings]  # type: ignore[list-item]
 
             # 批量请求返回二维列表

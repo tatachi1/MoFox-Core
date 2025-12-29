@@ -195,29 +195,35 @@ Command是最简单，最直接的响应，不由LLM判断选择使用
 ```python
 # 在现有代码基础上，添加Command组件
 import datetime
-from src.plugin_system import BaseCommand
-#导入Command基类
+from src.plugin_system import PlusCommand, CommandArgs
+# 导入增强命令基类 - 推荐使用！
 
-class TimeCommand(BaseCommand):
+class TimeCommand(PlusCommand):
     """时间查询Command - 响应/time命令"""
 
     command_name = "time"
     command_description = "查询当前时间"
 
-    # === 命令设置（必须填写）===
-    command_pattern = r"^/time$"  # 精确匹配 "/time" 命令
+    # 注意：使用 PlusCommand 不需要 command_pattern，会自动生成！
 
-    async def execute(self) -> Tuple[bool, Optional[str], bool]:
-        """执行时间查询"""
+    async def execute(self, args: CommandArgs) -> Tuple[bool, Optional[str], bool]:
+        """执行时间查询
+        
+        Args:
+            args: 命令参数（本例中不使用）
+            
+        Returns:
+            (成功标志, 日志描述, 是否拦截消息)
+        """
         # 获取当前时间
         time_format: str = "%Y-%m-%d %H:%M:%S"
         now = datetime.datetime.now()
         time_str = now.strftime(time_format)
 
-        # 发送时间信息
-        message = f"⏰ 当前时间：{time_str}"
-        await self.send_text(message)
+        # 发送时间信息给用户
+        await self.send_text(f"⏰ 当前时间：{time_str}")
 
+        # 返回：成功、日志描述、拦截消息
         return True, f"显示了当前时间: {time_str}", True
 
 @register_plugin
@@ -239,14 +245,29 @@ class HelloWorldPlugin(BasePlugin):
         ]
 ```
 
-同样的，我们通过 `get_plugin_components()` 方法，通过调用`get_action_info()`这个内置方法将 `TimeCommand` 注册为插件的一个组件。
+同样的，我们通过 `get_plugin_components()` 方法，通过调用`get_command_info()`这个内置方法将 `TimeCommand` 注册为插件的一个组件。
 
 **Command组件解释：**
 
-- `command_pattern` 使用正则表达式匹配用户输入
-- `^/time$` 表示精确匹配 "/time"
+> ⚠️ **重要：请使用 PlusCommand 而不是 BaseCommand！**
+> 
+> - ✅ **PlusCommand**：推荐使用，自动处理参数解析，无需编写正则表达式
+> - ❌ **BaseCommand**：仅供框架内部使用，插件开发者不应直接使用
 
-有关 Command 组件的更多信息，请参考 [Command组件指南](./command-components.md)。
+**PlusCommand 的优势：**
+- ✅ 无需编写 `command_pattern` 正则表达式
+- ✅ 自动解析命令参数（通过 `CommandArgs`）
+- ✅ 支持命令别名（`command_aliases`）
+- ✅ 更简单的 API，更容易上手
+
+**execute() 方法说明：**
+- 参数：`args: CommandArgs` - 包含解析后的命令参数
+- 返回值：`(bool, str, bool)` 三元组
+  - `bool`：命令是否执行成功
+  - `str`：日志描述（**不是发给用户的消息**）
+  - `bool`：是否拦截消息，阻止后续处理
+
+有关增强命令的详细信息，请参考 [增强命令指南](./PLUS_COMMAND_GUIDE.md)。
 
 ### 8. 测试时间查询Command
 
@@ -377,28 +398,31 @@ class HelloAction(BaseAction):
 
         return True, "发送了问候消息"
 
-class TimeCommand(BaseCommand):
+class TimeCommand(PlusCommand):
     """时间查询Command - 响应/time命令"""
 
     command_name = "time"
     command_description = "查询当前时间"
 
-    # === 命令设置（必须填写）===
-    command_pattern = r"^/time$"  # 精确匹配 "/time" 命令
+    # 注意：PlusCommand 不需要 command_pattern！
 
-    async def execute(self) -> Tuple[bool, str, bool]:
-        """执行时间查询"""
+    async def execute(self, args: CommandArgs) -> Tuple[bool, str, bool]:
+        """执行时间查询
+        
+        Args:
+            args: 命令参数对象
+        """
         import datetime
 
-        # 获取当前时间
+        # 从配置获取时间格式
         time_format: str = self.get_config("time.format", "%Y-%m-%d %H:%M:%S")  # type: ignore
         now = datetime.datetime.now()
         time_str = now.strftime(time_format)
 
-        # 发送时间信息
-        message = f"⏰ 当前时间：{time_str}"
-        await self.send_text(message)
+        # 发送时间信息给用户
+        await self.send_text(f"⏰ 当前时间：{time_str}")
 
+        # 返回：成功、日志描述、拦截消息
         return True, f"显示了当前时间: {time_str}", True
 ```
 

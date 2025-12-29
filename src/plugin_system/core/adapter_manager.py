@@ -14,12 +14,13 @@ from __future__ import annotations
 import asyncio
 import importlib
 import multiprocessing as mp
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.plugin_system.base.base_adapter import BaseAdapter
 
 from mofox_wire import ProcessCoreSinkServer
+
 from src.common.logger import get_logger
 
 logger = get_logger("adapter_manager")
@@ -64,11 +65,11 @@ def _adapter_process_entry(
 ):
     """
     子进程适配器入口函数
-    
+
     在子进程中运行，创建 ProcessCoreSink 与主进程通信
     """
-    import asyncio
     import contextlib
+
     from mofox_wire import ProcessCoreSink
 
     async def _run() -> None:
@@ -77,14 +78,14 @@ def _adapter_process_entry(
         if plugin_info:
             plugin_cls = _load_class(plugin_info["module"], plugin_info["class"])
             plugin_instance = plugin_cls(plugin_info["plugin_dir"], plugin_info["metadata"])
-        
+
         # 创建 ProcessCoreSink 用于与主进程通信
         core_sink = ProcessCoreSink(to_core_queue=incoming_queue, from_core_queue=outgoing_queue)
-        
+
         # 创建并启动适配器
         adapter = adapter_cls(core_sink, plugin=plugin_instance)
         await adapter.start()
-        
+
         try:
             while not getattr(core_sink, "_closed", False):
                 await asyncio.sleep(0.2)
@@ -101,7 +102,7 @@ def _adapter_process_entry(
 class AdapterProcess:
     """
     适配器子进程封装：管理子进程的生命周期与通信桥接
-    
+
     使用 CoreSinkManager 创建通信队列，自动维护与子进程的消息通道
     """
 
@@ -132,13 +133,13 @@ class AdapterProcess:
         """启动适配器子进程"""
         try:
             logger.info(f"启动适配器子进程: {self.adapter_name}")
-            
+
             # 从 CoreSinkManager 获取通信队列
             from src.common.core_sink_manager import get_core_sink_manager
-            
+
             manager = get_core_sink_manager()
             self._incoming_queue, self._outgoing_queue = manager.create_process_sink_queues(self.adapter_name)
-            
+
             # 启动子进程
             self.process = self._ctx.Process(
                 target=_adapter_process_entry,
@@ -146,10 +147,10 @@ class AdapterProcess:
                 name=f"{self.adapter_name}-proc",
             )
             self.process.start()
-            
+
             logger.info(f"启动适配器子进程 {self.adapter_name} (PID: {self.process.pid})")
             return True
-            
+
         except Exception as e:
             logger.error(f"启动适配器子进程 {self.adapter_name} 失败: {e}")
             return False
@@ -158,25 +159,25 @@ class AdapterProcess:
         """停止适配器子进程"""
         if not self.process:
             return
-        
+
         logger.info(f"停止适配器子进程: {self.adapter_name} (PID: {self.process.pid})")
-        
+
         try:
             # 从 CoreSinkManager 移除通信队列
             from src.common.core_sink_manager import get_core_sink_manager
-            
+
             manager = get_core_sink_manager()
             manager.remove_process_sink(self.adapter_name)
-            
+
             # 等待子进程结束
             if self.process.is_alive():
                 self.process.join(timeout=5.0)
-            
+
             if self.process.is_alive():
                 logger.warning(f"适配器 {self.adapter_name} 未能及时停止，强制终止中")
                 self.process.terminate()
                 self.process.join()
-                
+
         except Exception as e:
             logger.error(f"停止适配器子进程 {self.adapter_name} 时发生错误: {e}")
         finally:
@@ -193,7 +194,7 @@ class AdapterProcess:
 class AdapterManager:
     """
     适配器管理器
-    
+
     负责管理所有注册的适配器，根据 run_in_subprocess 属性自动选择：
     - run_in_subprocess=True: 在子进程中运行，使用 ProcessCoreSink
     - run_in_subprocess=False: 在主进程中运行，使用 InProcessCoreSink
@@ -201,9 +202,9 @@ class AdapterManager:
 
     def __init__(self):
         # 注册信息：name -> (adapter class, plugin instance | None)
-        self._adapter_defs: Dict[str, tuple[type[BaseAdapter], object | None]] = {}
-        self._adapter_processes: Dict[str, AdapterProcess] = {}
-        self._in_process_adapters: Dict[str, BaseAdapter] = {}
+        self._adapter_defs: dict[str, tuple[type[BaseAdapter], object | None]] = {}
+        self._adapter_processes: dict[str, AdapterProcess] = {}
+        self._in_process_adapters: dict[str, BaseAdapter] = {}
 
     def register_adapter(self, adapter_cls: type[BaseAdapter], plugin=None) -> None:
         """
@@ -213,15 +214,15 @@ class AdapterManager:
             adapter_cls: 适配器类
             plugin: 可选 Plugin 实例
         """
-        adapter_name = getattr(adapter_cls, 'adapter_name', adapter_cls.__name__)
+        adapter_name = getattr(adapter_cls, "adapter_name", adapter_cls.__name__)
 
         if adapter_name in self._adapter_defs:
             logger.warning(f"适配器 {adapter_name} 已注册，已覆盖")
 
         self._adapter_defs[adapter_name] = (adapter_cls, plugin)
-        adapter_version = getattr(adapter_cls, 'adapter_version', 'unknown')
-        run_in_subprocess = getattr(adapter_cls, 'run_in_subprocess', False)
-        
+        adapter_version = getattr(adapter_cls, "adapter_version", "unknown")
+        run_in_subprocess = getattr(adapter_cls, "run_in_subprocess", False)
+
         logger.info(
             f"注册适配器: {adapter_name} v{adapter_version} "
             f"(子进程: {'是' if run_in_subprocess else '否'})"
@@ -230,7 +231,7 @@ class AdapterManager:
     async def start_adapter(self, adapter_name: str) -> bool:
         """
         启动指定适配器
-        
+
         根据适配器的 run_in_subprocess 属性自动选择：
         - True: 创建子进程，使用 ProcessCoreSink
         - False: 在当前进程，使用 InProcessCoreSink
@@ -239,7 +240,7 @@ class AdapterManager:
         if not definition:
             logger.error(f"适配器 {adapter_name} 未注册")
             return False
-        
+
         adapter_cls, plugin = definition
         run_in_subprocess = getattr(adapter_cls, "run_in_subprocess", False)
 
@@ -248,9 +249,9 @@ class AdapterManager:
         return await self._start_adapter_in_process(adapter_name, adapter_cls, plugin)
 
     async def _start_adapter_subprocess(
-        self, 
-        adapter_name: str, 
-        adapter_cls: type[BaseAdapter], 
+        self,
+        adapter_name: str,
+        adapter_cls: type[BaseAdapter],
         plugin
     ) -> bool:
         """在子进程中启动适配器（使用 ProcessCoreSink）"""
@@ -263,24 +264,24 @@ class AdapterManager:
         return success
 
     async def _start_adapter_in_process(
-        self, 
-        adapter_name: str, 
-        adapter_cls: type[BaseAdapter], 
+        self,
+        adapter_name: str,
+        adapter_cls: type[BaseAdapter],
         plugin
     ) -> bool:
         """在当前进程中启动适配器（使用 InProcessCoreSink）"""
         try:
             # 从 CoreSinkManager 获取 InProcessCoreSink
             from src.common.core_sink_manager import get_core_sink_manager
-            
+
             core_sink = get_core_sink_manager().get_in_process_sink()
             adapter = adapter_cls(core_sink, plugin=plugin)  # type: ignore[call-arg]
             await adapter.start()
-            
+
             self._in_process_adapters[adapter_name] = adapter
             logger.info(f"适配器 {adapter_name} 已在当前进程启动")
             return True
-            
+
         except Exception as e:
             logger.error(f"启动适配器 {adapter_name} 失败: {e}")
             return False
@@ -288,7 +289,7 @@ class AdapterManager:
     async def stop_adapter(self, adapter_name: str) -> None:
         """
         停止指定的适配器
-        
+
         Args:
             adapter_name: 适配器名称
         """
@@ -327,20 +328,20 @@ class AdapterManager:
 
         logger.info("所有适配器已停止")
 
-    def get_adapter(self, adapter_name: str) -> Optional[BaseAdapter]:
+    def get_adapter(self, adapter_name: str) -> BaseAdapter | None:
         """
         获取适配器实例
-        
+
         Args:
             adapter_name: 适配器名称
-            
+
         Returns:
             BaseAdapter | None: 适配器实例，如果不存在则返回 None
         """
         # 只返回在主进程中运行的适配器
         return self._in_process_adapters.get(adapter_name)
 
-    def list_adapters(self) -> Dict[str, Dict[str, any]]:
+    def list_adapters(self) -> dict[str, dict[str, any]]:
         """列出适配器状态"""
         result = {}
 
@@ -371,7 +372,7 @@ class AdapterManager:
 
 
 # 全局单例
-_adapter_manager: Optional[AdapterManager] = None
+_adapter_manager: AdapterManager | None = None
 
 
 def get_adapter_manager() -> AdapterManager:

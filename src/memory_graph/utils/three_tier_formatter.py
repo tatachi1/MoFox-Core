@@ -7,9 +7,7 @@
 - 长期记忆：[事实] 主体-主题+客体（属性1：内容， 属性2：内容）
 """
 
-import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from src.memory_graph.models import Memory, MemoryBlock, ShortTermMemory
@@ -145,6 +143,7 @@ class ThreeTierMemoryFormatter:
         perceptual_text = await self.format_perceptual_memory(perceptual_blocks)
         if perceptual_text:
             sections.append("### 感知记忆（即时对话）")
+            sections.append("*注意：以下消息来自不同的聊天流（括号内标注了来源），不一定是当前对话*")
             sections.append(perceptual_text)
             sections.append("")
 
@@ -300,7 +299,7 @@ class ThreeTierMemoryFormatter:
             # 查找主题节点
             topic_node = None
             for edge in memory.edges:
-                edge_type = edge.edge_type.value if hasattr(edge.edge_type, 'value') else str(edge.edge_type)
+                edge_type = edge.edge_type.value if hasattr(edge.edge_type, "value") else str(edge.edge_type)
                 if edge_type == "记忆类型" and edge.source_id == memory.subject_id:
                     topic_node = memory.get_node_by_id(edge.target_id)
                     break
@@ -316,7 +315,7 @@ class ThreeTierMemoryFormatter:
             attribute_names: dict[str, str] = {}
 
             for edge in memory.edges:
-                edge_type = edge.edge_type.value if hasattr(edge.edge_type, 'value') else str(edge.edge_type)
+                edge_type = edge.edge_type.value if hasattr(edge.edge_type, "value") else str(edge.edge_type)
 
                 if edge_type == "核心关系" and edge.source_id == topic_node.id:
                     obj_node = memory.get_node_by_id(edge.target_id)
@@ -346,7 +345,7 @@ class ThreeTierMemoryFormatter:
 
             # 检查节点中的属性（处理 "key=value" 格式）
             for node in memory.nodes:
-                if hasattr(node, 'node_type') and str(node.node_type) == "属性":
+                if hasattr(node, "node_type") and str(node.node_type) == "属性":
                     # 处理 "key=value" 格式的属性
                     if "=" in node.content:
                         key, value = node.content.split("=", 1)
@@ -369,7 +368,7 @@ class ThreeTierMemoryFormatter:
 
         except Exception as e:
             # 如果格式化失败，返回基本描述
-            return f"[记忆] 格式化失败: {str(e)}"
+            return f"[记忆] 格式化失败: {e!s}"
 
     def _get_memory_type_label(self, memory_type) -> str:
         """
@@ -381,7 +380,7 @@ class ThreeTierMemoryFormatter:
         Returns:
             中文标签
         """
-        if hasattr(memory_type, 'value'):
+        if hasattr(memory_type, "value"):
             type_value = memory_type.value
         else:
             type_value = str(memory_type)

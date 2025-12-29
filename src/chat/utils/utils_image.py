@@ -189,7 +189,7 @@ class ImageManager:
 
             # 4. 如果都未命中，则调用新逻辑生成描述
             logger.info(f"[新表情识别] 表情包未注册且无缓存 (Hash: {image_hash[:8]}...)，调用新逻辑生成描述")
-            full_description, emotions = await emoji_manager.build_emoji_description(image_base64)
+            full_description, _emotions = await emoji_manager.build_emoji_description(image_base64)
 
             if not full_description:
                 logger.warning("未能通过新逻辑生成有效描述")

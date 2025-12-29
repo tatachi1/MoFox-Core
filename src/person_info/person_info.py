@@ -56,6 +56,7 @@ class PersonInfoManager:
     def __init__(self):
         """初始化PersonInfoManager"""
         # 移除self.person_name_list缓存，统一使用数据库缓存系统
+        assert model_config is not None
         self.qv_name_llm = LLMRequest(model_set=model_config.model_task_config.utils, request_type="relation.qv_name")
         # try:
         #     async with get_db_session() as session:
@@ -141,14 +142,14 @@ class PersonInfoManager:
         """[新] 根据 platform 和 user_id 获取用户信息字典"""
         if not platform or not user_id:
             return None
-        
+
         person_id = PersonInfoManager.get_person_id(platform, user_id)
         crud = CRUDBase(PersonInfo)
         record = await crud.get_by(person_id=person_id)
-        
+
         if not record:
             return None
-            
+
         # 将 SQLAlchemy 模型对象转换为字典
         return {c.name: getattr(record, c.name) for c in record.__table__.columns}
 
@@ -158,13 +159,13 @@ class PersonInfoManager:
         """[新] 根据 person_id 获取用户信息字典"""
         if not person_id:
             return None
-        
+
         crud = CRUDBase(PersonInfo)
         record = await crud.get_by(person_id=person_id)
-        
+
         if not record:
             return None
-            
+
         # 将 SQLAlchemy 模型对象转换为字典
         return {c.name: getattr(record, c.name) for c in record.__table__.columns}
 
@@ -175,12 +176,12 @@ class PersonInfoManager:
             return None
 
         crud = CRUDBase(PersonInfo)
-        
+
         # 1. 按 person_name 查询
         records = await crud.get_multi(person_name=name, limit=1)
         if records:
             return records[0].person_id
-            
+
         # 2. 按 nickname 查询
         records = await crud.get_multi(nickname=name, limit=1)
         if records:
@@ -218,7 +219,7 @@ class PersonInfoManager:
             updates = {}
             if nickname and record.nickname != nickname:
                 updates["nickname"] = nickname
-            
+
             if updates:
                 await crud.update(record.id, updates)
                 logger.debug(f"用户 {person_id} 信息已更新: {updates}")
@@ -226,7 +227,7 @@ class PersonInfoManager:
             # 用户不存在，创建新用户
             logger.info(f"新用户 {platform}:{user_id}，将创建记录。")
             unique_person_name = await PersonInfoManager._generate_unique_person_name(effective_name)
-            
+
             new_person_data = {
                 "person_id": person_id,
                 "platform": platform,
@@ -241,7 +242,6 @@ class PersonInfoManager:
 
         return person_id
 
-    @staticmethod
     @staticmethod
     async def first_knowing_some_one(platform: str, user_id: str, user_nickname: str, user_cardname: str):
         """判断是否认识某人"""
@@ -555,7 +555,7 @@ class PersonInfoManager:
             # 使用CRUD接口获取所有已存在的名称
             crud = CRUDBase(PersonInfo)
             all_records = await crud.get_multi(limit=1000)  # 限制数量避免性能问题
-            current_name_set = set(record.person_name for record in all_records if record.person_name)
+            current_name_set = {record.person_name for record in all_records if record.person_name}
         except Exception as e:
             logger.warning(f"获取现有名称列表失败: {e}")
             current_name_set = set()
@@ -697,6 +697,18 @@ class PersonInfoManager:
             try:
                 value = getattr(record, field_name)
                 if value is not None:
+                    # 对 JSON 序列化字段进行反序列化
+                    if field_name in JSON_SERIALIZED_FIELDS:
+                        try:
+                            # 确保 value 是字符串类型
+                            if isinstance(value, str):
+                                return orjson.loads(value)
+                            else:
+                                # 如果不是字符串,可能已经是解析后的数据,直接返回
+                                return value
+                        except Exception as e:
+                            logger.warning(f"反序列化字段 {field_name} 失败: {e}, value={value}, 使用默认值")
+                            return copy.deepcopy(person_info_default.get(field_name))
                     return value
                 else:
                     return copy.deepcopy(person_info_default.get(field_name))
@@ -737,7 +749,20 @@ class PersonInfoManager:
                 try:
                     value = getattr(record, field_name)
                     if value is not None:
-                        result[field_name] = value
+                        # 对 JSON 序列化字段进行反序列化
+                        if field_name in JSON_SERIALIZED_FIELDS:
+                            try:
+                                # 确保 value 是字符串类型
+                                if isinstance(value, str):
+                                    result[field_name] = orjson.loads(value)
+                                else:
+                                    # 如果不是字符串,可能已经是解析后的数据,直接使用
+                                    result[field_name] = value
+                            except Exception as e:
+                                logger.warning(f"反序列化字段 {field_name} 失败: {e}, value={value}, 使用默认值")
+                                result[field_name] = copy.deepcopy(person_info_default.get(field_name))
+                        else:
+                            result[field_name] = value
                     else:
                         result[field_name] = copy.deepcopy(person_info_default.get(field_name))
                 except Exception as e:

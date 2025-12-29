@@ -1,10 +1,8 @@
 aiosqlite
 aiofiles
-aiomysql
 asyncpg
 psycopg[binary]
 psycopg2-binary
-PyMySQL
 APScheduler
 aiohttp
 aiohttp-cors
@@ -24,6 +22,8 @@ networkx
 numpy
 openai
 google-genai
+aioboto3
+botocore
 pandas
 peewee
 pyarrow
@@ -34,6 +34,7 @@ python-dateutil
 python-dotenv
 python-igraph
 pymongo
+redis
 requests
 ruff
 scipy
@@ -84,5 +85,3 @@ soundfile
 pedalboard
 mofox-wire
 sqlalchemy
-# For local speech-to-text functionality (stt_whisper_plugin)
-openai-whisper

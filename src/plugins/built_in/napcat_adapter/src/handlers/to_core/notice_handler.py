@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from mofox_wire import MessageBuilder, SegPayload, UserInfoPayload
+
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api
 
-from ...event_models import ACCEPT_FORMAT, NoticeType, QQ_FACE, PLUGIN_NAME, RealMessageType
-from ..utils import get_group_info, get_member_info, get_self_info, get_stranger_info, get_message_detail
+from ...event_models import ACCEPT_FORMAT, PLUGIN_NAME, QQ_FACE, NoticeType, RealMessageType
+from ..utils import get_group_info, get_member_info, get_message_detail, get_self_info, get_stranger_info
 
 if TYPE_CHECKING:
     from ....plugin import NapcatAdapter
@@ -23,11 +24,11 @@ class NoticeHandler:
 
     def __init__(self, adapter: "NapcatAdapter"):
         self.adapter = adapter
-        self.plugin_config: Optional[Dict[str, Any]] = None
+        self.plugin_config: dict[str, Any] | None = None
         # 戳一戳防抖时间戳
         self.last_poke_time: float = 0.0
 
-    def set_plugin_config(self, config: Dict[str, Any]) -> None:
+    def set_plugin_config(self, config: dict[str, Any]) -> None:
         """设置插件配置"""
         self.plugin_config = config
 
@@ -37,7 +38,7 @@ class NoticeHandler:
             return default
         return config_api.get_plugin_config(self.plugin_config, key, default)
 
-    async def handle_notice(self, raw: Dict[str, Any]):
+    async def handle_notice(self, raw: dict[str, Any]):
         """
         处理通知事件
 
@@ -57,8 +58,7 @@ class NoticeHandler:
 
         handled_segment: SegPayload | None = None
         user_info: UserInfoPayload | None = None
-        system_notice: bool = False
-        notice_config: Dict[str, Any] = {
+        notice_config: dict[str, Any] = {
             "is_notice": False,
             "is_public_notice": False,
             "target_id": target_id,
@@ -93,6 +93,7 @@ class NoticeHandler:
 
                     case NoticeType.Notify.input_status:
                         from src.plugin_system.core.event_manager import event_manager
+
                         from ...event_types import NapcatEvent
                         await event_manager.trigger_event(
                             NapcatEvent.ON_RECEIVED.FRIEND_INPUT,
@@ -128,7 +129,6 @@ class NoticeHandler:
                         logger.info("处理群禁言")
                         handled_segment, user_info = await self._handle_ban_notify(raw, group_id)
                         if handled_segment and user_info:
-                            system_notice = True
                             user_id_in_ban = raw.get("user_id")
                             if user_id_in_ban == 0:
                                 notice_config["notice_type"] = "group_whole_ban"
@@ -140,7 +140,6 @@ class NoticeHandler:
                         logger.info("处理解除群禁言")
                         handled_segment, user_info = await self._handle_lift_ban_notify(raw, group_id)
                         if handled_segment and user_info:
-                            system_notice = True
                             user_id_in_ban = raw.get("user_id")
                             if user_id_in_ban == 0:
                                 notice_config["notice_type"] = "group_whole_lift_ban"
@@ -217,10 +216,10 @@ class NoticeHandler:
         envelope = msg_builder.build()
         envelope["message_info"]["additional_config"] = notice_config
         return envelope
-    
+
     async def _handle_poke_notify(
-        self, raw: Dict[str, Any], group_id: Any, user_id: Any
-    ) -> Tuple[SegPayload | None, UserInfoPayload | None]:
+        self, raw: dict[str, Any], group_id: Any, user_id: Any
+    ) -> tuple[SegPayload | None, UserInfoPayload | None]:
         """处理戳一戳通知"""
         self_info: dict | None = await get_self_info()
 
@@ -295,7 +294,7 @@ class NoticeHandler:
             if len(raw_info) > 4:
                 second_txt = raw_info[4].get("txt", "")
         except Exception as e:
-            logger.warning(f"解析戳一戳消息失败: {str(e)}，将使用默认文本")
+            logger.warning(f"解析戳一戳消息失败: {e!s}，将使用默认文本")
 
         user_info: UserInfoPayload = {
             "platform": "qq",
@@ -311,8 +310,8 @@ class NoticeHandler:
         return seg_data, user_info
 
     async def _handle_group_emoji_like_notify(
-        self, raw: Dict[str, Any], group_id: Any, user_id: Any
-    ) -> Tuple[SegPayload | None, UserInfoPayload | None]:
+        self, raw: dict[str, Any], group_id: Any, user_id: Any
+    ) -> tuple[SegPayload | None, UserInfoPayload | None]:
         """处理群聊表情回复通知"""
         if not group_id:
             logger.error("群ID不能为空，无法处理群聊表情回复通知")
@@ -329,6 +328,7 @@ class NoticeHandler:
 
         # 触发事件
         from src.plugin_system.core.event_manager import event_manager
+
         from ...event_types import NapcatEvent
 
         target_message = await get_message_detail(raw.get("message_id", ""))
@@ -367,12 +367,12 @@ class NoticeHandler:
         }
         return seg_data, user_info
 
-    async def _extract_message_preview(self, message_detail: Dict[str, Any], depth: int = 0) -> str:
+    async def _extract_message_preview(self, message_detail: dict[str, Any], depth: int = 0) -> str:
         """提取被表情回应消息的可读摘要，支持多层嵌套"""
         if depth > 3:
             return "..."
 
-        preview_parts: List[str] = []
+        preview_parts: list[str] = []
         for seg in message_detail.get("message", []):
             seg_type = seg.get("type")
             seg_data = seg.get("data", {})
@@ -410,8 +410,8 @@ class NoticeHandler:
         return preview
 
     async def _handle_group_upload_notify(
-        self, raw: Dict[str, Any], group_id: Any, user_id: Any, self_id: Any
-    ) -> Tuple[SegPayload | None, UserInfoPayload | None]:
+        self, raw: dict[str, Any], group_id: Any, user_id: Any, self_id: Any
+    ) -> tuple[SegPayload | None, UserInfoPayload | None]:
         """处理群文件上传通知"""
         if not group_id:
             logger.error("群ID不能为空，无法处理群文件上传通知")
@@ -448,8 +448,8 @@ class NoticeHandler:
         return seg_data, user_info
 
     async def _handle_ban_notify(
-        self, raw: Dict[str, Any], group_id: Any
-    ) -> Tuple[SegPayload | None, UserInfoPayload | None]:
+        self, raw: dict[str, Any], group_id: Any
+    ) -> tuple[SegPayload | None, UserInfoPayload | None]:
         """处理群禁言通知"""
         if not group_id:
             logger.error("群ID不能为空，无法处理禁言通知")
@@ -476,7 +476,7 @@ class NoticeHandler:
 
         # 获取被禁言者信息
         user_id = raw.get("user_id")
-        banned_user_info: Dict[str, Any] | None = None
+        banned_user_info: dict[str, Any] | None = None
         user_nickname: str = "QQ用户"
         user_cardname: str = ""
         sub_type: str = ""
@@ -513,8 +513,8 @@ class NoticeHandler:
         return seg_data, operator_info
 
     async def _handle_lift_ban_notify(
-        self, raw: Dict[str, Any], group_id: Any
-    ) -> Tuple[SegPayload | None, UserInfoPayload | None]:
+        self, raw: dict[str, Any], group_id: Any
+    ) -> tuple[SegPayload | None, UserInfoPayload | None]:
         """处理解除群禁言通知"""
         if not group_id:
             logger.error("群ID不能为空，无法处理解除禁言通知")
@@ -543,7 +543,7 @@ class NoticeHandler:
         sub_type: str = ""
         user_nickname: str = "QQ用户"
         user_cardname: str = ""
-        lifted_user_info: Dict[str, Any] | None = None
+        lifted_user_info: dict[str, Any] | None = None
 
         user_id = raw.get("user_id")
         if user_id == 0:  # 全体禁言解除

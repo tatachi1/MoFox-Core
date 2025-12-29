@@ -9,7 +9,7 @@ from collections.abc import Iterable
 import networkx as nx
 
 from src.common.logger import get_logger
-from src.memory_graph.models import Memory, MemoryEdge
+from src.memory_graph.models import EdgeType, Memory, MemoryEdge
 
 logger = get_logger(__name__)
 
@@ -35,12 +35,9 @@ class GraphStore:
 
         # 索引：节点ID -> 所属记忆ID集合
         self.node_to_memories: dict[str, set[str]] = {}
-        
+
         # 节点 -> {memory_id: [MemoryEdge]}，用于快速获取邻接边
         self.node_edge_index: dict[str, dict[str, list[MemoryEdge]]] = {}
-
-        logger.info("初始化图存储")
-
 
     def _register_memory_edges(self, memory: Memory) -> None:
         """在记忆中的边加入邻接索引"""
@@ -162,9 +159,6 @@ class GraphStore:
             # 1.5. 注销记忆中的边的邻接索引记录
             self._unregister_memory_edges(memory)
 
-            # 1.5. 注销记忆中的边的邻接索引记录
-            self._unregister_memory_edges(memory)
-
             # 2. 添加节点到图
             if not self.graph.has_node(node_id):
                 from datetime import datetime
@@ -204,6 +198,9 @@ class GraphStore:
                 )
                 memory.nodes.append(new_node)
 
+            # 5. 重新注册记忆中的边到邻接索引
+            self._register_memory_edges(memory)
+
             logger.debug(f"添加节点成功: {node_id} -> {memory_id}")
             return True
 
@@ -236,7 +233,7 @@ class GraphStore:
             # 更新图中的节点数据
             if content is not None:
                 self.graph.nodes[node_id]["content"] = content
-            
+
             if metadata:
                 if "metadata" not in self.graph.nodes[node_id]:
                     self.graph.nodes[node_id]["metadata"] = {}
@@ -254,7 +251,7 @@ class GraphStore:
                                 if metadata:
                                     node.metadata.update(metadata)
                                 break
-            
+
             return True
         except Exception as e:
             logger.error(f"更新节点失败: {e}")
@@ -290,7 +287,8 @@ class GraphStore:
         try:
             import uuid
             from datetime import datetime
-            from src.memory_graph.models import MemoryEdge, EdgeType
+
+            from src.memory_graph.models import EdgeType, MemoryEdge
 
             edge_id = str(uuid.uuid4())
             created_at = datetime.now().isoformat()
@@ -373,7 +371,7 @@ class GraphStore:
                 source_node = u
                 target_node = v
                 break
-        
+
         if not target_edge:
             logger.warning(f"更新边失败: 边不存在 {edge_id}")
             return False
@@ -402,7 +400,7 @@ class GraphStore:
                             if importance is not None:
                                 edge.importance = importance
                             break
-            
+
             return True
         except Exception as e:
             logger.error(f"更新边失败: {e}")
@@ -428,7 +426,7 @@ class GraphStore:
                 source_node = u
                 target_node = v
                 break
-        
+
         if not target_edge:
             logger.warning(f"删除边失败: 边不存在 {edge_id}")
             return False
@@ -481,16 +479,16 @@ class GraphStore:
             for source_id in source_memory_ids:
                 if source_id not in self.memory_index:
                     continue
-                
+
                 source_memory = self.memory_index[source_id]
-                
+
                 # 1. 转移节点
                 for node in source_memory.nodes:
                     # 更新映射
                     if node.id in self.node_to_memories:
                         self.node_to_memories[node.id].discard(source_id)
                         self.node_to_memories[node.id].add(target_memory_id)
-                    
+
                     # 添加到目标记忆（如果不存在）
                     if not any(n.id == node.id for n in target_memory.nodes):
                         target_memory.nodes.append(node)
@@ -506,7 +504,7 @@ class GraphStore:
 
                 # 3. 删除源记忆（不清理孤立节点，因为节点已转移）
                 del self.memory_index[source_id]
-            
+
             logger.info(f"成功合并记忆: {source_memory_ids} -> {target_memory_id}")
             return True
 
@@ -928,12 +926,23 @@ class GraphStore:
                     mem_edge = MemoryEdge.from_dict(edge_dict)
                 except Exception:
                     # 兼容性：直接构造对象
+                    # 确保 edge_type 是 EdgeType 枚举
+                    edge_type_value = edge_dict["edge_type"]
+                    if isinstance(edge_type_value, str):
+                        try:
+                            edge_type_enum = EdgeType(edge_type_value)
+                        except ValueError:
+                            logger.warning(f"未知的边类型: {edge_type_value}, 使用默认值")
+                            edge_type_enum = EdgeType.RELATION
+                    else:
+                        edge_type_enum = edge_type_value
+
                     mem_edge = MemoryEdge(
                         id=edge_dict["id"] or "",
                         source_id=edge_dict["source_id"],
                         target_id=edge_dict["target_id"],
                         relation=edge_dict["relation"],
-                        edge_type=edge_dict["edge_type"],
+                        edge_type=edge_type_enum,
                         importance=edge_dict.get("importance", 0.5),
                         metadata=edge_dict.get("metadata", {}),
                     )

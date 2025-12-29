@@ -4,13 +4,12 @@ import socket
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from rich.traceback import install
-from uvicorn import Config
-from uvicorn import Server as UvicornServer
-
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
+from uvicorn import Config
+from uvicorn import Server as UvicornServer
 
 from src.common.logger import get_logger
 from src.config.config import global_config as bot_config
@@ -54,8 +53,14 @@ class Server:
 
         # 配置 CORS
         origins = [
-            "http://localhost:3000",  # 允许的前端源
+            "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://localhost:11451",
+            "http://127.0.0.1:11451",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+            "http://127.0.0.1:12138",
+            "http://localhost:12318"
             # 在生产环境中，您应该添加实际的前端域名
         ]
 

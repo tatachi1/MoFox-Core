@@ -34,7 +34,6 @@ MoFox_Bot 是基于 MaiCore 的增强型 QQ 聊天机器人，集成了 LLM、�
 - `PLUS_COMMAND`: 增强命令（支持参数解析、权限检查）
 - `TOOL`: LLM 工具调用（函数调用集成）
 - `EVENT_HANDLER`: 事件订阅处理器
-- `INTEREST_CALCULATOR`: 兴趣值计算器
 - `PROMPT`: 自定义提示词注入
 
 **插件开发流程**:
@@ -157,7 +156,7 @@ python __main__.py         # 备用入口
 **调试技巧**:
 - 检查 `logs/app_*.jsonl` 结构化日志
 - 使用 `get_errors()` 工具查看编译错误
-- 数据库问题：查看 `data/MaiBot.db`（SQLite）或 MySQL 连接
+- 数据库问题：查看 `data/MaiBot.db`（SQLite）或 PostgreSQL 连接
 
 ## 📋 关键约定与模式
 
@@ -165,7 +164,7 @@ python __main__.py         # 备用入口
 **全局配置**: `src/config/config.py` 的 `global_config` 单例
 - 通过 TOML 文件驱动（`config/bot_config.toml`）
 - 支持环境变量覆盖（`.env`）
-- 数据库类型切换：`database.database_type = "sqlite" | "mysql"`
+- 数据库类型切换：`database.database_type = "sqlite" | "postgresql"`
 
 ### 事件系统
 **Event Manager** (`src/plugin_system/core/event_manager.py`):

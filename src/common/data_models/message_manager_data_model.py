@@ -152,10 +152,12 @@ class StreamContext(BaseDataModel):
                     logger.debug(f"消息直接添加到StreamContext未处理列表: stream={self.stream_id}")
             else:
                 logger.debug(f"消息添加到StreamContext成功: {self.stream_id}")
-            # ͬ�����ݵ�ͳһ�������
+            # 同步消息到统一记忆管理器
             try:
                 if global_config.memory and global_config.memory.enable:
-                    unified_manager: Any = _get_unified_memory_manager()
+                    from src.memory_graph.manager_singleton import ensure_unified_memory_manager_initialized
+
+                    unified_manager: Any = await ensure_unified_memory_manager_initialized()
                     if unified_manager:
                         message_dict = {
                             "message_id": str(message.message_id),
@@ -546,8 +548,6 @@ class StreamContext(BaseDataModel):
                     removed_count = len(self.history_messages) - self.max_context_size
                     self.history_messages = self.history_messages[-self.max_context_size :]
                     logger.debug(f"[历史加载] 移除了 {removed_count} 条最早的消息以适配当前容量限制")
-
-                logger.info(f"[历史加载] 成功加载 {loaded_count} 条历史消息到内存: {self.stream_id}")
             else:
                 logger.debug(f"无历史消息需要加载: {self.stream_id}")
 
@@ -616,20 +616,20 @@ class StreamContext(BaseDataModel):
             # 如果没有指定类型要求，默认为支持
             return True
 
-        logger.debug(f"[check_types] 检查消息是否支持类型: {types}")
+        # logger.debug(f"[check_types] 检查消息是否支持类型: {types}")  # 简化日志，避免冗余
 
         # 优先从additional_config中获取format_info
         if hasattr(self.current_message, "additional_config") and self.current_message.additional_config:
             import orjson
             try:
-                logger.debug(f"[check_types] additional_config 类型: {type(self.current_message.additional_config)}")
+                # logger.debug(f"[check_types] additional_config 类型: {type(self.current_message.additional_config)}")  # 简化日志
                 config = orjson.loads(self.current_message.additional_config)
-                logger.debug(f"[check_types] 解析后的 config 键: {config.keys() if isinstance(config, dict) else 'N/A'}")
+                # logger.debug(f"[check_types] 解析后的 config 键: {config.keys() if isinstance(config, dict) else 'N/A'}")  # 简化日志
 
                 # 检查format_info结构
                 if "format_info" in config:
                     format_info = config["format_info"]
-                    logger.debug(f"[check_types] 找到 format_info: {format_info}")
+                    # logger.debug(f"[check_types] 找到 format_info: {format_info}")  # 简化日志
 
                     # 方法1: 直接检查accept_format字段
                     if "accept_format" in format_info:
@@ -646,9 +646,9 @@ class StreamContext(BaseDataModel):
                         # 检查所有请求的类型是否都被支持
                         for requested_type in types:
                             if requested_type not in accept_format:
-                                logger.debug(f"[check_types] 消息不支持类型 '{requested_type}'，支持的类型: {accept_format}")
+                                # logger.debug(f"[check_types] 消息不支持类型 '{requested_type}'，支持的类型: {accept_format}")  # 简化日志
                                 return False
-                        logger.debug("[check_types] ✅ 消息支持所有请求的类型 (来自 accept_format)")
+                        # logger.debug("[check_types] ✅ 消息支持所有请求的类型 (来自 accept_format)")  # 简化日志
                         return True
 
                     # 方法2: 检查content_format字段（向后兼容）
@@ -665,9 +665,9 @@ class StreamContext(BaseDataModel):
                         # 检查所有请求的类型是否都被支持
                         for requested_type in types:
                             if requested_type not in content_format:
-                                logger.debug(f"[check_types] 消息不支持类型 '{requested_type}'，支持的内容格式: {content_format}")
+                                # logger.debug(f"[check_types] 消息不支持类型 '{requested_type}'，支持的内容格式: {content_format}")  # 简化日志
                                 return False
-                        logger.debug("[check_types] ✅ 消息支持所有请求的类型 (来自 content_format)")
+                        # logger.debug("[check_types] ✅ 消息支持所有请求的类型 (来自 content_format)")  # 简化日志
                         return True
                 else:
                     logger.warning("[check_types] [问题] additional_config 中没有 format_info 字段")
@@ -679,16 +679,16 @@ class StreamContext(BaseDataModel):
 
         # 备用方案：如果无法从additional_config获取格式信息，使用默认支持的类型
         # 大多数消息至少支持text类型
-        logger.debug("[check_types] 使用备用方案：默认支持类型检查")
+        # logger.debug("[check_types] 使用备用方案：默认支持类型检查")  # 简化日志
         default_supported_types = ["text", "emoji"]
         for requested_type in types:
             if requested_type not in default_supported_types:
-                logger.debug(f"[check_types] 使用默认类型检查，消息可能不支持类型 '{requested_type}'")
+                # logger.debug(f"[check_types] 使用默认类型检查，消息可能不支持类型 '{requested_type}'")  # 简化日志
                 # 对于非基础类型，返回False以避免错误
                 if requested_type not in ["text", "emoji", "reply"]:
                     logger.warning(f"[check_types] ❌ 备用方案拒绝类型 '{requested_type}'")
                     return False
-        logger.debug("[check_types] ✅ 备用方案通过所有类型检查")
+        # logger.debug("[check_types] ✅ 备用方案通过所有类型检查")  # 简化日志
         return True
 
     # ==================== 消息缓存系统方法 ====================
@@ -736,7 +736,7 @@ class StreamContext(BaseDataModel):
             list[DatabaseMessages]: 刷新的消息列表
         """
         if not self.message_cache:
-            logger.debug(f"StreamContext {self.stream_id} 缓存为空，无需刷新")
+            # 缓存为空是正常情况，不需要记录日志
             return []
 
         try:

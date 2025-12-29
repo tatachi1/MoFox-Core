@@ -3,12 +3,13 @@
 基于 mofox-wire 的 TypedDict 形式构建消息数据，然后转换为 DatabaseMessages
 """
 import base64
+import re
 import time
 from typing import Any
 
 import orjson
 from mofox_wire import MessageEnvelope
-from mofox_wire.types import MessageInfoPayload, SegPayload, UserInfoPayload, GroupInfoPayload
+from mofox_wire.types import GroupInfoPayload, MessageInfoPayload, SegPayload, UserInfoPayload
 
 from src.chat.utils.self_voice_cache import consume_self_voice_text
 from src.chat.utils.utils_image import get_image_manager
@@ -19,6 +20,15 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 
 logger = get_logger("message_processor")
+
+# 预编译正则表达式
+_AT_PATTERN = re.compile(r"^([^:]+):(.+)$")
+
+# 常量定义：段类型集合
+RECURSIVE_SEGMENT_TYPES = frozenset(["seglist"])
+MEDIA_SEGMENT_TYPES = frozenset(["image", "emoji", "voice", "video"])
+METADATA_SEGMENT_TYPES = frozenset(["mention_bot", "priority_info"])
+SPECIAL_SEGMENT_TYPES = frozenset(["at", "reply", "file"])
 
 
 async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: str, platform: str) -> DatabaseMessages:
@@ -40,7 +50,7 @@ async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: st
     # 提取核心数据（使用 TypedDict 类型）
     message_info: MessageInfoPayload = message_dict.get("message_info", {})  # type: ignore
     message_segment: SegPayload | list[SegPayload] = message_dict.get("message_segment", {"type": "text", "data": ""})  # type: ignore
-    
+
     # 初始化处理状态
     processing_state = {
         "is_emoji": False,
@@ -101,7 +111,7 @@ async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: st
     mentioned_value = processing_state.get("is_mentioned")
     if isinstance(mentioned_value, bool):
         is_mentioned = mentioned_value
-    elif isinstance(mentioned_value, (int, float)):
+    elif isinstance(mentioned_value, int | float):
         is_mentioned = mentioned_value != 0
 
     # 使用 TypedDict 风格的数据构建 DatabaseMessages
@@ -154,8 +164,8 @@ async def process_message_from_dict(message_dict: MessageEnvelope, stream_id: st
 
 
 async def _process_message_segments(
-    segment: SegPayload | list[SegPayload], 
-    state: dict, 
+    segment: SegPayload | list[SegPayload],
+    state: dict,
     message_info: MessageInfoPayload
 ) -> str:
     """递归处理消息段，转换为文字描述
@@ -176,12 +186,12 @@ async def _process_message_segments(
             if processed:
                 segments_text.append(processed)
         return " ".join(segments_text)
-    
+
     # 如果是单个段
     if isinstance(segment, dict):
         seg_type = segment.get("type", "")
         seg_data = segment.get("data")
-        
+
         # 处理 seglist 类型
         if seg_type == "seglist" and isinstance(seg_data, list):
             segments_text = []
@@ -190,16 +200,16 @@ async def _process_message_segments(
                 if processed:
                     segments_text.append(processed)
             return " ".join(segments_text)
-        
+
         # 处理其他类型
         return await _process_single_segment(segment, state, message_info)
-    
+
     return ""
 
 
 async def _process_single_segment(
-    segment: SegPayload, 
-    state: dict, 
+    segment: SegPayload,
+    state: dict,
     message_info: MessageInfoPayload
 ) -> str:
     """处理单个消息段
@@ -214,7 +224,7 @@ async def _process_single_segment(
     """
     seg_type = segment.get("type", "")
     seg_data = segment.get("data")
-    
+
     try:
         if seg_type == "text":
             return str(seg_data) if seg_data else ""
@@ -223,13 +233,12 @@ async def _process_single_segment(
             state["is_at"] = True
             # 处理at消息，格式为"@<昵称:QQ号>"
             if isinstance(seg_data, str):
-                if ":" in seg_data:
-                    # 标准格式: "昵称:QQ号"
-                    nickname, qq_id = seg_data.split(":", 1)
+                match = _AT_PATTERN.match(seg_data)
+                if match:
+                    nickname, qq_id = match.groups()
                     return f"@<{nickname}:{qq_id}>"
-                else:
-                    logger.warning(f"[at处理] 无法解析格式: '{seg_data}'")
-                    return f"@{seg_data}"
+                logger.warning(f"[at处理] 无法解析格式: '{seg_data}'")
+                return f"@{seg_data}"
             logger.warning(f"[at处理] 数据类型异常: {type(seg_data)}")
             return f"@{seg_data}" if isinstance(seg_data, str) else "@未知用户"
 
@@ -272,7 +281,7 @@ async def _process_single_segment(
             return "[发了一段语音，网卡了加载不出来]"
 
         elif seg_type == "mention_bot":
-            if isinstance(seg_data, (int, float)):
+            if isinstance(seg_data, int | float):
                 state["is_mentioned"] = float(seg_data)
             return ""
 
@@ -308,7 +317,6 @@ async def _process_single_segment(
                         filename = seg_data.get("filename", "video.mp4")
 
                         logger.info(f"视频文件名: {filename}")
-                        logger.info(f"Base64数据长度: {len(video_base64) if video_base64 else 0}")
 
                         if video_base64:
                             # 解码base64视频数据
@@ -352,9 +360,9 @@ async def _process_single_segment(
 
 
 def _prepare_additional_config(
-    message_info: MessageInfoPayload, 
-    is_notify: bool, 
-    is_public_notice: bool, 
+    message_info: MessageInfoPayload,
+    is_notify: bool,
+    is_public_notice: bool,
     notice_type: str | None
 ) -> str | None:
     """准备 additional_config，包含 format_info 和 notice 信息
@@ -369,19 +377,18 @@ def _prepare_additional_config(
         str | None: JSON 字符串格式的 additional_config，如果为空则返回 None
     """
     try:
-        additional_config_data = {}
-
         # 首先获取adapter传递的additional_config
         additional_config_raw = message_info.get("additional_config")
-        if additional_config_raw:
-            if isinstance(additional_config_raw, dict):
-                additional_config_data = additional_config_raw.copy()
-            elif isinstance(additional_config_raw, str):
-                try:
-                    additional_config_data = orjson.loads(additional_config_raw)
-                except Exception as e:
-                    logger.warning(f"无法解析 additional_config JSON: {e}")
-                    additional_config_data = {}
+        if isinstance(additional_config_raw, dict):
+            additional_config_data = additional_config_raw.copy()
+        elif isinstance(additional_config_raw, str):
+            try:
+                additional_config_data = orjson.loads(additional_config_raw)
+            except Exception as e:
+                logger.warning(f"无法解析 additional_config JSON: {e}")
+                additional_config_data = {}
+        else:
+            additional_config_data = {}
 
         # 添加notice相关标志
         if is_notify:
@@ -424,26 +431,26 @@ def _extract_reply_from_segment(segment: SegPayload | list[SegPayload]) -> str |
                 if reply_id:
                     return reply_id
             return None
-        
+
         # 如果是字典
         if isinstance(segment, dict):
             seg_type = segment.get("type", "")
             seg_data = segment.get("data")
-            
+
             # 如果是 seglist，递归搜索
             if seg_type == "seglist" and isinstance(seg_data, list):
                 for sub_seg in seg_data:
                     reply_id = _extract_reply_from_segment(sub_seg)
                     if reply_id:
                         return reply_id
-            
+
             # 如果是 reply 段，返回 message_id
             elif seg_type == "reply":
                 return str(seg_data) if seg_data else None
-                
+
     except Exception as e:
         logger.warning(f"提取reply_to信息失败: {e}")
-    
+
     return None
 
 
@@ -493,10 +500,10 @@ def get_message_info_from_db_message(db_message: DatabaseMessages) -> MessageInf
         "time": db_message.time,
         "user_info": user_info,
     }
-    
+
     if group_info:
         message_info["group_info"] = group_info
-    
+
     if additional_config:
         message_info["additional_config"] = additional_config
 

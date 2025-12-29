@@ -1,10 +1,12 @@
 import asyncio
 import base64
+import gc
 import io
 import re
 from collections.abc import Callable, Coroutine, Iterable
 from typing import Any, ClassVar
 
+import numpy as np
 import orjson
 from json_repair import repair_json
 from openai import (
@@ -588,13 +590,22 @@ class OpenaiClient(BaseClient):
         :param model_info: 模型信息
         :param embedding_input: 嵌入输入文本
         :return: 嵌入响应
+        
+        - 请求时指定 encoding_format="base64"，避免 OpenAI SDK 自动调用 .tolist()
+        - 手动解码 base64 并保持 NumPy 数组格式，减少对象创建
+        - 大批量请求后触发垃圾回收
         """
         client = self._create_client()
         is_batch_request = isinstance(embedding_input, list)
+
+        # 关键修复：指定 encoding_format="base64" 避免 SDK 自动 tolist() 转换
+        # OpenAI SDK 在不指定 encoding_format 时会调用 np.frombuffer().tolist()
+        # 这会创建大量 Python float 对象，导致严重的内存泄露
         try:
             raw_response = await client.embeddings.create(
                 model=model_info.model_identifier,
                 input=embedding_input,
+                encoding_format="base64",  # 使用 base64 编码避免 tolist()
                 extra_body=extra_params,
             )
         except APIConnectionError as e:
@@ -615,15 +626,34 @@ class OpenaiClient(BaseClient):
 
         response = APIResponse()
 
-        # 解析嵌入响应
+        # 手动解码 base64 并转换为 NumPy 数组，避免创建大量 Python float 对象
         if len(raw_response.data) > 0:
-            embeddings = [item.embedding for item in raw_response.data]
+            embeddings = []
+            for item in raw_response.data:
+                # item.embedding 现在是 base64 编码的字符串
+                if isinstance(item.embedding, str):
+                    # 解码 base64 为 NumPy 数组（float32）
+                    embedding_array = np.frombuffer(
+                        base64.b64decode(item.embedding),
+                        dtype=np.float32
+                    )
+                    # 保持为 NumPy 数组，不调用 .tolist()
+                    embeddings.append(embedding_array)
+                else:
+                    # 兜底：如果 SDK 返回的不是 base64（旧版或其他情况）
+                    # 转换为 NumPy 数组
+                    embeddings.append(np.array(item.embedding, dtype=np.float32))
+
             response.embedding = embeddings if is_batch_request else embeddings[0]
         else:
             raise RespParseException(
                 raw_response,
                 "响应解析失败，缺失嵌入数据。",
             )
+
+        # 大批量请求后触发垃圾回收（batch_size > 8）
+        if is_batch_request and len(embedding_input) > 8:
+            gc.collect()
 
         # 解析使用情况
         if hasattr(raw_response, "usage"):

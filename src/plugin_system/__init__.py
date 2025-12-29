@@ -25,11 +25,13 @@ from .apis import (
 from .base import (
     ActionActivationType,
     ActionInfo,
+    AdapterInfo,
     BaseAction,
     BaseCommand,
     BaseEventHandler,
     BasePlugin,
     BasePrompt,
+    BaseRouterComponent,
     BaseTool,
     ChatMode,
     ChatType,
@@ -41,16 +43,13 @@ from .base import (
     EventHandlerInfo,
     EventType,
     PluginInfo,
-    AdapterInfo,
     # 新增的增强命令系统
     PlusCommand,
-    BaseRouterComponent,
     PythonDependency,
     ToolInfo,
     ToolParamType,
     create_plus_command_adapter,
 )
-from .utils.dependency_config import configure_dependency_settings, get_dependency_config
 
 # 导入依赖管理模块
 from .utils.dependency_manager import configure_dependency_manager, get_dependency_manager

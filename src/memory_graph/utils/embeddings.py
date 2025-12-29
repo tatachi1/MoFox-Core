@@ -64,10 +64,10 @@ class EmbeddingGenerator:
                 self._api_dimension = embedding_config.embedding_dimension
 
             self._api_available = True
-            logger.info(f"✅ Embedding API 初始化成功 (维度: {self._api_dimension})")
+            logger.info(f"Embedding API 初始化成功 (维度: {self._api_dimension})")
 
         except Exception as e:
-            logger.warning(f"⚠️  Embedding API 初始化失败: {e}")
+            logger.warning(f"Embedding API 初始化失败: {e}")
             self._api_available = False
 
 
@@ -117,7 +117,13 @@ class EmbeddingGenerator:
             # 调用 API
             embedding_list, model_name = await self._llm_request.get_embedding(text)
 
-            if embedding_list and len(embedding_list) > 0:
+            # 兼容返回 np.ndarray 或 Python list
+            if isinstance(embedding_list, np.ndarray):
+                if embedding_list.size > 0:
+                    embedding = np.array(embedding_list, dtype=np.float32)
+                    logger.debug(f"🌐 API 生成嵌入: {text[:30]}... -> {len(embedding)}维 (模型: {model_name})")
+                    return embedding
+            elif embedding_list and len(embedding_list) > 0:
                 embedding = np.array(embedding_list, dtype=np.float32)
                 logger.debug(f"🌐 API 生成嵌入: {text[:30]}... -> {len(embedding)}维 (模型: {model_name})")
                 return embedding
@@ -149,7 +155,7 @@ class EmbeddingGenerator:
                 (idx, text) for idx, text in enumerate(texts) if text and text.strip()
             ]
             if not valid_entries:
-                logger.debug('批量文本为空，返回空列表')
+                logger.debug("批量文本为空，返回空列表")
                 return results
 
             batch_texts = [text for _, text in valid_entries]
@@ -187,12 +193,17 @@ class EmbeddingGenerator:
                 return None
 
             embeddings, model_name = await self._llm_request.get_embedding(texts)
-            if not embeddings:
+            if embeddings is None:
                 return None
 
             results: list[np.ndarray | None] = []
             for emb in embeddings:
-                if emb:
+                if isinstance(emb, np.ndarray):
+                    if emb.size > 0:
+                        results.append(np.array(emb, dtype=np.float32))
+                    else:
+                        results.append(None)
+                elif emb:
                     results.append(np.array(emb, dtype=np.float32))
                 else:
                     results.append(None)

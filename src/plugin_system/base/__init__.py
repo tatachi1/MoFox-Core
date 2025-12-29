@@ -44,6 +44,7 @@ __all__ = [
     "BaseEventHandler",
     "BasePlugin",
     "BasePrompt",
+    "BaseRouterComponent",
     "BaseTool",
     "ChatMode",
     "ChatType",
@@ -58,7 +59,6 @@ __all__ = [
     "PluginMetadata",
     # 增强命令系统
     "PlusCommand",
-    "BaseRouterComponent",
     "PlusCommandInfo",
     "PythonDependency",
     "ToolInfo",

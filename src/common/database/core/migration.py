@@ -100,14 +100,14 @@ async def check_and_migrate_database(existing_engine=None):
 
                     def add_columns_sync(conn):
                         dialect = conn.dialect
-                        
+
                         for column_name in missing_columns:
                             column = table.c[column_name]
-                            
+
                             # 获取列类型的 SQL 表示
                             # 直接使用 compile 方法，它会自动选择正确的方言
                             column_type_sql = column.type.compile(dialect=dialect)
-                            
+
                             # 构建 ALTER TABLE 语句
                             sql = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column_type_sql}"
 
@@ -118,9 +118,6 @@ async def check_and_migrate_database(existing_engine=None):
                                     default_arg, bool
                                 ):
                                     # SQLite 将布尔值存储为 0 或 1
-                                    default_value = "1" if default_arg else "0"
-                                elif dialect.name == "mysql" and isinstance(default_arg, bool):
-                                    # MySQL 也使用 1/0 表示布尔值
                                     default_value = "1" if default_arg else "0"
                                 elif isinstance(default_arg, bool):
                                     # PostgreSQL 使用 TRUE/FALSE
@@ -288,7 +285,7 @@ def _normalize_pg_type(type_name: str) -> str:
 
 async def _check_and_fix_column_types(connection, inspector, table_name, table, db_columns_info):
     """检查并修复列类型不匹配的问题（仅 PostgreSQL）
-    
+
     Args:
         connection: 数据库连接
         inspector: SQLAlchemy inspector
@@ -299,41 +296,41 @@ async def _check_and_fix_column_types(connection, inspector, table_name, table, 
     # 获取数据库方言
     def get_dialect_name(conn):
         return conn.dialect.name
-    
+
     dialect_name = await connection.run_sync(get_dialect_name)
-    
+
     # 目前只处理 PostgreSQL
     if dialect_name != "postgresql":
         return
-    
+
     for (fix_table, fix_column), (expected_type_category, using_clause) in _COLUMN_TYPE_FIXES.items():
         if fix_table != table_name:
             continue
-        
+
         if fix_column not in db_columns_info:
             continue
-        
+
         col_info = db_columns_info[fix_column]
         current_type = _normalize_pg_type(str(col_info.get("type", "")))
         expected_type = _get_expected_pg_type(expected_type_category)
-        
+
         # 如果类型已经正确，跳过
         if current_type == expected_type:
             continue
-        
+
         # 检查是否需要修复：如果当前是 numeric 但期望是 boolean
         if current_type == "numeric" and expected_type == "boolean":
             logger.warning(
                 f"发现列类型不匹配: {table_name}.{fix_column} "
                 f"(当前: {current_type}, 期望: {expected_type})"
             )
-            
+
             # PostgreSQL 需要先删除默认值，再修改类型，最后重新设置默认值
             using_sql = using_clause.format(column=fix_column)
             drop_default_sql = f"ALTER TABLE {table_name} ALTER COLUMN {fix_column} DROP DEFAULT"
             alter_type_sql = f"ALTER TABLE {table_name} ALTER COLUMN {fix_column} TYPE BOOLEAN {using_sql}"
             set_default_sql = f"ALTER TABLE {table_name} ALTER COLUMN {fix_column} SET DEFAULT FALSE"
-            
+
             try:
                 def execute_alter(conn):
                     # 步骤 1: 删除默认值
@@ -345,7 +342,7 @@ async def _check_and_fix_column_types(connection, inspector, table_name, table, 
                     conn.execute(text(alter_type_sql))
                     # 步骤 3: 重新设置默认值
                     conn.execute(text(set_default_sql))
-                
+
                 await connection.run_sync(execute_alter)
                 await connection.commit()
                 logger.info(f"成功修复列类型: {table_name}.{fix_column} -> BOOLEAN")

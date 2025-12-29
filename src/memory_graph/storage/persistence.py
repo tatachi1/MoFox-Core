@@ -179,13 +179,39 @@ class PersistenceManager:
         """
         # 使用全局文件锁防止多个系统同时写入同一文件
         file_lock = await _get_file_lock(str(self.graph_file.absolute()))
-        
+
         async with file_lock:
             try:
-                # 转换为字典
-                data = graph_store.to_dict()
+                # 转换为字典（后续可能判断是否需要写入）
+                base_data = graph_store.to_dict()
+
+                # 如果现有文件内容一致，则跳过写入，避免仅更新时间戳导致的无意义写回
+                try:
+                    if self.graph_file.exists():
+                        async with aiofiles.open(self.graph_file, "rb") as f:
+                            existing_bytes = await f.read()
+
+                        existing_data = orjson.loads(existing_bytes)
+                        if isinstance(existing_data, dict) and "metadata" in existing_data:
+                            existing_data = {k: v for k, v in existing_data.items() if k != "metadata"}
+
+                        normalized_new = orjson.dumps(
+                            base_data,
+                            option=orjson.OPT_SORT_KEYS | orjson.OPT_SERIALIZE_NUMPY,
+                        )
+                        normalized_existing = orjson.dumps(
+                            existing_data,
+                            option=orjson.OPT_SORT_KEYS | orjson.OPT_SERIALIZE_NUMPY,
+                        )
+
+                        if normalized_new == normalized_existing:
+                            logger.debug("图数据无变化，跳过保存")
+                            return
+                except Exception as compare_err:
+                    logger.debug(f"保存前对比失败，继续写入: {compare_err}")
 
                 # 添加元数据
+                data = base_data.copy()
                 data["metadata"] = {
                     "version": "0.1.0",
                     "saved_at": datetime.now().isoformat(),
@@ -225,7 +251,7 @@ class PersistenceManager:
 
         # 使用全局文件锁防止多个系统同时读写同一文件
         file_lock = await _get_file_lock(str(self.graph_file.absolute()))
-        
+
         async with file_lock:
             try:
                 # 读取文件，添加重试机制处理可能的文件锁定

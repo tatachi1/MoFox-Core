@@ -127,7 +127,8 @@ class SituationExtractor:
         Returns:
             情境描述列表
         """
-        situations = []
+        situations: list[str] = []
+        seen = set()
 
         for line in response.splitlines():
             line = line.strip()
@@ -149,6 +150,11 @@ class SituationExtractor:
                 continue
             if any(keyword in line.lower() for keyword in ["例如", "注意", "请", "分析", "总结"]):
                 continue
+
+            # 去重，保持原有顺序
+            if line in seen:
+                continue
+            seen.add(line)
 
             situations.append(line)
 

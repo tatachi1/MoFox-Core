@@ -1,8 +1,8 @@
+from typing import TYPE_CHECKING
+
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.chat.replyer.default_generator import DefaultReplyer
 from src.common.logger import get_logger
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.chat.message_receive.chat_stream import ChatStream

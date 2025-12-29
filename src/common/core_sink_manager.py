@@ -10,11 +10,6 @@ CoreSink 统一管理器
 3. 使用 MessageRuntime 进行消息路由和处理
 4. 提供统一的消息发送接口
 
-架构说明（2025-11 重构）：
-- 集成 mofox_wire.MessageRuntime 作为消息路由中心
-- 使用 @runtime.on_message() 装饰器注册消息处理器
-- 利用 before_hook/after_hook/error_hook 处理前置/后置/错误逻辑
-- 简化消息处理链条，提高可扩展性
 """
 
 from __future__ import annotations
@@ -218,7 +213,7 @@ class CoreSinkManager:
         # 存储引用
         self._process_sinks[adapter_name] = (server, incoming_queue, outgoing_queue)
 
-        logger.info(f"为适配器 {adapter_name} 创建了 ProcessCoreSink 通信队列")
+        logger.debug(f"为适配器 {adapter_name} 创建了 ProcessCoreSink 通信队列")
 
         return incoming_queue, outgoing_queue
 
@@ -237,7 +232,7 @@ class CoreSinkManager:
         task = asyncio.create_task(server.close())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
-        logger.info(f"已移除适配器 {adapter_name} 的 ProcessCoreSink 通信队列")
+        logger.debug(f"已移除适配器 {adapter_name} 的 ProcessCoreSink 通信队列")
 
     async def send_outgoing(
         self,

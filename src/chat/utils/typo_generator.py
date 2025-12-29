@@ -36,21 +36,21 @@ def get_typo_generator(
 ) -> "ChineseTypoGenerator":
     """
     获取错别字生成器单例（内存优化）
-    
+
     如果参数与缓存的单例不同，会更新参数但复用拼音字典和字频数据。
-    
+
     参数:
         error_rate: 单字替换概率
         min_freq: 最小字频阈值
         tone_error_rate: 声调错误概率
         word_replace_rate: 整词替换概率
         max_freq_diff: 最大允许的频率差异
-        
+
     返回:
         ChineseTypoGenerator 实例
     """
     global _typo_generator_singleton
-    
+
     with _singleton_lock:
         if _typo_generator_singleton is None:
             _typo_generator_singleton = ChineseTypoGenerator(
@@ -70,7 +70,7 @@ def get_typo_generator(
                 word_replace_rate=word_replace_rate,
                 max_freq_diff=max_freq_diff,
             )
-    
+
     return _typo_generator_singleton
 
 
@@ -87,7 +87,7 @@ class ChineseTypoGenerator:
             max_freq_diff: 最大允许的频率差异
         """
         global _shared_pinyin_dict, _shared_char_frequency
-        
+
         self.error_rate = error_rate
         self.min_freq = min_freq
         self.tone_error_rate = tone_error_rate
@@ -96,10 +96,10 @@ class ChineseTypoGenerator:
 
         # 🔧 内存优化：复用全局缓存的拼音字典和字频数据
         if _shared_pinyin_dict is None:
-            _shared_pinyin_dict = self._create_pinyin_dict()
+            _shared_pinyin_dict = self._load_or_create_pinyin_dict()
             logger.debug("拼音字典已创建并缓存")
         self.pinyin_dict = _shared_pinyin_dict
-        
+
         if _shared_char_frequency is None:
             _shared_char_frequency = self._load_or_create_char_frequency()
             logger.debug("字频数据已加载并缓存")
@@ -140,6 +140,35 @@ class ChineseTypoGenerator:
             f.write(orjson.dumps(normalized_freq, option=orjson.OPT_INDENT_2).decode("utf-8"))
 
         return normalized_freq
+
+    def _load_or_create_pinyin_dict(self):
+        """
+        加载或创建拼音到汉字映射字典（磁盘缓存加速冷启动）
+        """
+        cache_file = Path("depends-data/pinyin_dict.json")
+
+        if cache_file.exists():
+            try:
+                with open(cache_file, encoding="utf-8") as f:
+                    data = orjson.loads(f.read())
+                # 恢复为 defaultdict(list) 以兼容旧逻辑
+                restored = defaultdict(list)
+                for py, chars in data.items():
+                    restored[py] = list(chars)
+                return restored
+            except Exception as e:
+                logger.warning(f"读取拼音缓存失败，将重新生成: {e}")
+
+        pinyin_dict = self._create_pinyin_dict()
+
+        try:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_file, "w", encoding="utf-8") as f:
+                f.write(orjson.dumps(dict(pinyin_dict), option=orjson.OPT_INDENT_2).decode("utf-8"))
+        except Exception as e:
+            logger.warning(f"写入拼音缓存失败（不影响使用）: {e}")
+
+        return pinyin_dict
 
     @staticmethod
     def _create_pinyin_dict():
@@ -454,10 +483,10 @@ class ChineseTypoGenerator:
         # 50%概率返回纠正建议
         if random.random() < 0.5:
             if word_typos:
-                wrong_word, correct_word = random.choice(word_typos)
+                _wrong_word, correct_word = random.choice(word_typos)
                 correction_suggestion = correct_word
             elif char_typos:
-                wrong_char, correct_char = random.choice(char_typos)
+                _wrong_char, correct_char = random.choice(char_typos)
                 correction_suggestion = correct_char
 
         return "".join(result), correction_suggestion

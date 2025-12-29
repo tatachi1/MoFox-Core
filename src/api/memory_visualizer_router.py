@@ -16,7 +16,6 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-
 # 调整项目根目录的计算方式
 project_root = Path(__file__).parent.parent.parent
 data_dir = project_root / "data" / "memory_graph"
@@ -103,7 +102,7 @@ async def load_graph_data_from_file(file_path: Path | None = None) -> dict[str, 
         processed = await loop.run_in_executor(
             _executor, _process_graph_data, nodes, edges, metadata, graph_file
         )
-        
+
         graph_data_cache = processed
         return graph_data_cache
 
@@ -303,8 +302,8 @@ async def get_paginated_graph(
         # 在线程池中处理分页逻辑
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
-            _executor, 
-            _process_pagination, 
+            _executor,
+            _process_pagination,
             full_data, page, page_size, min_importance, node_types
         )
 
@@ -353,7 +352,7 @@ def _process_pagination(full_data: dict, page: int, page_size: int, min_importan
     end_idx = min(start_idx + page_size, total_nodes)
 
     paginated_nodes = nodes_with_importance[start_idx:end_idx]
-    node_ids = set(n["id"] for n in paginated_nodes)
+    node_ids = {n["id"] for n in paginated_nodes}
 
     # 只保留连接分页节点的边
     paginated_edges = [

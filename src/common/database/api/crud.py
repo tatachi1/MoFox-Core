@@ -3,7 +3,6 @@
 提供通用的数据库CRUD操作，集成优化层功能：
 - 自动缓存：查询结果自动缓存
 - 批量处理：写操作自动批处理
-- 智能预加载：关联数据自动预加载
 """
 
 import operator
@@ -12,9 +11,7 @@ from functools import lru_cache
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.engine import CursorResult, Result
 
-from src.common.database.core.models import Base
 from src.common.database.core.session import get_db_session
 from src.common.database.optimization import (
     BatchOperation,

@@ -212,7 +212,7 @@ class PromptManager:
 
             # 如果模板被修改了，就创建一个新的临时Prompt实例
             if modified_template != original_prompt.template:
-                logger.info(f"为'{name}'应用了Prompt注入规则")
+                logger.debug(f"为'{name}'应用了Prompt注入规则")
                 # 创建一个新的临时Prompt实例，不进行注册
                 temp_prompt = Prompt(
                     template=modified_template,
@@ -1082,7 +1082,7 @@ class Prompt:
         [新] 根据用户ID构建关系信息字符串。
         """
         from src.person_info.relationship_fetcher import relationship_fetcher_manager
-        
+
         person_info_manager = get_person_info_manager()
         person_id = person_info_manager.get_person_id(platform, user_id)
 
@@ -1091,11 +1091,11 @@ class Prompt:
             return f"你似乎还不认识这位用户（ID: {user_id}），这是你们的第一次互动。"
 
         relationship_fetcher = relationship_fetcher_manager.get_fetcher(chat_id)
-        
+
         # 并行构建用户信息和聊天流印象
         user_relation_info_task = relationship_fetcher.build_relation_info(person_id, points_num=5)
         stream_impression_task = relationship_fetcher.build_chat_stream_impression(chat_id)
-        
+
         user_relation_info, stream_impression = await asyncio.gather(
             user_relation_info_task, stream_impression_task
         )

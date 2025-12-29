@@ -5,7 +5,6 @@ QQ空间服务模块
 
 import asyncio
 import base64
-import os
 import random
 import time
 from collections.abc import Callable
@@ -19,8 +18,7 @@ import json5
 import orjson
 
 from src.common.logger import get_logger
-from src.plugin_system.apis import config_api, person_api
-from src.plugin_system.apis import cross_context_api
+from src.plugin_system.apis import config_api, cross_context_api, person_api
 
 from .content_service import ContentService
 from .cookie_service import CookieService
@@ -84,21 +82,93 @@ class QZoneService:
         return context
 
     async def send_feed(self, topic: str, stream_id: str | None) -> dict[str, Any]:
-        """发送一条说说"""
+        """发送一条说说（支持AI配图）"""
         cross_context = await self._get_cross_context()
-        story = await self.content_service.generate_story(topic, context=cross_context)
-        if not story:
-            return {"success": False, "message": "生成说说内容失败"}
 
-        await self.image_service.generate_images_for_story(story)
+        # 检查是否启用AI配图
+        ai_image_enabled = self.get_config("ai_image.enable_ai_image", False)
+        provider = self.get_config("ai_image.provider", "siliconflow")
+
+        image_path = None
+
+        if ai_image_enabled:
+            # 启用AI配图：文本模型生成说说+图片提示词
+            story, image_info = await self.content_service.generate_story_with_image_info(topic, context=cross_context)
+            if not story:
+                return {"success": False, "message": "生成说说内容失败"}
+
+            # 根据provider调用对应的生图服务
+            if provider == "novelai":
+                try:
+                    from .novelai_service import MaiZoneNovelAIService
+                    novelai_service = MaiZoneNovelAIService(self.get_config)
+
+                    if novelai_service.is_available():
+                        # 解析画幅
+                        aspect_ratio = image_info.get("aspect_ratio", "方图")
+                        size_map = {
+                            "方图": (1024, 1024),
+                            "横图": (1216, 832),
+                            "竖图": (832, 1216),
+                        }
+                        width, height = size_map.get(aspect_ratio, (1024, 1024))
+
+                        logger.info("🎨 开始生成NovelAI配图...")
+                        success, img_path, msg = await novelai_service.generate_image_from_prompt_data(
+                            prompt=image_info.get("prompt", ""),
+                            negative_prompt=image_info.get("negative_prompt"),
+                            include_character=image_info.get("include_character", False),
+                            width=width,
+                            height=height
+                        )
+
+                        if success and img_path:
+                            image_path = img_path
+                            logger.info("✅ NovelAI配图生成成功")
+                        else:
+                            logger.warning(f"⚠️ NovelAI配图生成失败: {msg}")
+                    else:
+                        logger.warning("NovelAI服务不可用（未配置API Key）")
+
+                except Exception as e:
+                    logger.error(f"NovelAI配图生成出错: {e}", exc_info=True)
+
+            elif provider == "siliconflow":
+                try:
+                    # 调用硅基流动生成图片
+                    success, img_path = await self.image_service.generate_image_from_prompt(
+                        prompt=image_info.get("prompt", ""),
+                        save_dir=None  # 使用默认images目录
+                    )
+                    if success and img_path:
+                        image_path = img_path
+                        logger.info("✅ 硅基流动配图生成成功")
+                    else:
+                        logger.warning("⚠️ 硅基流动配图生成失败")
+                except Exception as e:
+                    logger.error(f"硅基流动配图生成出错: {e}", exc_info=True)
+        else:
+            # 不使用AI配图：只生成说说文本
+            story = await self.content_service.generate_story(topic, context=cross_context)
+            if not story:
+                return {"success": False, "message": "生成说说内容失败"}
 
         qq_account = config_api.get_global_config("bot.qq_account", "")
         api_client = await self._get_api_client(qq_account, stream_id)
         if not api_client:
             return {"success": False, "message": "获取QZone API客户端失败"}
 
-        image_dir = self.get_config("send.image_directory")
-        images_bytes = self._load_local_images(image_dir)
+        # 加载图片
+        images_bytes = []
+
+        # 使用AI生成的图片
+        if image_path and image_path.exists():
+            try:
+                with open(image_path, "rb") as f:
+                    images_bytes.append(f.read())
+                logger.info("添加AI配图到说说")
+            except Exception as e:
+                logger.error(f"读取AI配图失败: {e}")
 
         try:
             success, _ = await api_client["publish"](story, images_bytes)
@@ -116,19 +186,16 @@ class QZoneService:
         if not story:
             return {"success": False, "message": "根据活动生成说说内容失败"}
 
-        await self.image_service.generate_images_for_story(story)
+        if self.get_config("send.enable_ai_image", False):
+            await self.image_service.generate_images_for_story(story)
 
         qq_account = config_api.get_global_config("bot.qq_account", "")
-        # 注意：定时任务通常在后台运行，没有特定的用户会话，因此 stream_id 为 None
         api_client = await self._get_api_client(qq_account, stream_id=None)
         if not api_client:
             return {"success": False, "message": "获取QZone API客户端失败"}
 
-        image_dir = self.get_config("send.image_directory")
-        images_bytes = self._load_local_images(image_dir)
-
         try:
-            success, _ = await api_client["publish"](story, images_bytes)
+            success, _ = await api_client["publish"](story, [])
             if success:
                 return {"success": True, "message": story}
             return {"success": False, "message": "发布说说至QQ空间失败"}
@@ -155,25 +222,25 @@ class QZoneService:
                 return {"success": False, "message": f"好友'{target_name}'没有关联QQ号"}
 
         qq_account = config_api.get_global_config("bot.qq_account", "")
-        logger.info(f"[DEBUG] 准备获取API客户端，qq_account={qq_account}")
+        logger.debug(f"准备获取API客户端，qq_account={qq_account}")
         api_client = await self._get_api_client(qq_account, stream_id)
         if not api_client:
-            logger.error("[DEBUG] API客户端获取失败，返回错误")
+            logger.error("API客户端获取失败，返回错误")
             return {"success": False, "message": "获取QZone API客户端失败"}
 
-        logger.info("[DEBUG] API客户端获取成功，准备读取说说")
+        logger.debug("API客户端获取成功，准备读取说说")
         num_to_read = self.get_config("read.read_number", 5)
 
         # 尝试执行，如果Cookie失效则自动重试一次
         for retry_count in range(2):  # 最多尝试2次
             try:
-                logger.info(f"[DEBUG] 开始调用 list_feeds，target_qq={target_qq}, num={num_to_read}")
+                logger.debug(f"开始调用 list_feeds，target_qq={target_qq}, num={num_to_read}")
                 feeds = await api_client["list_feeds"](target_qq, num_to_read)
-                logger.info(f"[DEBUG] list_feeds 返回，feeds数量={len(feeds) if feeds else 0}")
+                logger.debug(f"list_feeds 返回，feeds数量={len(feeds) if feeds else 0}")
                 if not feeds:
                     return {"success": True, "message": f"没有从'{target_name}'的空间获取到新说说。"}
 
-                logger.info(f"[DEBUG] 准备处理 {len(feeds)} 条说说")
+                logger.debug(f"准备处理 {len(feeds)} 条说说")
                 total_liked = 0
                 total_commented = 0
                 for feed in feeds:
@@ -330,6 +397,8 @@ class QZoneService:
         comments = feed.get("comments", [])
         content = feed.get("content", "")
         fid = feed.get("tid", "")
+        images = feed.get("images", [])  # 获取说说中的图片
+        story_time = feed.get("created_time", "")  # 获取说说发送时间
 
         if not comments or not fid:
             return
@@ -364,9 +433,19 @@ class QZoneService:
             comment_key = f"{fid}_{comment_tid}"
             nickname = comment.get("nickname", "")
             comment_content = comment.get("content", "")
+            commenter_qq = str(comment.get("qq_account", "")) if comment.get("qq_account") else None
+            comment_time = comment.get("create_time", "")  # 获取评论时间
 
             try:
-                reply_content = await self.content_service.generate_comment_reply(content, comment_content, nickname)
+                reply_content = await self.content_service.generate_comment_reply(
+                    story_content=content,
+                    story_time=story_time,  # 传递说说发送时间
+                    comment_content=comment_content,
+                    comment_time=comment_time,  # 传递评论时间
+                    commenter_name=nickname,
+                    commenter_qq=commenter_qq,
+                    images=images,  # 传递说说中的图片
+                )
                 if reply_content:
                     success = await api_client["reply"](fid, qq_account, nickname, reply_content, comment_tid)
                     if success:
@@ -435,7 +514,14 @@ class QZoneService:
             logger.debug(f"锁定待评论说说: {comment_key}")
             self.processing_comments.add(comment_key)
             try:
-                comment_text = await self.content_service.generate_comment(content, target_name, rt_con, images)
+                # 使用空间专用评论方法
+                comment_text = await self.content_service.generate_qzone_comment(
+                    target_name=target_name,
+                    content=content or rt_con or "说说内容",
+                    rt_con=rt_con if content else None,
+                    images=images,
+                    target_qq=target_qq,
+                )
                 if comment_text:
                     success = await api_client["comment"](target_qq, fid, comment_text)
                     if success:
@@ -465,61 +551,6 @@ class QZoneService:
             logger.debug(f"概率未命中，跳过点赞: probability={like_probability}")
 
         return result
-
-    def _load_local_images(self, image_dir: str) -> list[bytes]:
-        """随机加载本地图片（不删除文件）"""
-        images = []
-        if not image_dir or not os.path.exists(image_dir):
-            logger.warning(f"图片目录不存在或未配置: {image_dir}")
-            return images
-
-        try:
-            # 获取所有图片文件
-            all_files = [
-                f
-                for f in os.listdir(image_dir)
-                if os.path.isfile(os.path.join(image_dir, f))
-                and f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp"))
-            ]
-
-            if not all_files:
-                logger.warning(f"图片目录中没有找到图片文件: {image_dir}")
-                return images
-
-            # 检查是否启用配图
-            enable_image = bool(self.get_config("send.enable_image", False))
-            if not enable_image:
-                logger.info("说说配图功能已关闭")
-                return images
-
-            # 根据配置选择图片数量
-            config_image_number = self.get_config("send.image_number", 1)
-            try:
-                config_image_number = int(config_image_number)
-            except (ValueError, TypeError):
-                config_image_number = 1
-                logger.warning("配置项 image_number 值无效，使用默认值 1")
-
-            max_images = min(min(config_image_number, 9), len(all_files))  # 最多9张，最少1张
-            selected_count = max(1, max_images)  # 确保至少选择1张
-            selected_files = random.sample(all_files, selected_count)
-
-            logger.info(f"从 {len(all_files)} 张图片中随机选择了 {selected_count} 张配图")
-
-            for filename in selected_files:
-                full_path = os.path.join(image_dir, filename)
-                try:
-                    with open(full_path, "rb") as f:
-                        image_data = f.read()
-                        images.append(image_data)
-                        logger.info(f"加载图片: {filename} ({len(image_data)} bytes)")
-                except Exception as e:
-                    logger.error(f"加载图片 {filename} 失败: {e}")
-
-            return images
-        except Exception as e:
-            logger.error(f"加载本地图片失败: {e}")
-            return []
 
     def _generate_gtk(self, skey: str) -> str:
         hash_val = 5381
@@ -624,7 +655,7 @@ class QZoneService:
         raise RuntimeError(f"无法连接到Napcat服务: 超过最大重试次数({max_retries})")
 
     async def _get_api_client(self, qq_account: str, stream_id: str | None) -> dict | None:
-        logger.info(f"[DEBUG] 开始获取API客户端，qq_account={qq_account}")
+        logger.debug(f"开始获取API客户端，qq_account={qq_account}")
         cookies = await self.cookie_service.get_cookies(qq_account, stream_id)
         if not cookies:
             logger.error(
@@ -632,14 +663,14 @@ class QZoneService:
             )
             return None
 
-        logger.info(f"[DEBUG] Cookie获取成功，keys: {list(cookies.keys())}")
+        logger.debug(f"Cookie获取成功，keys: {list(cookies.keys())}")
 
         p_skey = cookies.get("p_skey") or cookies.get("p_skey".upper())
         if not p_skey:
             logger.error(f"获取API客户端失败：Cookie中缺少关键的 'p_skey'。Cookie内容: {cookies}")
             return None
 
-        logger.info("[DEBUG] p_skey获取成功")
+        logger.debug("p_skey获取成功")
 
         gtk = self._generate_gtk(p_skey)
         uin = cookies.get("uin", "").lstrip("o")
@@ -647,7 +678,7 @@ class QZoneService:
             logger.error(f"获取API客户端失败：Cookie中缺少关键的 'uin'。Cookie内容: {cookies}")
             return None
 
-        logger.info(f"[DEBUG] uin={uin}, gtk={gtk}, 准备构造API客户端")
+        logger.debug(f"uin={uin}, gtk={gtk}, 准备构造API客户端")
 
         async def _request(method, url, params=None, data=None, headers=None):
             final_headers = {"referer": f"https://user.qzone.qq.com/{uin}", "origin": "https://user.qzone.qq.com"}
@@ -851,7 +882,7 @@ class QZoneService:
         async def _list_feeds(t_qq: str, num: int) -> list[dict]:
             """获取指定用户说说列表 (统一接口)"""
             try:
-                logger.info(f"[DEBUG] _list_feeds 开始，t_qq={t_qq}, num={num}")
+                logger.debug(f"_list_feeds 开始，t_qq={t_qq}, num={num}")
                 # 统一使用 format=json 获取完整评论
                 params = {
                     "g_tk": gtk,
@@ -865,11 +896,11 @@ class QZoneService:
                     "format": "json",  # 关键：使用JSON格式
                     "need_comment": 1,
                 }
-                logger.info(f"[DEBUG] 准备发送HTTP请求到 {self.LIST_URL}")
+                logger.debug(f"准备发送HTTP请求到 {self.LIST_URL}")
                 res_text = await _request("GET", self.LIST_URL, params=params)
-                logger.info(f"[DEBUG] HTTP请求返回，响应长度={len(res_text)}")
+                logger.debug(f"HTTP请求返回，响应长度={len(res_text)}")
                 json_data = orjson.loads(res_text)
-                logger.info(f"[DEBUG] JSON解析成功，code={json_data.get('code')}")
+                logger.debug(f"JSON解析成功，code={json_data.get('code')}")
 
                 if json_data.get("code") != 0:
                     error_code = json_data.get("code")
@@ -915,10 +946,31 @@ class QZoneService:
                     # --- 解析完整评论列表 (包括二级评论) ---
                     comments = []
                     commentlist = msg.get("commentlist")
+
                     if isinstance(commentlist, list):
                         for c in commentlist:
                             if not isinstance(c, dict):
                                 continue
+
+                            # 解析评论时间（优先使用 createTime2，它是完整的格式化时间）
+                            comment_create_time = ""
+                            # 优先使用 createTime2（格式：YYYY-MM-DD HH:MM:SS）
+                            if c.get("createTime2"):
+                                comment_create_time = c.get("createTime2")
+                            elif c.get("create_time"):
+                                # create_time 是时间戳
+                                raw_time = c.get("create_time")
+                                try:
+                                    if isinstance(raw_time, (int, float)):
+                                        comment_create_time = time.strftime(
+                                            "%Y-%m-%d %H:%M:%S", time.localtime(int(raw_time))
+                                        )
+                                    elif isinstance(raw_time, str) and raw_time.isdigit():
+                                        comment_create_time = time.strftime(
+                                            "%Y-%m-%d %H:%M:%S", time.localtime(int(raw_time))
+                                        )
+                                except (ValueError, TypeError):
+                                    pass
 
                             # 添加主评论
                             comments.append(
@@ -928,6 +980,7 @@ class QZoneService:
                                     "content": c.get("content"),
                                     "comment_tid": c.get("tid"),
                                     "parent_tid": None,  # 主评论没有父ID
+                                    "create_time": comment_create_time,  # 添加评论时间
                                 }
                             )
                             # 检查并添加二级评论 (回复)
@@ -935,6 +988,25 @@ class QZoneService:
                                 for reply in c["list_3"]:
                                     if not isinstance(reply, dict):
                                         continue
+
+                                    # 解析二级评论时间（优先使用 createTime2）
+                                    reply_create_time = ""
+                                    if reply.get("createTime2"):
+                                        reply_create_time = reply.get("createTime2")
+                                    elif reply.get("create_time"):
+                                        raw_time = reply.get("create_time")
+                                        try:
+                                            if isinstance(raw_time, (int, float)):
+                                                reply_create_time = time.strftime(
+                                                    "%Y-%m-%d %H:%M:%S", time.localtime(int(raw_time))
+                                                )
+                                            elif isinstance(raw_time, str) and raw_time.isdigit():
+                                                reply_create_time = time.strftime(
+                                                    "%Y-%m-%d %H:%M:%S", time.localtime(int(raw_time))
+                                                )
+                                        except (ValueError, TypeError):
+                                            pass
+
                                     comments.append(
                                         {
                                             "qq_account": reply.get("uin"),
@@ -942,6 +1014,7 @@ class QZoneService:
                                             "content": reply.get("content"),
                                             "comment_tid": reply.get("tid"),
                                             "parent_tid": c.get("tid"),  # 父ID是主评论的ID
+                                            "create_time": reply_create_time,  # 添加评论时间
                                         }
                                     )
 
@@ -1250,7 +1323,7 @@ class QZoneService:
                 logger.error(f"监控好友动态失败: {e}")
                 return []
 
-        logger.info("[DEBUG] API客户端构造完成，返回包含6个方法的字典")
+        logger.debug("API客户端构造完成，返回包含6个方法的字典")
         return {
             "publish": _publish,
             "list_feeds": _list_feeds,

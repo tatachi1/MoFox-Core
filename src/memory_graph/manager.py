@@ -1,3 +1,5 @@
+# pylint: disable=logging-fstring-interpolation,broad-except,unused-argument
+# pyright: reportOptionalMemberAccess=false
 """
 记忆管理器 - Phase 3
 
@@ -10,8 +12,7 @@
 
 import asyncio
 import logging
-import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -19,16 +20,15 @@ from src.config.config import global_config
 from src.config.official_configs import MemoryConfig
 from src.memory_graph.core.builder import MemoryBuilder
 from src.memory_graph.core.extractor import MemoryExtractor
-from src.memory_graph.models import EdgeType, Memory, MemoryEdge, NodeType
+from src.memory_graph.models import Memory
 from src.memory_graph.storage.graph_store import GraphStore
 from src.memory_graph.storage.persistence import PersistenceManager
 from src.memory_graph.storage.vector_store import VectorStore
 from src.memory_graph.tools.memory_tools import MemoryTools
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity
 
 if TYPE_CHECKING:
-    import numpy as np
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ class MemoryManager:
         self._maintenance_interval_hours = getattr(self.config, "consolidation_interval_hours", 1.0)
         self._maintenance_running = False  # 维护任务运行状态
 
-        logger.info(f"记忆管理器已创建 (data_dir={self.data_dir}, enable={getattr(self.config, 'enable', False)})")
+        logger.debug(f"记忆管理器已创建 (data_dir={self.data_dir}, enable={getattr(self.config, 'enable', False)})")
 
     async def initialize(self) -> None:
         """
@@ -119,7 +119,7 @@ class MemoryManager:
                 self.graph_store = GraphStore()
             else:
                 stats = self.graph_store.get_statistics()
-                logger.info(
+                logger.debug(
                     f"加载图数据: {stats['total_memories']} 条记忆, "
                     f"{stats['total_nodes']} 个节点, {stats['total_edges']} 条边"
                 )
@@ -142,13 +142,13 @@ class MemoryManager:
             expand_depth = getattr(self.config, "path_expansion_max_hops", 2)
             expand_semantic_threshold = getattr(self.config, "search_similarity_threshold", 0.5)
             search_top_k = getattr(self.config, "search_top_k", 10)
-            
+
             # 读取权重配置
             search_vector_weight = getattr(self.config, "vector_weight", 0.65)
             # context_weight 近似映射为 importance_weight
             search_importance_weight = getattr(self.config, "context_weight", 0.25)
             search_recency_weight = getattr(self.config, "recency_weight", 0.10)
-            
+
             # 读取阈值过滤配置
             search_min_importance = getattr(self.config, "search_min_importance", 0.3)
             search_similarity_threshold = getattr(self.config, "search_similarity_threshold", 0.5)
@@ -169,7 +169,7 @@ class MemoryManager:
             )
 
             self._initialized = True
-            logger.info("✅ 记忆管理器初始化完成")
+            logger.info("记忆管理器初始化完成")
 
             # 启动后台维护任务
             self._start_maintenance_task()
@@ -208,7 +208,7 @@ class MemoryManager:
                 pass
 
             self._initialized = False
-            logger.info("✅ 记忆管理器已关闭")
+            logger.info("记忆管理器已关闭")
 
         except Exception as e:
             logger.error(f"关闭记忆管理器失败: {e}")
@@ -220,7 +220,7 @@ class MemoryManager:
         subject: str,
         memory_type: str,
         topic: str,
-        object: str | None = None,
+        obj: str | None = None,
         attributes: dict[str, str] | None = None,
         importance: float = 0.5,
         **kwargs,
@@ -232,7 +232,7 @@ class MemoryManager:
             subject: 主体（谁）
             memory_type: 记忆类型（事件/观点/事实/关系）
             topic: 主题（做什么/想什么）
-            object: 客体（对谁/对什么）
+            obj: 客体（对谁/对什么）
             attributes: 属性字典（时间、地点、原因等）
             importance: 重要性 (0.0-1.0)
             **kwargs: 其他参数
@@ -248,7 +248,7 @@ class MemoryManager:
                 subject=subject,
                 memory_type=memory_type,
                 topic=topic,
-                object=object,
+                object=obj,
                 attributes=attributes,
                 importance=importance,
                 **kwargs,
@@ -777,6 +777,8 @@ class MemoryManager:
                             logger.debug(f"传播激活到相关记忆 {related_id[:8]} 失败: {e}")
 
                 # 再次保存传播后的更新
+                assert self.persistence is not None
+                assert self.graph_store is not None
                 await self.persistence.save_graph_store(self.graph_store)
 
             logger.debug(f"后台保存激活更新完成，处理了 {len(memories)} 条记忆")
@@ -813,7 +815,6 @@ class MemoryManager:
 
             # 批量执行传播任务
             if propagation_tasks:
-                import asyncio
                 try:
                     await asyncio.wait_for(
                         asyncio.gather(*propagation_tasks, return_exceptions=True),
@@ -839,6 +840,8 @@ class MemoryManager:
         Returns:
             相关记忆 ID 列表
         """
+        _ = max_depth  # 保留参数以兼容旧调用
+
         memory = self.graph_store.get_memory_by_id(memory_id)
         if not memory:
             return []
@@ -932,7 +935,7 @@ class MemoryManager:
 
         应用时间衰减公式计算当前激活度，低于阈值则遗忘。
         衰减公式：activation = base_activation * (decay_rate ^ days_passed)
-        
+
         优化：批量删除记忆后统一清理孤立节点，减少重复检查
 
         Args:
@@ -999,7 +1002,7 @@ class MemoryManager:
             if memories_to_forget:
                 logger.info(f"开始批量遗忘 {len(memories_to_forget)} 条记忆...")
 
-                for memory_id, activation in memories_to_forget:
+                for memory_id, _ in memories_to_forget:
                     # cleanup_orphans=False：暂不清理孤立节点
                     success = await self.forget_memory(memory_id, cleanup_orphans=False)
                     if success:
@@ -1010,14 +1013,16 @@ class MemoryManager:
                 orphan_nodes, orphan_edges = await self._cleanup_orphan_nodes_and_edges()
 
                 # 保存最终更新
+                assert self.persistence is not None
+                assert self.graph_store is not None
                 await self.persistence.save_graph_store(self.graph_store)
 
                 logger.info(
-                    f"✅ 自动遗忘完成: 遗忘了 {forgotten_count} 条记忆, "
+                    f"自动遗忘完成: 遗忘了 {forgotten_count} 条记忆, "
                     f"清理了 {orphan_nodes} 个孤立节点, {orphan_edges} 条孤立边"
                 )
             else:
-                logger.info("✅ 自动遗忘完成: 没有需要遗忘的记忆")
+                logger.info("自动遗忘完成: 没有需要遗忘的记忆")
 
             return forgotten_count
 
@@ -1061,7 +1066,7 @@ class MemoryManager:
             # 2. 清理孤立边（指向已删除节点的边）
             edges_to_remove = []
 
-            for source, target, edge_id in self.graph_store.graph.edges(data="edge_id"):
+            for source, target, _ in self.graph_store.graph.edges(data="edge_id"):
                 # 检查边的源节点和目标节点是否还存在于node_to_memories中
                 if source not in self.graph_store.node_to_memories or \
                    target not in self.graph_store.node_to_memories:
@@ -1098,7 +1103,7 @@ class MemoryManager:
         if not self._initialized or not self.graph_store:
             return {}
 
-        stats = self.graph_store.get_statistics()
+        stats: dict[str, Any] = self.graph_store.get_statistics()
 
         # 添加激活度统计
         all_memories = self.graph_store.get_all_memories()
@@ -1132,11 +1137,11 @@ class MemoryManager:
     ) -> dict[str, Any]:
         """
         简化的记忆整理：仅检查需要遗忘的记忆并清理孤立节点和边
-        
+
         功能：
         1. 检查需要遗忘的记忆（低激活度）
         2. 清理孤立节点和边
-        
+
         注意：记忆的创建、合并、关联等操作已由三级记忆系统自动处理
 
         Args:
@@ -1151,10 +1156,10 @@ class MemoryManager:
             await self.initialize()
 
         try:
-            logger.info("🧹 开始记忆整理：检查遗忘 + 清理孤立节点...")
+            logger.info("开始记忆整理：检查遗忘 + 清理孤立节点...")
 
             # 步骤1: 自动遗忘低激活度的记忆
-            forgotten_count = await self.auto_forget()
+            forgotten_count = await self.auto_forget_memories()
 
             # 步骤2: 清理孤立节点和边（auto_forget内部已执行，这里再次确保）
             orphan_nodes, orphan_edges = await self._cleanup_orphan_nodes_and_edges()
@@ -1166,7 +1171,7 @@ class MemoryManager:
                 "message": "记忆整理完成（仅遗忘和清理孤立节点）"
             }
 
-            logger.info(f"✅ 记忆整理完成: {result}")
+            logger.info(f"记忆整理完成: {result}")
             return result
 
         except Exception as e:
@@ -1181,7 +1186,7 @@ class MemoryManager:
     ) -> None:
         """
         后台整理任务（已简化为调用consolidate_memories）
-        
+
         保留此方法用于向后兼容
         """
         await self.consolidate_memories(
@@ -1274,7 +1279,7 @@ class MemoryManager:
             await self.initialize()
 
         try:
-            logger.info("🔧 开始执行记忆系统维护...")
+            logger.info("开始执行记忆系统维护...")
 
             result = {
                 "forgotten": 0,
@@ -1294,6 +1299,8 @@ class MemoryManager:
                 result["orphan_edges_cleaned"] = consolidate_result.get("orphan_edges_cleaned", 0)
 
             # 2. 保存数据
+            assert self.persistence is not None
+            assert self.graph_store is not None
             await self.persistence.save_graph_store(self.graph_store)
             result["saved"] = True
 
@@ -1303,11 +1310,11 @@ class MemoryManager:
             total_time = (datetime.now() - start_time).total_seconds()
             result["total_time"] = total_time
 
-            logger.info(f"✅ 维护完成 (耗时 {total_time:.2f}s): {result}")
+            logger.info(f"维护完成 (耗时 {total_time:.2f}s): {result}")
             return result
 
         except Exception as e:
-            logger.error(f"❌ 维护失败: {e}")
+            logger.error(f"维护失败: {e}")
             return {"error": str(e), "total_time": 0}
 
     async def _lightweight_auto_link_memories(  # 已废弃
@@ -1373,8 +1380,8 @@ class MemoryManager:
                 name="memory_maintenance_loop"
             )
 
-            logger.info(
-                f"✅ 记忆维护后台任务已启动 "
+            logger.debug(
+                f"记忆维护后台任务已启动 "
                 f"(间隔={self._maintenance_interval_hours}小时)"
             )
 
@@ -1397,7 +1404,7 @@ class MemoryManager:
             except asyncio.CancelledError:
                 logger.debug("维护任务已取消")
 
-            logger.info("✅ 记忆维护后台任务已停止")
+            logger.info("记忆维护后台任务已停止")
             self._maintenance_task = None
 
         except Exception as e:

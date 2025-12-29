@@ -149,7 +149,7 @@ class ExpressionLearner:
 
     def get_related_chat_ids(self) -> list[str]:
         """根据expression.rules配置，获取与当前chat_id相关的所有chat_id（包括自身）
-        
+
         用于共享组功能：同一共享组内的聊天流可以共享学习到的表达方式
         """
         if global_config is None:
@@ -249,7 +249,7 @@ class ExpressionLearner:
         try:
             if global_config is None:
                 return False
-            use_expression, enable_learning, _ = global_config.expression.get_expression_config_for_chat(self.chat_id)
+            _use_expression, enable_learning, _ = global_config.expression.get_expression_config_for_chat(self.chat_id)
             return enable_learning
         except Exception as e:
             logger.error(f"检查学习权限失败: {e}")
@@ -271,7 +271,7 @@ class ExpressionLearner:
         try:
             if global_config is None:
                 return False
-            use_expression, enable_learning, learning_intensity = (
+            _use_expression, enable_learning, learning_intensity = (
                 global_config.expression.get_expression_config_for_chat(self.chat_id)
             )
         except Exception as e:
@@ -358,7 +358,10 @@ class ExpressionLearner:
     @staticmethod
     @cached(ttl=600, key_prefix="chat_expressions")
     async def _get_expressions_by_chat_id_cached(chat_id: str) -> tuple[list[dict[str, float]], list[dict[str, float]]]:
-        """内部方法：从数据库获取表达方式（带缓存）"""
+        """内部方法：从数据库获取表达方式（带缓存）
+        
+        🔥 优化：使用列表推导式和更高效的数据处理
+        """
         learnt_style_expressions = []
         learnt_grammar_expressions = []
 
@@ -366,67 +369,91 @@ class ExpressionLearner:
         crud = CRUDBase(Expression)
         all_expressions = await crud.get_multi(chat_id=chat_id, limit=10000)
 
+        # 🔥 优化：使用列表推导式批量处理，减少循环开销
         for expr in all_expressions:
-                # 确保create_date存在，如果不存在则使用last_active_time
-                create_date = expr.create_date if expr.create_date is not None else expr.last_active_time
+            # 确保create_date存在，如果不存在则使用last_active_time
+            create_date = expr.create_date if expr.create_date is not None else expr.last_active_time
 
-                expr_data = {
-                    "situation": expr.situation,
-                    "style": expr.style,
-                    "count": expr.count,
-                    "last_active_time": expr.last_active_time,
-                    "source_id": chat_id,
-                    "type": expr.type,
-                    "create_date": create_date,
-                }
+            expr_data = {
+                "situation": expr.situation,
+                "style": expr.style,
+                "count": expr.count,
+                "last_active_time": expr.last_active_time,
+                "source_id": chat_id,
+                "type": expr.type,
+                "create_date": create_date,
+            }
 
-                # 根据类型分类
-                if expr.type == "style":
-                    learnt_style_expressions.append(expr_data)
-                elif expr.type == "grammar":
-                    learnt_grammar_expressions.append(expr_data)
+            # 根据类型分类（避免多次类型检查）
+            if expr.type == "style":
+                learnt_style_expressions.append(expr_data)
+            elif expr.type == "grammar":
+                learnt_grammar_expressions.append(expr_data)
 
+        logger.debug(f"已加载 {len(learnt_style_expressions)} 个style和 {len(learnt_grammar_expressions)} 个grammar表达方式 (chat_id={chat_id})")
         return learnt_style_expressions, learnt_grammar_expressions
 
     async def _apply_global_decay_to_database(self, current_time: float) -> None:
         """
         对数据库中的所有表达方式应用全局衰减
 
-        优化: 使用CRUD批量处理所有更改，最后统一提交
+        优化: 使用分批处理和原生 SQL 操作提升性能
         """
         try:
-            # 使用CRUD查询所有表达方式
-            crud = CRUDBase(Expression)
-            all_expressions = await crud.get_multi(limit=100000)  # 获取所有表达方式
-
+            BATCH_SIZE = 1000  # 分批处理，避免一次性加载过多数据
             updated_count = 0
             deleted_count = 0
+            offset = 0
 
-            # 需要手动操作的情况下使用session
-            async with get_db_session() as session:
-                # 批量处理所有修改
-                for expr in all_expressions:
-                    # 计算时间差
-                    last_active = expr.last_active_time
-                    time_diff_days = (current_time - last_active) / (24 * 3600)  # 转换为天
+            while True:
+                async with get_db_session() as session:
+                    # 分批查询表达方式
+                    batch_result = await session.execute(
+                        select(Expression)
+                        .order_by(Expression.id)
+                        .limit(BATCH_SIZE)
+                        .offset(offset)
+                    )
+                    batch_expressions = list(batch_result.scalars())
 
-                    # 计算衰减值
-                    decay_value = self.calculate_decay_factor(time_diff_days)
-                    new_count = max(0.01, expr.count - decay_value)
+                    if not batch_expressions:
+                        break  # 没有更多数据
 
-                    if new_count <= 0.01:
-                        # 如果count太小，删除这个表达方式
-                        await session.delete(expr)
-                        deleted_count += 1
-                    else:
-                        # 更新count
-                        expr.count = new_count
-                        updated_count += 1
+                    # 批量处理当前批次
+                    to_delete = []
+                    for expr in batch_expressions:
+                        # 计算时间差
+                        time_diff_days = (current_time - expr.last_active_time) / (24 * 3600)
 
-                # 优化: 统一提交所有更改（从N次提交减少到1次）
-                if updated_count > 0 or deleted_count > 0:
+                        # 计算衰减值
+                        decay_value = self.calculate_decay_factor(time_diff_days)
+                        new_count = max(0.01, expr.count - decay_value)
+
+                        if new_count <= 0.01:
+                            # 标记删除
+                            to_delete.append(expr)
+                        else:
+                            # 更新count
+                            expr.count = new_count
+                            updated_count += 1
+
+                    # 批量删除
+                    if to_delete:
+                        for expr in to_delete:
+                            await session.delete(expr)
+                        deleted_count += len(to_delete)
+
+                    # 提交当前批次
                     await session.commit()
-                    logger.info(f"全局衰减完成：更新了 {updated_count} 个表达方式，删除了 {deleted_count} 个表达方式")
+
+                    # 如果批次不满，说明已经处理完所有数据
+                    if len(batch_expressions) < BATCH_SIZE:
+                        break
+
+                    offset += BATCH_SIZE
+
+            if updated_count > 0 or deleted_count > 0:
+                logger.info(f"全局衰减完成：更新了 {updated_count} 个表达方式，删除了 {deleted_count} 个表达方式")
 
         except Exception as e:
             logger.error(f"数据库全局衰减失败: {e}")
@@ -509,92 +536,107 @@ class ExpressionLearner:
         CRUDBase(Expression)
         for chat_id, expr_list in chat_dict.items():
             async with get_db_session() as session:
+                # 🔥 优化：批量查询所有现有表达方式，避免N次数据库查询
+                existing_exprs_result = await session.execute(
+                    select(Expression).where(
+                        (Expression.chat_id == chat_id)
+                        & (Expression.type == type)
+                    )
+                )
+                existing_exprs = list(existing_exprs_result.scalars())
+
+                # 构建快速查找索引
+                exact_match_map = {}  # (situation, style) -> Expression
+                situation_map = {}    # situation -> Expression
+                style_map = {}        # style -> Expression
+
+                for expr in existing_exprs:
+                    key = (expr.situation, expr.style)
+                    exact_match_map[key] = expr
+                    # 只保留第一个匹配（优先级：完全匹配 > 情景匹配 > 表达匹配）
+                    if expr.situation not in situation_map:
+                        situation_map[expr.situation] = expr
+                    if expr.style not in style_map:
+                        style_map[expr.style] = expr
+
+                # 批量处理所有新表达方式
                 for new_expr in expr_list:
-                    # 🔥 改进1：检查是否存在相同情景或相同表达的数据
-                    # 情况1：相同 chat_id + type + situation（相同情景，不同表达）
-                    query_same_situation = await session.execute(
-                        select(Expression).where(
-                            (Expression.chat_id == chat_id)
-                            & (Expression.type == type)
-                            & (Expression.situation == new_expr["situation"])
-                        )
-                    )
-                    same_situation_expr = query_same_situation.scalar()
-
-                    # 情况2：相同 chat_id + type + style（相同表达，不同情景）
-                    query_same_style = await session.execute(
-                        select(Expression).where(
-                            (Expression.chat_id == chat_id)
-                            & (Expression.type == type)
-                            & (Expression.style == new_expr["style"])
-                        )
-                    )
-                    same_style_expr = query_same_style.scalar()
-
-                    # 情况3：完全相同（相同情景+相同表达）
-                    query_exact_match = await session.execute(
-                        select(Expression).where(
-                            (Expression.chat_id == chat_id)
-                            & (Expression.type == type)
-                            & (Expression.situation == new_expr["situation"])
-                            & (Expression.style == new_expr["style"])
-                        )
-                    )
-                    exact_match_expr = query_exact_match.scalar()
+                    situation = new_expr["situation"]
+                    style_val = new_expr["style"]
+                    exact_key = (situation, style_val)
 
                     # 优先处理完全匹配的情况
-                    if exact_match_expr:
+                    if exact_key in exact_match_map:
                         # 完全相同：增加count，更新时间
-                        expr_obj = exact_match_expr
+                        expr_obj = exact_match_map[exact_key]
                         expr_obj.count = expr_obj.count + 1
                         expr_obj.last_active_time = current_time
                         logger.debug(f"完全匹配：更新count {expr_obj.count}")
-                    elif same_situation_expr:
+                    elif situation in situation_map:
                         # 相同情景，不同表达：覆盖旧的表达
-                        logger.info(f"相同情景覆盖：'{same_situation_expr.situation}' 的表达从 '{same_situation_expr.style}' 更新为 '{new_expr['style']}'")
-                        same_situation_expr.style = new_expr["style"]
+                        same_situation_expr = situation_map[situation]
+                        logger.info(f"相同情景覆盖：'{same_situation_expr.situation}' 的表达从 '{same_situation_expr.style}' 更新为 '{style_val}'")
+                        # 更新映射
+                        old_key = (same_situation_expr.situation, same_situation_expr.style)
+                        exact_match_map.pop(old_key, None)
+                        same_situation_expr.style = style_val
                         same_situation_expr.count = same_situation_expr.count + 1
                         same_situation_expr.last_active_time = current_time
-                    elif same_style_expr:
+                        # 更新新的完全匹配映射
+                        exact_match_map[exact_key] = same_situation_expr
+                    elif style_val in style_map:
                         # 相同表达，不同情景：覆盖旧的情景
-                        logger.info(f"相同表达覆盖：'{same_style_expr.style}' 的情景从 '{same_style_expr.situation}' 更新为 '{new_expr['situation']}'")
-                        same_style_expr.situation = new_expr["situation"]
+                        same_style_expr = style_map[style_val]
+                        logger.info(f"相同表达覆盖：'{same_style_expr.style}' 的情景从 '{same_style_expr.situation}' 更新为 '{situation}'")
+                        # 更新映射
+                        old_key = (same_style_expr.situation, same_style_expr.style)
+                        exact_match_map.pop(old_key, None)
+                        same_style_expr.situation = situation
                         same_style_expr.count = same_style_expr.count + 1
                         same_style_expr.last_active_time = current_time
+                        # 更新新的完全匹配映射
+                        exact_match_map[exact_key] = same_style_expr
+                        situation_map[situation] = same_style_expr
                     else:
                         # 完全新的表达方式：创建新记录
                         new_expression = Expression(
-                            situation=new_expr["situation"],
-                            style=new_expr["style"],
+                            situation=situation,
+                            style=style_val,
                             count=1,
                             last_active_time=current_time,
                             chat_id=chat_id,
                             type=type,
-                            create_date=current_time,  # 手动设置创建日期
+                            create_date=current_time,
                         )
                         session.add(new_expression)
-                        logger.debug(f"新增表达方式：{new_expr['situation']} -> {new_expr['style']}")
+                        # 更新映射
+                        exact_match_map[exact_key] = new_expression
+                        situation_map[situation] = new_expression
+                        style_map[style_val] = new_expression
+                        logger.debug(f"新增表达方式：{situation} -> {style_val}")
 
-                # 限制最大数量 - 使用 get_all_by_sorted 获取排序结果
-                exprs_result = await session.execute(
-                    select(Expression)
-                    .where((Expression.chat_id == chat_id) & (Expression.type == type))
-                    .order_by(Expression.count.asc())
-                )
-                exprs = list(exprs_result.scalars())
-                if len(exprs) > MAX_EXPRESSION_COUNT:
-                    # 删除count最小的多余表达方式
-                    for expr in exprs[: len(exprs) - MAX_EXPRESSION_COUNT]:
+                # 🔥 优化：限制最大数量 - 使用已加载的数据避免重复查询
+                # existing_exprs 已包含该 chat_id 和 type 的所有表达方式
+                all_current_exprs = list(exact_match_map.values())
+                if len(all_current_exprs) > MAX_EXPRESSION_COUNT:
+                    # 按 count 排序，删除 count 最小的多余表达方式
+                    sorted_exprs = sorted(all_current_exprs, key=lambda e: e.count)
+                    for expr in sorted_exprs[: len(all_current_exprs) - MAX_EXPRESSION_COUNT]:
                         await session.delete(expr)
+                        # 从映射中移除
+                        key = (expr.situation, expr.style)
+                        exact_match_map.pop(key, None)
+                    logger.debug(f"已删除 {len(all_current_exprs) - MAX_EXPRESSION_COUNT} 个低频表达方式")
 
-                # 提交后清除相关缓存
+                # 提交数据库更改
                 await session.commit()
 
-            # 🔥 清除共享组内所有 chat_id 的表达方式缓存
+        # 🔥 优化：只在实际有更新时才清除缓存（移到外层，避免重复清除）
+        if chat_dict:  # 只有当有数据更新时才清除缓存
             from src.common.database.optimization.cache_manager import get_cache
             from src.common.database.utils.decorators import generate_cache_key
             cache = await get_cache()
-            
+
             # 获取共享组内所有 chat_id 并清除其缓存
             related_chat_ids = self.get_related_chat_ids()
             for related_id in related_chat_ids:
@@ -602,53 +644,59 @@ class ExpressionLearner:
             if len(related_chat_ids) > 1:
                 logger.debug(f"已清除共享组内 {len(related_chat_ids)} 个 chat_id 的表达方式缓存")
 
-            # 🔥 训练 StyleLearner（支持共享组）
-            # 只对 style 类型的表达方式进行训练（grammar 不需要训练到模型）
-            if type == "style":
-                try:
-                    logger.debug(f"开始训练 StyleLearner: 源chat_id={chat_id}, 共享组包含 {len(related_chat_ids)} 个chat_id, 样本数={len(expr_list)}")
+        # 🔥 训练 StyleLearner（支持共享组）
+        # 只对 style 类型的表达方式进行训练（grammar 不需要训练到模型）
+        if type == "style" and chat_dict:
+            try:
+                related_chat_ids = self.get_related_chat_ids()
+                total_samples = sum(len(expr_list) for expr_list in chat_dict.values())
+                logger.debug(f"开始训练 StyleLearner: 共享组包含 {len(related_chat_ids)} 个chat_id, 总样本数={total_samples}")
 
-                    # 为每个共享组内的 chat_id 训练其 StyleLearner
-                    for target_chat_id in related_chat_ids:
-                        learner = style_learner_manager.get_learner(target_chat_id)
-                        
+                # 为每个共享组内的 chat_id 训练其 StyleLearner
+                for target_chat_id in related_chat_ids:
+                    learner = style_learner_manager.get_learner(target_chat_id)
+
+                    # 收集该 target_chat_id 对应的所有表达方式
+                    # 如果是源 chat_id，使用 chat_dict 中的数据；否则也要训练（共享组特性）
+                    total_success = 0
+                    total_samples = 0
+
+                    for source_chat_id, expr_list in chat_dict.items():
                         # 为每个学习到的表达方式训练模型
                         # 使用 situation 作为输入，style 作为目标
-                        # 这是最符合语义的方式：场景 -> 表达方式
-                        success_count = 0
                         for expr in expr_list:
                             situation = expr["situation"]
                             style = expr["style"]
 
                             # 训练映射关系: situation -> style
                             if learner.learn_mapping(situation, style):
-                                success_count += 1
-                            else:
-                                logger.warning(f"训练失败 (target={target_chat_id}): {situation} -> {style}")
+                                total_success += 1
+                            total_samples += 1
 
-                        # 保存模型
+                    # 保存模型
+                    if total_samples > 0:
                         if learner.save(style_learner_manager.model_save_path):
                             logger.debug(f"StyleLearner 模型保存成功: {target_chat_id}")
                         else:
                             logger.error(f"StyleLearner 模型保存失败: {target_chat_id}")
 
-                        if target_chat_id == chat_id:
-                            # 只为源 chat_id 记录详细日志
+                        if target_chat_id == self.chat_id:
+                            # 只为当前 chat_id 记录详细日志
                             logger.info(
-                                f"StyleLearner 训练完成 (源): {success_count}/{len(expr_list)} 成功, "
+                                f"StyleLearner 训练完成: {total_success}/{total_samples} 成功, "
                                 f"当前风格总数={len(learner.get_all_styles())}, "
                                 f"总样本数={learner.learning_stats['total_samples']}"
                             )
                         else:
                             logger.debug(
-                                f"StyleLearner 训练完成 (共享组成员 {target_chat_id}): {success_count}/{len(expr_list)} 成功"
+                                f"StyleLearner 训练完成 (共享组成员 {target_chat_id}): {total_success}/{total_samples} 成功"
                             )
 
-                    if len(related_chat_ids) > 1:
-                        logger.info(f"共享组内共 {len(related_chat_ids)} 个 StyleLearner 已同步训练")
+                if len(related_chat_ids) > 1:
+                    logger.info(f"共享组内共 {len(related_chat_ids)} 个 StyleLearner 已同步训练")
 
-                except Exception as e:
-                    logger.error(f"训练 StyleLearner 失败: {e}")
+            except Exception as e:
+                logger.error(f"训练 StyleLearner 失败: {e}")
 
             return learnt_expressions
         return None
@@ -689,7 +737,7 @@ class ExpressionLearner:
         # 🔥 启用表达学习场景的过滤，过滤掉纯回复、纯@、纯图片等无意义内容
         random_msg_str: str = await build_anonymous_messages(random_msg, filter_for_learning=True)
         # print(f"random_msg_str:{random_msg_str}")
-        
+
         # 🔥 检查过滤后是否还有足够的内容
         if not random_msg_str or len(random_msg_str.strip()) < 20:
             logger.debug(f"过滤后消息内容不足，跳过本次{type_str}学习")

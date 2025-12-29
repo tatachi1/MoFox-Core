@@ -33,9 +33,9 @@ class PluginManager:
 
         self.loaded_plugins: dict[str, PluginBase] = {}  # 已加载的插件类实例注册表，插件名 -> 插件类实例
         self.failed_plugins: dict[str, str] = {}  # 记录加载失败的插件文件及其错误信息，插件名 -> 错误信息
-        
+
         # 核心消息接收器（由主程序设置）
-        self._core_sink: Optional[Any] = None
+        self._core_sink: Any | None = None
 
         # 确保插件目录存在
         self._ensure_plugin_directories()
@@ -45,12 +45,11 @@ class PluginManager:
 
     def set_core_sink(self, core_sink: Any) -> None:
         """设置核心消息接收器
-        
+
         Args:
             core_sink: 核心消息接收器实例（InProcessCoreSink）
         """
         self._core_sink = core_sink
-        logger.info("已设置核心消息接收器")
 
     def add_plugin_directory(self, directory: str) -> bool:
         """添加插件目录"""
@@ -184,7 +183,7 @@ class PluginManager:
 
     async def _register_adapter_components(self, plugin_name: str, plugin_instance: PluginBase) -> None:
         """注册适配器组件
-        
+
         Args:
             plugin_name: 插件名称
             plugin_instance: 插件实例
@@ -193,36 +192,36 @@ class PluginManager:
             from src.plugin_system.base.component_types import AdapterInfo, ComponentType
             from src.plugin_system.core.adapter_manager import get_adapter_manager
             from src.plugin_system.core.component_registry import component_registry
-            
+
             # 获取所有 ADAPTER 类型的组件
             plugin_info = plugin_instance.plugin_info
             adapter_components = [
-                comp for comp in plugin_info.components 
+                comp for comp in plugin_info.components
                 if comp.component_type == ComponentType.ADAPTER
             ]
-            
+
             if not adapter_components:
                 return
-            
+
             adapter_manager = get_adapter_manager()
-            
+
             for comp_info in adapter_components:
                 # 类型检查：确保是 AdapterInfo
                 if not isinstance(comp_info, AdapterInfo):
                     logger.warning(f"组件 {comp_info.name} 不是 AdapterInfo 类型")
                     continue
-                
+
                 try:
                     # 从组件注册表获取适配器类
                     adapter_class = component_registry.get_component_class(
-                        comp_info.name, 
+                        comp_info.name,
                         ComponentType.ADAPTER
                     )
-                    
+
                     if not adapter_class:
                         logger.warning(f"无法找到适配器组件类: {comp_info.name}")
                         continue
-                    
+
                     # 创建适配器实例，传入 core_sink 和 plugin
                     # 注册到适配器管理器，由管理器统一在运行时创建实例
                     adapter_manager.register_adapter(adapter_class, plugin_instance)  # type: ignore
@@ -230,13 +229,13 @@ class PluginManager:
                         f"插件 '{plugin_name}' 注册了适配器组件: {comp_info.name} "
                         f"(平台: {comp_info.platform})"
                     )
-                    
+
                 except Exception as e:
                     logger.error(
                         f"注册插件 '{plugin_name}' 的适配器组件 '{comp_info.name}' 时出错: {e}",
                         exc_info=True
                     )
-        
+
         except Exception as e:
             logger.error(f"处理插件 '{plugin_name}' 的适配器组件时出错: {e}")
 

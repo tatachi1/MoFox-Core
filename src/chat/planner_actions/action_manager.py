@@ -1,6 +1,6 @@
 import asyncio
 import traceback
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.common.data_models.database_data_model import DatabaseMessages
@@ -19,7 +19,7 @@ logger = get_logger("action_manager")
 class ChatterActionManager:
     """
     动作管理器，用于管理和执行动作
-    
+
     职责：
     - 加载和管理可用动作集
     - 创建动作实例
@@ -139,7 +139,7 @@ class ChatterActionManager:
     ) -> Any:
         """
         执行单个动作
-        
+
         所有动作逻辑都在 BaseAction.execute() 中实现
 
         Args:

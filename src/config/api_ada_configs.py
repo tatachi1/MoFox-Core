@@ -1,9 +1,10 @@
 from threading import Lock
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from src.config.config_base import ValidatedConfigBase
+from src.config.official_configs import InnerConfig
 
 
 class APIProvider(ValidatedConfigBase):
@@ -12,14 +13,17 @@ class APIProvider(ValidatedConfigBase):
     name: str = Field(..., min_length=1, description="API提供商名称")
     base_url: str = Field(..., description="API基础URL")
     api_key: str | list[str] = Field(..., min_length=1, description="API密钥，支持单个密钥或密钥列表轮询")
-    client_type: Literal["openai", "gemini", "aiohttp_gemini"] = Field(
-        default="openai", description="客户端类型（如openai/google等，默认为openai）"
+    client_type: Literal["openai", "gemini", "aiohttp_gemini", "bedrock"] = Field(
+        default="openai", description="客户端类型（如openai/google/bedrock等，默认为openai）"
     )
     max_retry: int = Field(default=2, ge=0, description="最大重试次数（单个模型API调用失败，最多重试的次数）")
     timeout: int = Field(
         default=10, ge=1, description="API调用的超时时长（超过这个时长，本次请求将被视为'请求超时'，单位：秒）"
     )
     retry_interval: int = Field(default=10, ge=0, description="重试间隔（如果API调用失败，重试的间隔时间，单位：秒）")
+
+    _api_key_lock: Lock = PrivateAttr(default_factory=Lock)
+    _api_key_index: int = PrivateAttr(default=0)
 
     @classmethod
     def validate_base_url(cls, v):
@@ -43,11 +47,6 @@ class APIProvider(ValidatedConfigBase):
         else:
             raise ValueError("API密钥必须是字符串或字符串列表")
         return v
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._api_key_lock = Lock()
-        self._api_key_index = 0
 
     def get_api_key(self) -> str:
         with self._api_key_lock:
@@ -130,9 +129,11 @@ class ModelTaskConfig(ValidatedConfigBase):
     # 必需配置项
     utils: TaskConfig = Field(..., description="组件模型配置")
     utils_small: TaskConfig = Field(..., description="组件小模型配置")
-    replyer: TaskConfig = Field(..., description="normal_chat首要回复模型模型配置")
+    replyer: TaskConfig = Field(..., description="normal_chat首要回复模型模型配置（群聊使用）")
+    replyer_private: TaskConfig = Field(..., description="normal_chat首要回复模型模型配置（私聊使用）")
     maizone: TaskConfig = Field(..., description="maizone专用模型")
     emotion: TaskConfig = Field(..., description="情绪模型配置")
+    mood: TaskConfig = Field(..., description="心情模型配置")
     vlm: TaskConfig = Field(..., description="视觉语言模型配置")
     voice: TaskConfig = Field(..., description="语音识别模型配置")
     tool_use: TaskConfig = Field(..., description="专注工具使用模型配置")
@@ -148,7 +149,7 @@ class ModelTaskConfig(ValidatedConfigBase):
     relationship_tracker: TaskConfig = Field(..., description="关系追踪模型配置")
     # 处理配置文件中命名不一致的问题
     utils_video: TaskConfig = Field(..., description="视频分析模型配置（兼容配置文件中的命名）")
-    
+
     # 记忆系统专用模型配置
     memory_short_term_builder: TaskConfig = Field(..., description="短期记忆构建模型配置（感知→短期格式化）")
     memory_short_term_decider: TaskConfig = Field(..., description="短期记忆决策模型配置（合并/更新/新建/丢弃）")
@@ -177,14 +178,26 @@ class ModelTaskConfig(ValidatedConfigBase):
 class APIAdapterConfig(ValidatedConfigBase):
     """API Adapter配置类"""
 
+    inner: InnerConfig = Field(..., description="配置元信息")
     models: list[ModelInfo] = Field(..., min_length=1, description="模型列表")
     model_task_config: ModelTaskConfig = Field(..., description="模型任务配置")
     api_providers: list[APIProvider] = Field(..., min_length=1, description="API提供商列表")
 
+    _api_providers_dict: dict[str, APIProvider] = PrivateAttr(default_factory=dict)
+    _models_dict: dict[str, ModelInfo] = PrivateAttr(default_factory=dict)
+
     def __init__(self, **data):
         super().__init__(**data)
-        self.api_providers_dict = {provider.name: provider for provider in self.api_providers}
-        self.models_dict = {model.name: model for model in self.models}
+        self._api_providers_dict = {provider.name: provider for provider in self.api_providers}
+        self._models_dict = {model.name: model for model in self.models}
+
+    @property
+    def api_providers_dict(self) -> dict[str, APIProvider]:
+        return self._api_providers_dict
+
+    @property
+    def models_dict(self) -> dict[str, ModelInfo]:
+        return self._models_dict
 
     @classmethod
     def validate_models_list(cls, v):

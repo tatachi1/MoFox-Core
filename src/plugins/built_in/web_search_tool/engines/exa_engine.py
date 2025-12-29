@@ -52,7 +52,6 @@ class ExaSearchEngine(BaseSearchEngine):
             "query": query,
             "num_results": num_results,
             "type": "auto",
-            "highlights": True,  # 获取高亮片段
         }
 
         # 时间范围过滤
@@ -118,7 +117,6 @@ class ExaSearchEngine(BaseSearchEngine):
             "query": query,
             "num_results": num_results,
             "type": "auto",
-            "highlights": True,
         }
 
         try:

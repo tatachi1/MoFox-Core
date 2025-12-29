@@ -102,7 +102,7 @@ class RelationshipFetcher:
 
     async def build_relation_info(self, person_id, points_num=5):
         """构建详细的人物关系信息
-        
+
         注意：现在只从 user_relationships 表读取印象和关系数据，
         person_info 表只用于获取基础信息（用户名、平台等）
         """
@@ -113,10 +113,10 @@ class RelationshipFetcher:
         self._cleanup_expired_cache()
 
         person_info_manager = get_person_info_manager()
-        
+
         # 仅从 person_info 获取基础信息（不获取印象相关字段）
         person_name = await person_info_manager.get_value(person_id, "person_name")
-        platform = await person_info_manager.get_value(person_id, "platform")
+        await person_info_manager.get_value(person_id, "platform")
 
         # 构建详细的关系描述
         relation_parts = []
@@ -173,24 +173,34 @@ class RelationshipFetcher:
                 if impression:
                     relation_parts.append(f"\n你对{person_name}的印象：\n{impression}")
 
-                # 5. 用户偏好关键词
+                # 5. 用户偏好关键词（仅显示真实兴趣爱好）
                 if rel_data.get("preference_keywords"):
                     keywords_list = [kw.strip() for kw in rel_data["preference_keywords"].split(",") if kw.strip()]
-                    if keywords_list:
-                        keywords_str = "、".join(keywords_list)
-                        relation_parts.append(f"\n{person_name}的偏好和兴趣：{keywords_str}")
+                    # 过滤掉明显不是兴趣爱好的词
+                    filtered_keywords = []
+                    for kw in keywords_list:
+                        kw_lower = kw.lower()
+                        # 排除聊天互动、情感需求等不是真实兴趣的词汇
+                        if not any(excluded in kw_lower for excluded in [
+                            "亲亲", "撒娇", "被宠", "被夸", "聊天", "互动", "关心", "专注", "需要"
+                        ]):
+                            filtered_keywords.append(kw)
 
-                # 6. 关键信息
-                if rel_data.get("key_facts"):
-                    try:
-                        import orjson
-                        facts = orjson.loads(rel_data["key_facts"])
-                        if facts and isinstance(facts, list):
-                            facts_lines = self._format_key_facts(facts, person_name)
-                            if facts_lines:
-                                relation_parts.append(f"\n你记住的关于{person_name}的重要信息：\n{facts_lines}")
-                    except Exception:
-                        pass
+                    if filtered_keywords:
+                        keywords_str = "、".join(filtered_keywords)
+                        relation_parts.append(f"\n{person_name}的兴趣爱好：{keywords_str}")
+
+                # 6. 关键信息 - 暂时隐藏，防止显示不准确的推测信息
+                # if rel_data.get("key_facts"):
+                #     try:
+                #         import orjson
+                #         facts = orjson.loads(rel_data["key_facts"])
+                #         if facts and isinstance(facts, list):
+                #             facts_lines = self._format_key_facts(facts, person_name)
+                #             if facts_lines:
+                #                 relation_parts.append(f"\n你记住的关于{person_name}的重要信息：\n{facts_lines}")
+                #     except Exception:
+                #         pass
 
         except Exception as e:
             logger.error(f"查询UserRelationships表失败: {e}")

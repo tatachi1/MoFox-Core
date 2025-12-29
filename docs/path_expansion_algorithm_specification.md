@@ -1,7 +1,8 @@
 # 路径评分扩展算法技术规范
 
-**文档版本**: 1.0.0  
-**创建日期**: 2025-01-12  
+**文档版本**: 1.1.0  
+**更新日期**: 2025-12-21  
+**状态**: 已实现 (Python)  
 **目标**: 为 C++/其他语言实现提供完整的算法规范  
 **作者**: MoFox Bot Development Team
 
@@ -60,6 +61,8 @@
 
 ### 2.1 节点 (Node)
 
+> **实现注记**: 在 Python 实现 (`src/memory_graph/models.py`) 中，`MemoryNode` 不直接存储 `importance`。节点的重要性通常由所属 `Memory` 的重要性或向量相似度动态决定。
+
 ```cpp
 struct Node {
     string id;              // 节点唯一标识符 (UUID)
@@ -69,7 +72,7 @@ struct Node {
     map<string, string> metadata; // 元数据
     
     // 可选字段
-    float importance;       // 节点重要性 [0.0, 1.0]
+    float importance;       // 节点重要性 [0.0, 1.0] (Python实现中未直接使用)
     time_t created_at;      // 创建时间戳
 };
 
@@ -633,6 +636,30 @@ float calculate_recency(const Memory& memory, time_t current_time) {
 }
 ```
 
+### 4.8 偏好节点类型加成 (Preferred Node Types Bonus)
+
+为了支持 LLM 对特定类型信息（如"事件"、"实体"）的显式需求，算法引入了偏好类型加成机制。
+
+```cpp
+float apply_type_bonus(float base_score, const Node& node, const vector<NodeType>& preferred_types) {
+    if (preferred_types.empty()) return base_score;
+    
+    // 检查节点类型是否匹配
+    bool is_match = std::find(preferred_types.begin(), preferred_types.end(), node.type) != preferred_types.end();
+    
+    if (is_match) {
+        // 给予 20% 的分数加成
+        return base_score + (base_score * 0.2f);
+    }
+    
+    return base_score;
+}
+```
+
+**应用场景**:
+- 当用户询问 "发生了什么事" 时，LLM 指定 `preferred_types=["EVENT"]`。
+- 当用户询问 "关于小明的信息" 时，LLM 指定 `preferred_types=["PERSON", "ENTITY"]`。
+
 ---
 
 ## 5. 性能优化要点
@@ -823,6 +850,30 @@ for (int hop = 1; hop <= config.max_hops; ++hop) {
     active_paths = new_paths;
 }
 ```
+
+### 5.4 Python 实现中的具体优化
+
+在 Python 版本 (`src/memory_graph/utils/path_expansion.py`) 中，已实施以下优化措施：
+
+1.  **批量节点评分 (`_batch_get_node_scores`)**:
+    *   将单次向量相似度计算聚合为批量矩阵运算。
+    *   使用 `asyncio.gather` 并行获取节点数据。
+    *   将密集计算任务 (`_batch_compute_similarities`) 移至线程池执行，避免阻塞事件循环。
+
+2.  **邻居边缓存 (`_neighbor_cache`)**:
+    *   在单次查询生命周期内缓存节点的邻居边列表。
+    *   避免对同一节点的重复数据库查询和排序操作。
+
+3.  **早停机制 (Early Stopping)**:
+    *   监控每跳路径数量的增长率。
+    *   如果增长率低于阈值 (`early_stop_growth_threshold`, 默认 10%)，则提前终止扩展，避免无效计算。
+
+4.  **粗排过滤 (Coarse Ranking)**:
+    *   在进行昂贵的最终评分之前，先根据路径数量和简单指标过滤掉低质量记忆。
+    *   通过 `max_candidate_memories` 参数控制进入精细评分阶段的记忆数量。
+
+5.  **类型预加载**:
+    *   在最终评分阶段，批量预加载所有相关节点的类型信息，避免在循环中逐个查询。
 
 ---
 

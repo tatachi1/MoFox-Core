@@ -3,8 +3,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 
-from src.common.database.compatibility import db_get, db_query
 from src.common.database.api.query import QueryBuilder
+from src.common.database.compatibility import db_get, db_query
 from src.common.database.core.models import LLMUsage, Messages, OnlineTime
 from src.common.logger import get_logger
 from src.manager.async_task_manager import AsyncTask
@@ -121,7 +121,7 @@ class StatisticOutputTask(AsyncTask):
 
     def __init__(self, record_file_path: str = "mofox_bot_statistics.html"):
         # 延迟300秒启动，运行间隔300秒
-        super().__init__(task_name="Statistics Data Output Task", wait_before_start=0, run_interval=300)
+        super().__init__(task_name="Statistics Data Output Task", wait_before_start=600, run_interval=900)
 
         self.name_mapping: dict[str, tuple[str, float]] = {}
         """
@@ -179,40 +179,17 @@ class StatisticOutputTask(AsyncTask):
     @staticmethod
     async def _yield_control(iteration: int, interval: int = 200) -> None:
         """
-        �ڴ����������ʱ������������첽�¼�ѭ�����Ӧ
-
-        Args:
-            iteration: ��ǰ�������
-            interval: ÿ�����ٴ��л�һ��
+        在长时间运行的循环中定期让出控制权，以防止阻塞事件循环
+        :param iteration: 当前迭代次数
+        :param interval: 每隔多少次迭代让出一次控制权
         """
+
         if iteration % interval == 0:
             await asyncio.sleep(0)
 
     async def run(self):
-        try:
-            now = datetime.now()
-            logger.info("正在收集统计数据(异步)...")
-            stats = await self._collect_all_statistics(now)
-            logger.info("统计数据收集完成")
-
-            self._statistic_console_output(stats, now)
-            # 使用新的 HTMLReportGenerator 生成报告
-            chart_data = await self._collect_chart_data(stats)
-            deploy_time = datetime.fromtimestamp(float(local_storage.get("deploy_time", now.timestamp())))  # type: ignore
-            report_generator = HTMLReportGenerator(
-                name_mapping=self.name_mapping,
-                stat_period=self.stat_period,
-                deploy_time=deploy_time,
-            )
-            await report_generator.generate_report(stats, chart_data, now, self.record_file_path)
-            logger.info("统计数据HTML报告输出完成")
-
-        except Exception as e:
-            logger.exception(f"输出统计数据过程中发生异常，错误信息：{e}")
-
-    async def run_async_background(self):
         """
-        备选方案：完全异步后台运行统计输出
+        完全异步后台运行统计输出
         使用此方法可以让统计任务完全非阻塞
         """
 
@@ -322,21 +299,21 @@ class StatisticOutputTask(AsyncTask):
         # 以最早的时间戳为起始时间获取记录
         # 🔧 内存优化：使用分批查询代替全量加载
         query_start_time = collect_period[-1][1]
-        
+
         query_builder = (
             QueryBuilder(LLMUsage)
             .no_cache()
             .filter(timestamp__gte=query_start_time)
             .order_by("-timestamp")
         )
-        
+
         total_processed = 0
         async for batch in query_builder.iter_batches(batch_size=STAT_BATCH_SIZE, as_dict=True):
             for record in batch:
                 if total_processed >= STAT_MAX_RECORDS:
                     logger.warning(f"统计处理记录数达到上限 {STAT_MAX_RECORDS}，跳过剩余记录")
                     break
-                    
+
                 if not isinstance(record, dict):
                     continue
 
@@ -366,8 +343,17 @@ class StatisticOutputTask(AsyncTask):
                             stats[period_key][REQ_CNT_BY_MODULE][module_name] += 1
                             stats[period_key][REQ_CNT_BY_PROVIDER][provider_name] += 1
 
-                            prompt_tokens = record.get("prompt_tokens") or 0
-                            completion_tokens = record.get("completion_tokens") or 0
+                            # 确保 tokens 是 int 类型
+                            try:
+                                prompt_tokens = int(record.get("prompt_tokens") or 0)
+                            except (ValueError, TypeError):
+                                prompt_tokens = 0
+
+                            try:
+                                completion_tokens = int(record.get("completion_tokens") or 0)
+                            except (ValueError, TypeError):
+                                completion_tokens = 0
+
                             total_tokens = prompt_tokens + completion_tokens
 
                             stats[period_key][IN_TOK_BY_TYPE][request_type] += prompt_tokens
@@ -386,7 +372,13 @@ class StatisticOutputTask(AsyncTask):
                             stats[period_key][TOTAL_TOK_BY_MODULE][module_name] += total_tokens
                             stats[period_key][TOTAL_TOK_BY_PROVIDER][provider_name] += total_tokens
 
+                            # 确保 cost 是 float 类型
                             cost = record.get("cost") or 0.0
+                            try:
+                                cost = float(cost) if cost else 0.0
+                            except (ValueError, TypeError):
+                                cost = 0.0
+
                             stats[period_key][TOTAL_COST] += cost
                             stats[period_key][COST_BY_TYPE][request_type] += cost
                             stats[period_key][COST_BY_USER][user_id] += cost
@@ -394,8 +386,12 @@ class StatisticOutputTask(AsyncTask):
                             stats[period_key][COST_BY_MODULE][module_name] += cost
                             stats[period_key][COST_BY_PROVIDER][provider_name] += cost
 
-                            # 收集time_cost数据
+                            # 收集time_cost数据，确保 time_cost 是 float 类型
                             time_cost = record.get("time_cost") or 0.0
+                            try:
+                                time_cost = float(time_cost) if time_cost else 0.0
+                            except (ValueError, TypeError):
+                                time_cost = 0.0
                             if time_cost > 0:  # 只记录有效的time_cost
                                 stats[period_key][TIME_COST_BY_TYPE][request_type].append(time_cost)
                                 stats[period_key][TIME_COST_BY_USER][user_id].append(time_cost)
@@ -407,11 +403,11 @@ class StatisticOutputTask(AsyncTask):
                 total_processed += 1
                 if total_processed % 500 == 0:
                     await StatisticOutputTask._yield_control(total_processed, interval=1)
-            
+
             # 检查是否达到上限
             if total_processed >= STAT_MAX_RECORDS:
                 break
-            
+
             # 每批处理完后让出控制权
             await asyncio.sleep(0)
         # -- 计算派生指标 --
@@ -503,7 +499,7 @@ class StatisticOutputTask(AsyncTask):
                     "labels": [item[0] for item in sorted_models],
                     "data": [round(item[1], 4) for item in sorted_models],
                 }
-            
+
             # 1. Token输入输出对比条形图
             model_names = list(period_stats[REQ_CNT_BY_MODEL].keys())
             if model_names:
@@ -512,7 +508,7 @@ class StatisticOutputTask(AsyncTask):
                     "input_tokens": [period_stats[IN_TOK_BY_MODEL].get(m, 0) for m in model_names],
                     "output_tokens": [period_stats[OUT_TOK_BY_MODEL].get(m, 0) for m in model_names],
                 }
-            
+
             # 2. 响应时间分布散点图数据（限制数据点以提高加载速度）
             scatter_data = []
             max_points_per_model = 50  # 每个模型最多50个点
@@ -523,7 +519,7 @@ class StatisticOutputTask(AsyncTask):
                     sampled_costs = time_costs[::step][:max_points_per_model]
                 else:
                     sampled_costs = time_costs
-                
+
                 for idx, time_cost in enumerate(sampled_costs):
                     scatter_data.append({
                         "model": model_name,
@@ -532,7 +528,7 @@ class StatisticOutputTask(AsyncTask):
                         "tokens": period_stats[TOTAL_TOK_BY_MODEL].get(model_name, 0) // len(time_costs) if time_costs else 0
                     })
             period_stats[SCATTER_CHART_RESPONSE_TIME] = scatter_data
-            
+
             # 3. 模型效率雷达图
             if model_names:
                 # 取前5个最常用的模型
@@ -545,14 +541,14 @@ class StatisticOutputTask(AsyncTask):
                     avg_time = period_stats[AVG_TIME_COST_BY_MODEL].get(model_name, 0)
                     cost_per_ktok = period_stats[COST_PER_KTOK_BY_MODEL].get(model_name, 0)
                     avg_tokens = period_stats[AVG_TOK_BY_MODEL].get(model_name, 0)
-                    
+
                     # 简单的归一化（反向归一化时间和成本，值越小越好）
                     max_req = max([period_stats[REQ_CNT_BY_MODEL].get(m[0], 1) for m in top_models])
                     max_tps = max([period_stats[TPS_BY_MODEL].get(m[0], 1) for m in top_models])
                     max_time = max([period_stats[AVG_TIME_COST_BY_MODEL].get(m[0], 0.1) for m in top_models])
                     max_cost = max([period_stats[COST_PER_KTOK_BY_MODEL].get(m[0], 0.001) for m in top_models])
                     max_tokens = max([period_stats[AVG_TOK_BY_MODEL].get(m[0], 1) for m in top_models])
-                    
+
                     radar_data.append({
                         "model": model_name,
                         "metrics": [
@@ -567,7 +563,7 @@ class StatisticOutputTask(AsyncTask):
                     "labels": ["请求量", "TPS", "响应速度", "成本效益", "Token容量"],
                     "datasets": radar_data
                 }
-            
+
             # 4. 供应商请求占比环形图
             provider_requests = period_stats[REQ_CNT_BY_PROVIDER]
             if provider_requests:
@@ -576,7 +572,7 @@ class StatisticOutputTask(AsyncTask):
                     "labels": [item[0] for item in sorted_provider_reqs],
                     "data": [item[1] for item in sorted_provider_reqs],
                 }
-            
+
             # 5. 平均响应时间条形图
             if model_names:
                 sorted_by_time = sorted(
@@ -649,7 +645,7 @@ class StatisticOutputTask(AsyncTask):
                             if overlap_end > overlap_start:
                                 stats[period_key][ONLINE_TIME] += (overlap_end - overlap_start).total_seconds()
                         break
-            
+
             # 每批处理完后让出控制权
             await asyncio.sleep(0)
 
@@ -689,7 +685,7 @@ class StatisticOutputTask(AsyncTask):
                 if total_processed >= STAT_MAX_RECORDS:
                     logger.warning(f"消息统计处理记录数达到上限 {STAT_MAX_RECORDS}，跳过剩余记录")
                     break
-                    
+
                 if not isinstance(message, dict):
                     continue
                 message_time_ts = message.get("time")  # This is a float timestamp
@@ -732,11 +728,11 @@ class StatisticOutputTask(AsyncTask):
                 total_processed += 1
                 if total_processed % 500 == 0:
                     await StatisticOutputTask._yield_control(total_processed, interval=1)
-            
+
             # 检查是否达到上限
             if total_processed >= STAT_MAX_RECORDS:
                 break
-            
+
             # 每批处理完后让出控制权
             await asyncio.sleep(0)
 
@@ -845,10 +841,10 @@ class StatisticOutputTask(AsyncTask):
 
     def _compress_time_cost_lists(self, data: dict[str, Any]) -> dict[str, Any]:
         """🔧 内存优化：将 TIME_COST_BY_* 的 list 压缩为聚合数据
-        
+
         原始格式: {"model_a": [1.2, 2.3, 3.4, ...]}  (可能无限增长)
         压缩格式: {"model_a": {"sum": 6.9, "count": 3, "sum_sq": 18.29}}
-        
+
         这样合并时只需要累加 sum/count/sum_sq，不会无限增长。
         avg = sum / count
         std = sqrt(sum_sq / count - (sum / count)^2)
@@ -858,17 +854,17 @@ class StatisticOutputTask(AsyncTask):
             TIME_COST_BY_TYPE, TIME_COST_BY_USER, TIME_COST_BY_MODEL,
             TIME_COST_BY_MODULE, TIME_COST_BY_PROVIDER
         ]
-        
+
         result = dict(data)  # 浅拷贝
-        
+
         for key in time_cost_keys:
             if key not in result:
                 continue
-            
+
             original = result[key]
             if not isinstance(original, dict):
                 continue
-            
+
             compressed = {}
             for sub_key, values in original.items():
                 if isinstance(values, list):
@@ -886,9 +882,9 @@ class StatisticOutputTask(AsyncTask):
                 else:
                     # 未知格式，保留原值
                     compressed[sub_key] = values
-            
+
             result[key] = compressed
-        
+
         return result
 
     def _convert_defaultdict_to_dict(self, data):
@@ -1008,7 +1004,7 @@ class StatisticOutputTask(AsyncTask):
             .filter(timestamp__gte=start_time)
             .order_by("-timestamp")
         )
-        
+
         async for batch in llm_query_builder.iter_batches(batch_size=STAT_BATCH_SIZE, as_dict=True):
             for record in batch:
                 if not isinstance(record, dict) or not record.get("timestamp"):
@@ -1033,7 +1029,7 @@ class StatisticOutputTask(AsyncTask):
                     if module_name not in cost_by_module:
                         cost_by_module[module_name] = [0.0] * len(time_points)
                     cost_by_module[module_name][idx] += cost
-            
+
             await asyncio.sleep(0)
 
         # 🔧 内存优化：使用分批查询 Messages
@@ -1043,7 +1039,7 @@ class StatisticOutputTask(AsyncTask):
             .filter(time__gte=start_time.timestamp())
             .order_by("-time")
         )
-        
+
         async for batch in msg_query_builder.iter_batches(batch_size=STAT_BATCH_SIZE, as_dict=True):
             for msg in batch:
                 if not isinstance(msg, dict) or not msg.get("time"):
@@ -1063,7 +1059,7 @@ class StatisticOutputTask(AsyncTask):
                         if chat_name not in message_by_chat:
                             message_by_chat[chat_name] = [0] * len(time_points)
                         message_by_chat[chat_name][idx] += 1
-            
+
             await asyncio.sleep(0)
 
         return {

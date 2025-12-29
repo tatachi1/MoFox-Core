@@ -14,8 +14,6 @@ from sqlalchemy import select
 from src.common.database.compatibility import get_db_session
 from src.common.database.core.models import MaiZoneScheduleStatus
 from src.common.logger import get_logger
-from src.config.config import model_config as global_model_config
-from src.plugin_system.apis import llm_api
 from src.schedule.schedule_manager import schedule_manager
 
 from .qzone_service import QZoneService

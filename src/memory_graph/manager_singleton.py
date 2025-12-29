@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from src.common.logger import get_logger
@@ -19,6 +20,7 @@ _initialized: bool = False
 
 # 全局 UnifiedMemoryManager 实例（新的三层记忆系统）
 _unified_memory_manager = None
+_unified_memory_init_lock: asyncio.Lock | None = None
 
 
 # ============================================================================
@@ -66,7 +68,7 @@ async def initialize_memory_manager(
         await _memory_manager.initialize()
 
         _initialized = True
-        logger.info("✅ 全局 MemoryManager 初始化成功")
+        logger.info("全局 MemoryManager 初始化成功")
 
         return _memory_manager
 
@@ -98,7 +100,7 @@ async def shutdown_memory_manager():
     if _memory_manager:
         try:
             await _memory_manager.shutdown()
-            logger.info("✅ 全局 MemoryManager 已关闭")
+            logger.info("全局 MemoryManager 已关闭")
         except Exception as e:
             logger.error(f"关闭 MemoryManager 时出错: {e}")
         finally:
@@ -151,7 +153,7 @@ async def initialize_unified_memory_manager():
         # 注意：我们将 data_dir 指向 three_tier 子目录，以隔离感知/短期记忆数据
         # 同时传入全局 _memory_manager 以共享长期记忆图存储
         base_data_dir = Path(getattr(config, "data_dir", "data/memory_graph"))
-        
+
         _unified_memory_manager = UnifiedMemoryManager(
             data_dir=base_data_dir,
             memory_manager=_memory_manager,
@@ -164,6 +166,9 @@ async def initialize_unified_memory_manager():
             # 短期记忆配置
             short_term_max_memories=getattr(config, "short_term_max_memories", 30),
             short_term_transfer_threshold=getattr(config, "short_term_transfer_threshold", 0.6),
+            short_term_overflow_strategy=getattr(config, "short_term_overflow_strategy", "transfer_all"),
+            short_term_enable_force_cleanup=getattr(config, "short_term_enable_force_cleanup", True),
+            short_term_cleanup_keep_ratio=getattr(config, "short_term_cleanup_keep_ratio", 0.9),
             # 长期记忆配置
             long_term_batch_size=getattr(config, "long_term_batch_size", 10),
             long_term_search_top_k=getattr(config, "search_top_k", 5),
@@ -194,6 +199,27 @@ def get_unified_memory_manager():
     return _unified_memory_manager
 
 
+async def ensure_unified_memory_manager_initialized():
+    """
+    确保统一记忆管理器已初始化。
+
+    在首次访问时自动初始化，避免调用方重复判断。
+    """
+    global _unified_memory_init_lock, _unified_memory_manager
+
+    if _unified_memory_manager is not None:
+        return _unified_memory_manager
+
+    if _unified_memory_init_lock is None:
+        _unified_memory_init_lock = asyncio.Lock()
+
+    async with _unified_memory_init_lock:
+        if _unified_memory_manager is not None:
+            return _unified_memory_manager
+
+        return await initialize_unified_memory_manager()
+
+
 async def shutdown_unified_memory_manager() -> None:
     """关闭统一记忆管理器"""
     global _unified_memory_manager
@@ -205,7 +231,7 @@ async def shutdown_unified_memory_manager() -> None:
     try:
         await _unified_memory_manager.shutdown()
         _unified_memory_manager = None
-        logger.info("✅ 统一记忆管理器已关闭")
+        logger.info("统一记忆管理器已关闭")
 
     except Exception as e:
         logger.error(f"关闭统一记忆管理器失败: {e}")

@@ -298,13 +298,13 @@ QQ_FACE = {
 
 
 __all__ = [
-    "MetaEventType",
-    "MessageType",
-    "NoticeType",
-    "RealMessageType",
-    "MessageSentType",
-    "CommandType",
     "ACCEPT_FORMAT",
     "PLUGIN_NAME",
     "QQ_FACE",
+    "CommandType",
+    "MessageSentType",
+    "MessageType",
+    "MetaEventType",
+    "NoticeType",
+    "RealMessageType",
 ]

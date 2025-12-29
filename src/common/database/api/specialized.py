@@ -91,7 +91,7 @@ async def store_action_info(
             )
 
         # 使用get_or_create保存记录
-        saved_record, created = await _action_records_crud.get_or_create(
+        saved_record, _created = await _action_records_crud.get_or_create(
             defaults=record_data,
             action_id=action_id,
         )
@@ -438,7 +438,7 @@ async def update_relationship_affinity(
     """
     try:
         # 获取或创建关系
-        relationship, created = await _user_relationships_crud.get_or_create(
+        relationship, _created = await _user_relationships_crud.get_or_create(
             defaults={"affinity": 0.0, "interaction_count": 0},
             platform=platform,
             user_id=user_id,

@@ -58,7 +58,7 @@ class ChatterPlanFilter:
             prompt, used_message_id_list = await self._build_prompt(plan)
             plan.llm_prompt = prompt
             if global_config.debug.show_prompt:
-                logger.info(
+                logger.debug(
                     f"规划器原始提示词:{prompt}"
                 )  # 叫你不要改你耳朵聋吗😡😡😡😡😡
 
@@ -489,7 +489,7 @@ class ChatterPlanFilter:
             # 构建已读历史消息块
             if read_messages:
                 read_content, _ = await build_readable_messages_with_id(
-                    messages=[msg.flatten() for msg in read_messages[-50:]],  # 限制数量
+                    messages=[msg.flatten() for msg in read_messages[-80:]],  # 限制数量
                     timestamp_mode="normal_no_YMD",
                     truncate=False,
                     show_actions=False,
@@ -674,7 +674,7 @@ class ChatterPlanFilter:
                             logger.info(f"[{action}] 成功使用最新消息: {action_message_obj.message_id}")
                         except Exception as e:
                             logger.error(f"[{action}] 无法转换最新消息: {e}")
-                
+
                 return ActionPlannerInfo(
                     action_type=action,
                     reasoning=reasoning,
@@ -738,7 +738,7 @@ class ChatterPlanFilter:
 动作使用场景:
 {action_require}
 
-你应该像这样使用它: 
+你应该像这样使用它:
     {{
         "action_type": "{action_name}",
         "reasoning": "<执行该动作的详细原因>",

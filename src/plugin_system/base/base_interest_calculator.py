@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from src.common.data_models.database_data_model import DatabaseMessages
 
 from src.common.logger import get_logger
-from src.plugin_system.base.component_types import ComponentType, InterestCalculatorInfo
 
 logger = get_logger("base_interest_calculator")
 
@@ -118,10 +117,17 @@ class BaseInterestCalculator(ABC):
         """
         try:
             self._enabled = True
+            # 子类可以重写此方法执行自定义初始化
+            await self.on_initialize()
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"初始化兴趣计算器失败: {e}")
             self._enabled = False
             return False
+
+    async def on_initialize(self):
+        """子类可重写的初始化钩子"""
+        pass
 
     async def cleanup(self) -> bool:
         """清理组件资源
@@ -130,10 +136,17 @@ class BaseInterestCalculator(ABC):
             bool: 清理是否成功
         """
         try:
+            # 子类可以重写此方法执行自定义清理
+            await self.on_cleanup()
             self._enabled = False
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"清理兴趣计算器失败: {e}")
             return False
+
+    async def on_cleanup(self):
+        """子类可重写的清理钩子"""
+        pass
 
     @property
     def is_enabled(self) -> bool:
@@ -210,26 +223,6 @@ class BaseInterestCalculator(ABC):
                 return default
         return current
 
-    @classmethod
-    def get_interest_calculator_info(cls) -> "InterestCalculatorInfo":
-        """从类属性生成InterestCalculatorInfo
-
-        遵循BaseCommand和BaseAction的设计模式，从类属性自动生成组件信息
-
-        Returns:
-            InterestCalculatorInfo: 生成的兴趣计算器信息对象
-        """
-        name = getattr(cls, "component_name", cls.__name__.lower().replace("calculator", ""))
-        if "." in name:
-            logger.error(f"InterestCalculator名称 '{name}' 包含非法字符 '.'，请使用下划线替代")
-            raise ValueError(f"InterestCalculator名称 '{name}' 包含非法字符 '.'，请使用下划线替代")
-
-        return InterestCalculatorInfo(
-            name=name,
-            component_type=ComponentType.INTEREST_CALCULATOR,
-            description=getattr(cls, "component_description", cls.__doc__ or "兴趣度计算器"),
-            enabled_by_default=getattr(cls, "enabled_by_default", True),
-        )
 
     def __repr__(self) -> str:
         return (

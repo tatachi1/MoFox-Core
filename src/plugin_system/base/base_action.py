@@ -838,11 +838,20 @@ class BaseAction(ABC):
 只需要回答"是"或"否"，不要有其他内容。
 """
 
-            # 调用 LLM 进行判断
-            response, _ = await llm_judge_model.generate_response_async(prompt=prompt)
-            response = response.strip().lower()
-
-            should_activate = "是" in response or "yes" in response or "true" in response
+            # 调用 LLM 进行判断，设置7秒超时避免长时间等待
+            import asyncio
+            response = ""  # 初始化response变量
+            try:
+                response, _ = await asyncio.wait_for(
+                    llm_judge_model.generate_response_async(prompt=prompt),
+                    timeout=7.0
+                )
+                response = response.strip().lower()
+                should_activate = "是" in response or "yes" in response or "true" in response
+            except asyncio.TimeoutError:
+                logger.warning(f"{self.log_prefix} LLM 判断激活超时（7秒），默认激活以避免阻塞")
+                # 超时时默认激活，交给后续决策系统处理
+                should_activate = True
 
             logger.debug(
                 f"{self.log_prefix} LLM 判断结果: 响应='{response}', 结果={'激活' if should_activate else '不激活'}"
